@@ -219,7 +219,7 @@ fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
         if bytes.is_empty() {
             return glib::Propagation::Proceed;
         }
-        let _ = tx_in.send(ToThread::Data(bytes));
+        let _ = tx_key.send(ToThread::Data(bytes));
         glib::Propagation::Stop
     });
     term.add_controller(controller);
