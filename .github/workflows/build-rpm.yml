@@ -40,7 +40,21 @@ jobs:
           # совпадают (в git файлы могли измениться при конверсии переводов строк)
           cd "/tmp/$NAME"
           rm -rf vendor
+          # .cargo/config.toml из репозитория включает offline-режим и vendored
+          # sources — для cargo vendor на CI он не нужен
+          rm -rf .cargo
           cargo vendor vendor > /dev/null
+          mkdir -p .cargo
+          cat > .cargo/config.toml <<'EOF'
+          [source.crates-io]
+          replace-with = "vendored-sources"
+
+          [source.vendored-sources]
+          directory = "vendor"
+
+          [net]
+          offline = true
+          EOF
 
           tar -czf "$HOME/rpmbuild/SOURCES/remotix-vendor-${VERSION}.tar.gz" -C "/tmp/$NAME" vendor
           cp Cargo.lock "$HOME/rpmbuild/SOURCES/"
