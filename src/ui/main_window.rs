@@ -59,15 +59,17 @@ impl MainWindow {
 
         let win = Self { root, state, notebook, search, status };
 
-        new_btn.connect_clicked(clone!(move |_| win.open_profile_editor(None)));
-        quick_btn.connect_clicked(clone!(move |_| {
-            let text = win.search.text().to_string(); // быстрый ввод берём из поля поиска
-            win.status.set_text(&format!("Подключение к {text}…"));
+        let win_clone = win.clone();
+        new_btn.connect_clicked(move |_| win_clone.open_profile_editor(None));
+        let win_quick = win.clone();
+        quick_btn.connect_clicked(move |_| {
+            let text = win_quick.search.text().to_string(); // быстрый ввод берём из поля поиска
+            win_quick.status.set_text(&format!("Подключение к {text}…"));
             match quick_profile(&text) {
-                Some(p) => win.open_ssh_terminal(p),
-                None => win.status.set_text("Формат: user@host (SSH)"),
+                Some(p) => win_quick.open_ssh_terminal(p),
+                None => win_quick.status.set_text("Формат: user@host (SSH)"),
             }
-        }));
+        });
 
         win
     }
