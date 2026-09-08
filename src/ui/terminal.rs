@@ -3,6 +3,7 @@ use gtk4::prelude::*;
 use gtk4::{Box as GtkBox, Label, ScrolledWindow};
 
 use crate::protocols::ssh::SshConnection;
+use crate::protocols::Connection;
 
 #[cfg(target_os = "linux")]
 use gtk4::EventControllerKey;
@@ -219,7 +220,7 @@ fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
         let _ = tx_in.send(ToThread::Data(bytes));
         glib::Propagation::Stop
     });
-    term.add_controller(&controller);
+    term.add_controller(controller);
 
     // Resize PTY при изменении размера виджета.
     let tx_resize = tx_in.clone();
