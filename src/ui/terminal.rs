@@ -7,6 +7,8 @@ use crate::protocols::ssh::SshConnection;
 #[cfg(target_os = "linux")]
 use gtk4::EventControllerKey;
 #[cfg(target_os = "linux")]
+use vte4::prelude::*;
+#[cfg(target_os = "linux")]
 use vte4::Terminal as Vte;
 
 const PROMPT_MS: u64 = 10;
@@ -73,14 +75,15 @@ impl TerminalTab {
             };
             session.set_blocking(true);
             let su = conn.profile.ssh_options.su_to_root && conn.profile.root_password.is_some();
-            let open = (|| {
-                let mut ch = session.channel_session()?;
-                ch.request_pty("xterm", None, None)?;
+            use std::io::Read;
+            let open = (|| -> Result<ssh2::Channel, String> {
+                let mut ch = session.channel_session().map_err(|e| e.to_string())?;
+                ch.request_pty("xterm", None, None).map_err(|e| e.to_string())?;
                 if su {
-                    ch.exec("su -")?;
+                    ch.exec("su -").map_err(|e| e.to_string())?;
                     wait_password(&mut ch, &mut session, conn.profile.root_password.clone().unwrap_or_default())?;
                 } else {
-                    ch.shell()?;
+                    ch.shell().map_err(|e| e.to_string())?;
                 }
                 Ok(ch)
             })();
@@ -149,12 +152,12 @@ fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
     let controller = EventControllerKey::new();
     let term_ref = term.clone();
     controller.connect_key_pressed(move |_, keyval, _code, state| {
-        let ctrl = state.contains(ModifierType::CONTROL);
+        let ctrl = state.contains(ModifierType::CONTROL_MASK);
         let shift = state.contains(ModifierType::SHIFT_MASK);
 
         if ctrl && shift {
             match keyval.name().as_deref() {
-                Some("c") => { term_ref.copy_clipboard_format(); return glib::Propagation::Stop; }
+                Some("c") => { term_ref.copy_clipboard_format(vte4::Format::Text); return glib::Propagation::Stop; }
                 Some("v") => {
                     let clipboard = term_ref.clipboard();
                     let tx = tx_in.clone();
@@ -220,11 +223,11 @@ fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
 
     // Resize PTY при изменении размера виджета.
     let tx_resize = tx_in.clone();
-    term.connect_resize(move |t, width, height| {
-        let cw = t.char_width().max(1) as u32;
-        let chh = t.char_height().max(1) as u32;
-        let cols = (width as u32 / cw).max(2);
-        let rows = (height as u32 / chh).max(2);
+    term.connect_resize_window(move |_t, width, height| {
+        let cw = _t.char_width().max(1) as u32;
+        let chh = _t.char_height().max(1) as u32;
+        let cols = (width / cw).max(2);
+        let rows = (height / chh).max(2);
         let _ = tx_resize.send(ToThread::Resize(cols, rows));
     });
 }

@@ -93,12 +93,15 @@ impl Database {
 
         let mut stmt = self
             .conn()
-            .prepare("SELECT id, username, password, ssh_key_passphrase, root_password FROM profiles")?;
+            .prepare("SELECT id, username, password, ssh_key_passphrase, root_password FROM profiles")
+            .map_err(|e| e.to_string())?;
         let rows: Vec<(i64, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>)> = stmt
             .query_map([], |r| {
                 Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
-            })?
-            .collect::<Result<_, _>>()?;
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<_, _>>()
+            .map_err(|e| e.to_string())?;
 
         for (id, username, password, passphrase, root_password) in rows {
             let enc = |blob: &Option<Vec<u8>>| -> Option<Vec<u8>> {
@@ -110,7 +113,8 @@ impl Database {
             self.conn().execute(
                 "UPDATE profiles SET username = ?1, password = ?2, ssh_key_passphrase = ?3, root_password = ?4 WHERE id = ?5",
                 params![enc(&username), enc(&password), enc(&passphrase), enc(&root_password), id],
-            )?;
+            )
+            .map_err(|e| e.to_string())?;
         }
 
         self.meta_set("argon2_salt", &new_salt).map_err(|e| e.to_string())?;
@@ -176,16 +180,19 @@ impl Database {
     pub fn list_profiles(&self, key: &[u8; 32]) -> Result<Vec<crate::models::Profile>, String> {
         use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
         let dec = |blob: &Option<Vec<u8>>| -> Option<String> {
-            blob.as_ref()
-                .and_then(|b| crypto::decrypt(key, b).ok())
-                .map(|v| String::from_utf8_lossy(&v).into_owned())
+            match blob {
+                Some(b) => crypto::decrypt(key, b.as_slice()).ok()
+                    .map(|v| String::from_utf8_lossy(&v).into_owned()),
+                None => None,
+            }
         };
         let mut stmt = self.conn().prepare(
             "SELECT id, name, protocol, host, port, username, password, ssh_key_path,
                     ssh_key_passphrase, root_password, group_id, tags, icon, notes, rdp_options,
                     vnc_options, ssh_options, created_at, updated_at, last_connected_at
              FROM profiles ORDER BY name",
-        )?;
+        )
+        .map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |r| {
             Ok((
                 r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?,
@@ -198,7 +205,8 @@ impl Database {
                 r.get::<_, Option<String>>(15)?, r.get::<_, Option<String>>(16)?,
                 r.get::<_, i64>(17)?, r.get::<_, i64>(18)?, r.get::<_, Option<i64>>(19)?,
             ))
-        })?;
+        })
+        .map_err(|e| e.to_string())?;
 
         let mut out = Vec::new();
         for row in rows {
@@ -286,7 +294,8 @@ impl Database {
              WHERE (?1 IS NULL OR h.profile_id = ?1)
                AND (?2 IS NULL OR h.status = ?2)
              ORDER BY h.started_at DESC",
-        )?;
+        )
+        .map_err(|e| e.to_string())?;
         let rows = stmt.query_map(params![profile_id, status], |r| {
             Ok(HistoryEntry {
                 id: r.get(0)?,
@@ -298,7 +307,8 @@ impl Database {
                 error_code: r.get(6)?,
                 error_message: r.get(7)?,
             })
-        })?;
+        })
+        .map_err(|e| e.to_string())?;
         rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
     }
 

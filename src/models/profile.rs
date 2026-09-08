@@ -31,7 +31,7 @@ impl Protocol {
 }
 
 /// Дополнительные параметры RDP.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RdpOptions {
     #[serde(default)]
     pub width: u32,

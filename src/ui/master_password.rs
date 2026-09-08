@@ -39,7 +39,9 @@ impl MasterPasswordDialog {
         let btn = Button::with_label(if first_run { "Создать" } else { "Разблокировать" });
 
         let ui = gtk4::Box::new(gtk4::Orientation::Vertical, 8);
-        ui.set_margin_all(12);
+        for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
+            ui.set_property(m, 12);
+        }
         if first_run {
             ui.append(&Label::new(Some("Придумайте мастер-пароль для хранилища:")));
             ui.append(&password);

@@ -70,15 +70,15 @@ impl SftpPanel {
     /// Создание папки на сервере.
     pub fn mkdir(&mut self, name: &str) -> Result<(), String> {
         let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
-        sftp.mkdir(Path::new(&self.remote_dir).join(name), 0o755).map_err(|e| e.to_string())
+        sftp.mkdir(&Path::new(&self.remote_dir).join(name), 0o755).map_err(|e| e.to_string())
     }
 
     /// Переименование/удаление на сервере.
     pub fn rename(&mut self, from: &str, to: &str) -> Result<(), String> {
         let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
         sftp.rename(
-            Path::new(&self.remote_dir).join(from),
-            Path::new(&self.remote_dir).join(to),
+            &Path::new(&self.remote_dir).join(from),
+            &Path::new(&self.remote_dir).join(to),
             None,
         )
         .map_err(|e| e.to_string())
@@ -86,6 +86,6 @@ impl SftpPanel {
 
     pub fn remove(&mut self, name: &str) -> Result<(), String> {
         let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
-        sftp.unlink(Path::new(&self.remote_dir).join(name)).map_err(|e| e.to_string())
+        sftp.unlink(&Path::new(&self.remote_dir).join(name)).map_err(|e| e.to_string())
     }
 }

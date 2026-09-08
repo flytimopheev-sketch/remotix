@@ -6,7 +6,7 @@ use crate::protocols::Connection;
 /// SSH-подключение на базе ssh2 (libssh2): аутентификация по паролю
 /// (по защищённому каналу) или по ключу, поддержка ssh-agent.
 pub struct SshConnection {
-    profile: Profile,
+    pub profile: Profile,
     session: Option<ssh2::Session>,
     agent: Option<ssh2::Agent>,
 }
@@ -89,6 +89,13 @@ impl Connection for SshConnection {
             self.su_to_root().map_err(|e| format!("su -> root не удался: {e}"))?;
         }
         Ok(())
+    }
+
+    fn disconnect(&mut self) {
+        if let Some(mut session) = self.session.take() {
+            session.disconnect(None, "Пользователь закрыл сессию", None).ok();
+        }
+        self.agent = None;
     }
 }
 
@@ -203,15 +210,6 @@ impl SshConnection {
             .and_then(|_| channel.write_all(b"\n"))
             .map_err(|e| e.to_string())?;
         Ok(())
-    }
-}
-
-impl Connection for SshConnection {
-    fn disconnect(&mut self) {
-        if let Some(mut session) = self.session.take() {
-            session.disconnect(None, "Пользователь закрыл сессию", None).ok();
-        }
-        self.agent = None;
     }
 }
 

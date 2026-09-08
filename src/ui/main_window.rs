@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use gtk4::prelude::*;
 use gtk4::glib::clone;
 use gtk4::{Button, Entry, Label, Notebook, SearchEntry, Window};
@@ -12,7 +14,7 @@ use crate::ui::terminal::TerminalTab;
 #[derive(Clone)]
 pub struct MainWindow {
     pub root: gtk4::Box,
-    state: AppState,
+    state: Rc<AppState>,
     notebook: Notebook,
     search: SearchEntry,
     status: Label,
@@ -20,8 +22,11 @@ pub struct MainWindow {
 
 impl MainWindow {
     pub fn new(state: AppState) -> Self {
+        let state = Rc::new(state);
         let root = gtk4::Box::new(gtk4::Orientation::Vertical, 6);
-        root.set_margin_all(6);
+        for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
+            root.set_property(m, 6);
+        }
 
         // Панель инструментов
         let toolbar = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
