@@ -3,7 +3,8 @@ name = "remotix"
 version = "1.0.0"
 edition = "2021"
 description = "Remotix — клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС"
-license = "GPL-3.0-or-later"
+license = "MIT"
+authors = ["flytimopheev <flytimopheev@gmail.com>"]
 
 [dependencies]
 gtk4 = { version = "0.11", features = ["v4_12"] }

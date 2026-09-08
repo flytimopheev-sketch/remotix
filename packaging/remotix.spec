@@ -2,8 +2,9 @@ Name:           remotix
 Version:        1.0.0
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
-License:        GPL-3.0-or-later
+License:        MIT
 URL:            https://redos.example/remotix
+Maintainer:     flytimopheev <flytimopheev@gmail.com>
 Source0:        %{name}-%{version}.tar.gz
 # Tarball с зависимостями crates.io: cargo vendor vendor (готовится один раз
 # на машине с интернетом), чтобы сборка на РЕД ОС шла полностью офлайн.
