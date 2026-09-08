@@ -72,7 +72,7 @@ impl MainWindow {
     }
 
     pub fn open_profile_editor(&self, profile_id: Option<i64>) {
-        let editor = ProfileEditor::new(&self.state, profile_id);
+        let editor = ProfileEditor::new(self.state.as_ref(), profile_id);
         editor.present_transient_for(self.root.root().and_then(|w| w.downcast::<Window>().ok()).as_ref());
     }
 
