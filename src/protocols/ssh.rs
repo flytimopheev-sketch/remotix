@@ -90,7 +90,9 @@ impl Connection for SshConnection {
         }
         Ok(())
     }
+}
 
+impl SshConnection {
     /// Открывает интерактивный PTY-канал, выполняет `su -` и автоматически
     /// отвечает на prompt "Password:" паролем root. Возвращает канал,
     /// уже залогиненный под root (для терминала/команд).
@@ -202,7 +204,9 @@ impl Connection for SshConnection {
             .map_err(|e| e.to_string())?;
         Ok(())
     }
+}
 
+impl Connection for SshConnection {
     fn disconnect(&mut self) {
         if let Some(mut session) = self.session.take() {
             session.disconnect(None, "Пользователь закрыл сессию", None).ok();

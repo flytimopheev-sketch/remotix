@@ -1,3 +1,3 @@
 pub mod profile;
 
-pub use profile::{NewGroup, NewProfile, Profile, Protocol};
+pub use profile::{HistoryEntry, NewGroup, NewProfile, Profile, Protocol};

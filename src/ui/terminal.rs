@@ -144,7 +144,7 @@ impl TerminalTab {
 /// VTE: Ctrl+Shift+C/V (копия/вставка), Ctrl+± (масштаб шрифта).
 #[cfg(target_os = "linux")]
 fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
-    use gdk::ModifierType;
+    use gtk4::gdk::ModifierType;
 
     let controller = EventControllerKey::new();
     let term_ref = term.clone();
@@ -154,7 +154,7 @@ fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
 
         if ctrl && shift {
             match keyval.name().as_deref() {
-                Some("c") => { term_ref.copy_clipboard_format(); return glib::propagation::Propagation::Stop; }
+                Some("c") => { term_ref.copy_clipboard_format(); return glib::Propagation::Stop; }
                 Some("v") => {
                     let clipboard = term_ref.clipboard();
                     let tx = tx_in.clone();
@@ -163,7 +163,7 @@ fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
                             let _ = tx.send(ToThread::Data(text.replace('\n', "\r").into_bytes()));
                         }
                     });
-                    return glib::propagation::Propagation::Stop;
+                    return glib::Propagation::Stop;
                 }
                 _ => {}
             }
@@ -172,11 +172,11 @@ fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
             match keyval.name().as_deref() {
                 Some("plus") | Some("equal") => {
                     term_ref.set_font_scale((term_ref.font_scale() * 1.1).min(4.0));
-                    return glib::propagation::Propagation::Stop;
+                    return glib::Propagation::Stop;
                 }
                 Some("minus") => {
                     term_ref.set_font_scale((term_ref.font_scale() / 1.1).max(0.3));
-                    return glib::propagation::Propagation::Stop;
+                    return glib::Propagation::Stop;
                 }
                 _ => {}
             }
@@ -211,10 +211,10 @@ fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
             }
         };
         if bytes.is_empty() {
-            return glib::propagation::Propagation::Proceed;
+            return glib::Propagation::Proceed;
         }
         let _ = tx_in.send(ToThread::Data(bytes));
-        glib::propagation::Propagation::Stop
+        glib::Propagation::Stop
     });
     term.add_controller(&controller);
 

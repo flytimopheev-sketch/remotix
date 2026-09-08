@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::schema;
-use crate::db::crypto;
+use super::crypto;
 use crate::models::{HistoryEntry, NewGroup, NewProfile, Protocol};
 
 pub fn now() -> i64 {
