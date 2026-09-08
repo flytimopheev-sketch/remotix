@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use gtk4::prelude::*;
+use gtk4::glib;
 use gtk4::glib::clone;
 use gtk4::{Button, Entry, Label, Notebook, SearchEntry, Window};
 
