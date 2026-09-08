@@ -44,8 +44,11 @@ jobs:
 
       - name: Build RPM
         run: |
+          # Зависимости установлены через apt (см. выше); --nodeps отключает
+          # проверку BuildRequires по именам пакетов RED OS (cargo, gtk4-devel и т.д.)
           rpmbuild -ba packaging/remotix.spec \
-            --define "_sourcedir $HOME/rpmbuild/SOURCES"
+            --define "_sourcedir $HOME/rpmbuild/SOURCES" \
+            --nodeps
 
       - name: Show results
         run: |
