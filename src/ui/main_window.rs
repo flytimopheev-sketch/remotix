@@ -58,8 +58,8 @@ impl MainWindow {
 
         let win = Self { root, state, notebook, search, status };
 
-        new_btn.connect_clicked(clone!(@weak win => move |_| win.open_profile_editor(None)));
-        quick_btn.connect_clicked(clone!(@weak win => move |_| {
+        new_btn.connect_clicked(clone!(#[weak] win, move |_| win.open_profile_editor(None)));
+        quick_btn.connect_clicked(clone!(#[weak] win, move |_| {
             let text = win.search.text().to_string(); // быстрый ввод берём из поля поиска
             win.status.set_text(&format!("Подключение к {text}…"));
             match quick_profile(&text) {
