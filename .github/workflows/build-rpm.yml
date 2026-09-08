@@ -22,7 +22,7 @@ jobs:
             libssh2-1-dev \
             libssl-dev \
             libsqlite3-dev \
-            libvte-2.91-dev \
+            libvte-2.91-gtk4-dev \
             pkg-config
 
       - name: Install Rust (stable)
