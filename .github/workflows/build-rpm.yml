@@ -36,7 +36,12 @@ jobs:
           # Дерево исходников без служебных каталогов
           rsync -a --exclude .git --exclude target --exclude .github ./ "/tmp/$NAME/"
 
-          # vendor/ уже в репозитории — пакуем как Source1 (офлайн-сборка)
+          # vendor/ пересоздаём через cargo vendor — контрольные суммы гарантированно
+          # совпадают (в git файлы могли измениться при конверсии переводов строк)
+          cd "/tmp/$NAME"
+          rm -rf vendor
+          cargo vendor vendor > /dev/null
+
           tar -czf "$HOME/rpmbuild/SOURCES/remotix-vendor-${VERSION}.tar.gz" -C "/tmp/$NAME" vendor
           cp Cargo.lock "$HOME/rpmbuild/SOURCES/"
 
