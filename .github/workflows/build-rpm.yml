@@ -1,0 +1,73 @@
+name: Build RPM
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build-rpm:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            rpm \
+            libgtk-4-dev \
+            libssh2-1-dev \
+            libssl-dev \
+            libsqlite3-dev \
+            libfreerdp3-dev \
+            pkg-config
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare RPM sources
+        run: |
+          VERSION=1.0.0
+          NAME=remotix-${VERSION}
+          mkdir -p "$HOME/rpmbuild/SOURCES"
+
+          # Дерево исходников без служебных каталогов
+          rsync -a --exclude .git --exclude target --exclude .github ./ "/tmp/$NAME/"
+
+          # vendor/ уже в репозитории — пакуем как Source1 (офлайн-сборка)
+          tar -czf "$HOME/rpmbuild/SOURCES/remotix-vendor-${VERSION}.tar.gz" -C "/tmp/$NAME" vendor
+          cp Cargo.lock "$HOME/rpmbuild/SOURCES/"
+
+          tar -czf "$HOME/rpmbuild/SOURCES/${NAME}.tar.gz" -C /tmp "$NAME"
+
+      - name: Build RPM
+        run: |
+          rpmbuild -ba packaging/remotix.spec \
+            --define "_sourcedir $HOME/rpmbuild/SOURCES"
+
+      - name: Show results
+        run: |
+          ls -lh "$HOME/rpmbuild/RPMS/"*/ "$HOME/rpmbuild/SRPMS/"
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          cp "$HOME"/rpmbuild/RPMS/*/remotix-*.rpm dist/
+          cp "$HOME"/rpmbuild/SRPMS/remotix-*.rpm dist/
+          ls -lh dist/
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: remotix-rpm
+          path: dist/remotix-*.rpm
+          if-no-files-found: error
+
+      - name: Attach RPM to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/remotix-*.rpm
