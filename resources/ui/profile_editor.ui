@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface domain="remotix">
+  <object class="GtkDialog" id="profile_editor_dialog">
+    <property name="title">Свойства подключения</property>
+    <property name="modal">True</property>
+    <property name="default-width">520</property>
+    <property name="default-height">640</property>
+    <child>
+      <object class="GtkBox" id="content">
+        <property name="orientation">vertical</property>
+        <property name="spacing">8</property>
+        <property name="margin-top">12</property>
+        <property name="margin-bottom">12</property>
+        <property name="margin-start">12</property>
+        <property name="margin-end">12</property>
+        <child>
+          <object class="GtkEntry" id="name_entry">
+            <property name="placeholder-text">Название (например, «Сервер 1С»)</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkComboBoxText" id="protocol_combo">
+            <items>
+              <item id="ssh" translatable="yes">SSH</item>
+              <item id="rdp" translatable="yes">RDP</item>
+              <item id="vnc" translatable="yes">VNC</item>
+            </items>
+          </object>
+        </child>
+        <child>
+          <object class="GtkEntry" id="host_entry">
+            <property name="placeholder-text">Адрес хоста</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkEntry" id="port_entry">
+            <property name="placeholder-text">Порт</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkEntry" id="username_entry">
+            <property name="placeholder-text">Логин</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkPasswordEntry" id="password_entry">
+            <property name="show-peek-icon">True</property>
+            <property name="placeholder-text">Пароль (опционально)</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkEntry" id="ssh_key_entry">
+            <property name="placeholder-text">Путь к приватному SSH-ключу (для SSH)</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkPasswordEntry" id="key_passphrase_entry">
+            <property name="show-peek-icon">True</property>
+            <property name="placeholder-text">Пароль ключа (опционально)</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkPasswordEntry" id="root_password_entry">
+            <property name="show-peek-icon">True</property>
+            <property name="placeholder-text">Пароль root (двухступенчатый вход: admin → su → root, опционально)</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="su_to_root_check">
+            <property name="label">После входа под администратором переключаться в root (su -)</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="rdp_clipboard_check">
+            <property name="label">RDP: двунаправленный буфер обмена (туда и обратно)</property>
+            <property name="active">True</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkEntry" id="group_entry">
+            <property name="placeholder-text">Группа (например, «Серверы»)</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkEntry" id="tags_entry">
+            <property name="placeholder-text">Теги через запятую (опционально)</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkTextView" id="notes_view">
+            <property name="height-request">80</property>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

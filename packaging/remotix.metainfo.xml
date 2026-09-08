@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>ru.redos.Remotix</id>
+  <name>Remotix</name>
+  <summary>Клиент удалённого доступа (RDP/VNC/SSH)</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>Remotix — единый интерфейс для подключения к удалённым рабочим столам
+    и серверам по протоколам RDP, VNC и SSH. Аналог Remmina и RustDesk,
+    работает полностью офлайн, без облака и телеметрии.</p>
+    <ul>
+      <li>Профили подключений с закладками и группами</li>
+      <li>Шифрование учётных данных (Argon2id + AES-256-GCM)</li>
+      <li>Передача файлов по SFTP</li>
+      <li>История подключений с экспортом в CSV</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">remotix.desktop</launchable>
+  <releases>
+    <release version="1.0.0" date="2026-09-07"/>
+  </releases>
+</component>

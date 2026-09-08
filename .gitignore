@@ -1,0 +1,4 @@
+/target
+*.7z
+__pycache__/
+*.swp

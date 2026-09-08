@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Remotix — визуальный макет</title>
+<style>
+  :root{
+    --bg:#1e1e1e; --panel:#252526; --panel2:#2d2d30; --border:#3c3c3c;
+    --text:#d4d4d4; --muted:#9a9a9a; --accent:#2d6da3; --accent2:#4a9fd8;
+    --ok:#4caf50; --err:#e5534b; --term:#0d2b45;
+  }
+  *{box-sizing:border-box; font-family:'Segoe UI',Ubuntu,sans-serif}
+  body{margin:0; background:#111; color:var(--text); display:flex; flex-direction:column; align-items:center; padding:24px; gap:20px}
+  h2{margin:0; font-weight:500; color:#bbb}
+  .window{width:1100px; background:var(--bg); border:1px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:0 12px 40px #000a}
+  .titlebar{display:flex; align-items:center; background:var(--panel2); padding:6px 10px; font-size:13px; color:#ccc}
+  .titlebar .dots{margin-left:auto; display:flex; gap:8px}
+  .dots span{width:11px; height:11px; border-radius:50%; background:#555; display:inline-block}
+  .toolbar{display:flex; gap:8px; padding:8px 10px; background:var(--panel); border-bottom:1px solid var(--border); align-items:center}
+  button{background:var(--accent); color:#fff; border:none; border-radius:5px; padding:6px 12px; cursor:pointer; font-size:13px}
+  button:hover{background:var(--accent2)}
+  button.ghost{background:var(--panel2); border:1px solid var(--border); color:var(--text)}
+  input,.entry{background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:5px; padding:6px 10px; font-size:13px}
+  .entry{flex:1}
+  .main{display:flex; height:460px}
+  .tree{width:280px; background:var(--panel); border-right:1px solid var(--border); overflow:auto; font-size:13px; padding:6px 0}
+  .tree .group{padding:5px 12px; color:var(--accent2); cursor:pointer}
+  .tree .item{padding:4px 12px 4px 28px; display:flex; gap:8px; align-items:center; cursor:pointer}
+  .tree .item:hover{background:#333}
+  .tree .item.active{background:var(--accent); color:#fff}
+  .tag{margin-left:auto; font-size:10px; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:1px 6px}
+  .content{flex:1; display:flex; flex-direction:column; background:var(--bg)}
+  .tabs{display:flex; background:var(--panel2); font-size:12px}
+  .tab{padding:7px 14px; border-right:1px solid var(--border); color:var(--muted); cursor:pointer}
+  .tab.active{background:var(--bg); color:var(--text); border-top:2px solid var(--accent2)}
+  .view{flex:1; display:none}
+  .view.active{display:block}
+  .term{height:100%; background:var(--term); color:#7fd1ff; font-family:monospace; font-size:13px; padding:12px; line-height:1.5}
+  .desktop{height:100%; position:relative; background:linear-gradient(135deg,#134e5e,#71b280); display:flex; align-items:center; justify-content:center}
+  .desktop .rpanel{position:absolute; top:8px; right:8px; background:#0008; border-radius:6px; padding:6px; display:flex; gap:6px}
+  .rpanel span{color:#fff; font-size:14px; cursor:pointer; padding:2px 6px}
+  .desktop .hint{background:#0007; color:#fff; padding:10px 18px; border-radius:8px; font-size:14px}
+  .statusbar{display:flex; gap:16px; padding:5px 10px; background:var(--panel); border-top:1px solid var(--border); font-size:12px; color:var(--muted); align-items:center}
+  .dot{width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:5px}
+  .dot.ok{background:var(--ok)} .dot.err{background:var(--err)} .dot.idle{background:#777}
+  .overlay{display:none; position:fixed; inset:0; background:#000a; align-items:center; justify-content:center; z-index:10}
+  .overlay.open{display:flex}
+  .modal{background:var(--panel); border:1px solid var(--border); border-radius:10px; width:520px; max-height:85vh; overflow:auto; box-shadow:0 16px 50px #000c}
+  .modal h3{margin:0; padding:12px 16px; border-bottom:1px solid var(--border); font-size:14px; font-weight:500; background:var(--panel2)}
+  .modal .body{padding:16px; display:flex; flex-direction:column; gap:10px; font-size:13px}
+  .row{display:flex; gap:10px}
+  .row > *{flex:1}
+  label{color:var(--muted); font-size:12px}
+  .modal .foot{display:flex; justify-content:flex-end; gap:8px; padding:12px 16px; border-top:1px solid var(--border)}
+  .sftp{display:grid; grid-template-columns:1fr 1fr; gap:8px; height:100%; padding:10px}
+  .pane{background:var(--panel); border:1px solid var(--border); border-radius:6px; overflow:auto; font-size:13px}
+  .pane .phead{padding:6px 10px; background:var(--panel2); font-size:12px; color:var(--muted); border-bottom:1px solid var(--border)}
+  table{width:100%; border-collapse:collapse}
+  td{padding:5px 10px; border-bottom:1px solid #00000022; font-size:12px}
+  tr:hover{background:#333}
+  .history{height:100%; padding:10px; font-size:13px}
+  .history .filters{display:flex; gap:8px; margin-bottom:10px}
+</style>
+</head>
+<body>
+<h2>Remotix — Клиент удалённого доступа · визуальный макет (тёмная тема GTK)</h2>
+<!-- MAIN -->
+<div class="window">
+  <div class="titlebar">Remotix — Клиент удалённого доступа
+    <div class="dots"><span></span><span></span><span></span></div>
+  </div>
+
+  <div class="toolbar">
+    <button onclick="openModal('profile')">＋ Новый профиль</button>
+    <input class="entry" placeholder="Быстрое подключение: user@host">
+    <button>⚡ Быстрое подключение</button>
+    <input class="entry" placeholder="🔍 Поиск по названию, адресу, тегам…">
+  </div>
+
+  <div class="main">
+    <div class="tree">
+      <div class="group">▾ 📁 Серверы</div>
+      <div class="item">🖥 Сервер 1С <span class="tag">RDP</span></div>
+      <div class="item">🗄 srv-db01 <span class="tag">SSH</span></div>
+      <div class="item">🖼 srv-term <span class="tag">VNC</span></div>
+      <div class="group">▾ 📁 Рабочие станции</div>
+      <div class="item">🖥 PC-05 <span class="tag">VNC</span></div>
+      <div class="group">▾ 📁 Бухгалтерия</div>
+      <div class="item">🖥 Бухгалтерия PC-05 <span class="tag">RDP</span></div>
+      <div class="item">🗄 1c-buh <span class="tag">SSH</span></div>
+    </div>
+
+    <div class="content">
+      <div class="tabs">
+        <div class="tab active" onclick="show('t1',this)">🗄 ssh root@srv-db01</div>
+        <div class="tab" onclick="show('t2',this)">🖥 Сервер 1С (RDP)</div>
+        <div class="tab" onclick="show('t3',this)">🖼 PC-05 (VNC)</div>
+        <div class="tab" onclick="openModal('sftp')" style="margin-left:auto">📤 SFTP</div>
+        <div class="tab" onclick="openModal('history')">🕘 История</div>
+      </div>
+
+      <div class="view active term" id="t1">
+        Last login: Mon Sep  7 10:14:02 2026 from 192.168.1.25<br>
+        root@srv-db01:~$ systemctl status postgresql<br>
+        ● postgresql.service - PostgreSQL RDBMS<br>
+        &nbsp;&nbsp;Active: <span style="color:#4caf50">active (running)</span> since Mon…<br>
+        root@srv-db01:~$ <span style="color:#fff">▌</span><br><br>
+        <span style="color:#555">— копипаст: Ctrl+Shift+C/V · шрифт: Ctrl+± · цветовые схемы · вкладки сессий</span>
+      </div>
+
+      <div class="view" id="t2">
+        <div class="desktop">
+          <div class="hint">Удалённый рабочий стол Windows-сервера (RDP · FreeRDP · NLA)<br>
+          Ctrl+Alt+End = Ctrl+Alt+Del · панель: свернуть / развернуть / завершить</div>
+          <div class="rpanel"><span title="Свёрнуть">🗕</span><span title="Развернуть">🗖</span><span title="Завершить">✕</span></div>
+        </div>
+      </div>
+
+      <div class="view" id="t3">
+        <div class="desktop" style="background:linear-gradient(135deg,#3a1c71,#d76d77)">
+          <div class="hint">Экран VNC-хоста (view-only опционально, SSH-туннель для незащищённых)</div>
+          <div class="rpanel"><span>🗕</span><span>🗖</span><span>✕</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="dot ok"></span>srv-db01: SSH · онлайн</span>
+    <span><span class="dot ok"></span>Сервер 1С: RDP · онлайн</span>
+    <span><span class="dot err"></span>PC-05: VNC · ошибка</span>
+    <span style="margin-left:auto">Ctrl+N — новый · Ctrl+F — поиск · Ctrl+L — блокировка · Ctrl+Q — выход</span>
+  </div>
+</div>
+
+<p style="color:#666;font-size:12px">Подсказка: кликайте вкладки и кнопки «Новый профиль», «SFTP», «История». Диалог разблокировки: <button class="ghost" onclick="openModal('master')">🔒 мастер-пароль</button></p>
+<!-- MODALS -->
+<div class="overlay" id="m-master" onclick="overlayClick(event,'m-master')">
+  <div class="modal">
+    <h3>🔒 Введите мастер-пароль</h3>
+    <div class="body">
+      <label>Мастер-пароль (Argon2id → ключ AES-256-GCM)</label>
+      <input class="entry" type="password" value="••••••••••">
+      <label><input type="checkbox" checked> Запомнить на этот сеанс</label>
+      <span style="color:var(--muted)">Учётные данные хранятся зашифрованными в SQLite и не читаются напрямую.</span>
+    </div>
+    <div class="foot"><button class="ghost" onclick="closeModal('m-master')">Отмена</button><button onclick="closeModal('m-master')">Разблокировать</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="m-profile" onclick="overlayClick(event,'m-profile')">
+  <div class="modal">
+    <h3>Новое подключение — свойства</h3>
+    <div class="body">
+      <input class="entry" placeholder="Название (например, «Сервер 1С»)">
+      <div class="row">
+        <select class="entry"><option>SSH</option><option>RDP</option><option>VNC</option></select>
+        <input class="entry" placeholder="Порт (22 / 3389 / 5900)">
+      </div>
+      <input class="entry" placeholder="Адрес хоста (IP или домен)">
+      <div class="row">
+        <input class="entry" placeholder="Логин">
+        <input class="entry" type="password" placeholder="Пароль (опционально)">
+      </div>
+      <input class="entry" placeholder="Путь к приватному SSH-ключу">
+      <div class="row">
+        <input class="entry" placeholder="Группа («Серверы», «Бухгалтерия»)">
+        <input class="entry" placeholder="Теги через запятую">
+      </div>
+      <select class="entry"><option>RDP: NLA ✔ · 1920×1080 · 32 бита · буфер обмена ⇄ (туда и обратно) · диски/принтеры</option>
+      <option>VNC: view-only · качество 6 · через SSH-туннель</option>
+      <option>SSH: ключ + ssh-agent · двухступенчатый вход: admin → su → root</option></select>
+      <input class="entry" type="password" placeholder="Пароль root (для двухступенчатого входа su, опционально)">
+      <textarea class="entry" rows="2" placeholder="Заметки (опционально)"></textarea>
+    </div>
+    <div class="foot"><button class="ghost" onclick="closeModal('m-profile')">Отмена</button><button onclick="closeModal('m-profile')">Сохранить</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="m-sftp" onclick="overlayClick(event,'m-sftp')">
+  <div class="modal" style="width:900px">
+    <h3>📤 SFTP — srv-db01: локальная ↔ удалённая панель</h3>
+    <div class="sftp">
+      <div class="pane">
+        <div class="phead">Локально: /home/user/docs</div>
+        <table>
+          <tr><td>📁 отчёты</td><td>—</td><td>01.09 12:00</td></tr>
+          <tr><td>📄 акт.xlsx</td><td>24 КБ</td><td>05.09 09:31</td></tr>
+          <tr><td>📄 договор.pdf</td><td>1.2 МБ</td><td>06.09 15:02</td></tr>
+        </table>
+      </div>
+      <div class="pane">
+        <div class="phead">Удалённо: /var/backups</div>
+        <table>
+          <tr><td>📁 2026-08</td><td>—</td><td>31.08 03:00</td></tr>
+          <tr><td>📄 db.dump.gz</td><td>480 МБ</td><td>07.09 03:15</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="ghost">📁 Новая папка</button><button class="ghost">✏️ Переименовать</button>
+      <button class="ghost">🗑 Удалить</button><button onclick="closeModal('m-sftp')">⬆ Загрузить / ⬇ Скачать</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="m-history" onclick="overlayClick(event,'m-history')">
+  <div class="modal" style="width:760px">
+    <h3>🕘 Журнал подключений</h3>
+    <div class="history">
+      <div class="filters">
+        <input class="entry" placeholder="Профиль…">
+        <select class="entry"><option>Все статусы</option><option>Успешно</option><option>Ошибка</option></select>
+        <button class="ghost">Экспорт CSV</button>
+      </div>
+      <table>
+        <tr style="color:var(--muted)"><td>Дата / время</td><td>Профиль</td><td>Длительность</td><td>Статус</td></tr>
+        <tr><td>07.09 09:58</td><td>srv-db01 (SSH)</td><td>42 мин</td><td><span class="dot ok"></span>успешно</td></tr>
+        <tr><td>07.09 09:41</td><td>Сервер 1С (RDP)</td><td>1 ч 12 мин</td><td><span class="dot ok"></span>успешно</td></tr>
+        <tr><td>06.09 18:20</td><td>PC-05 (VNC)</td><td>—</td><td><span class="dot err"></span>ошибка: ECONNREFUSED</td></tr>
+        <tr><td>06.09 14:02</td><td>1c-buh (SSH)</td><td>8 мин</td><td><span class="dot ok"></span>успешно</td></tr>
+      </table>
+    </div>
+    <div class="foot"><button onclick="closeModal('m-history')">Закрыть</button></div>
+  </div>
+</div>
+
+<script>
+  function show(id, tab){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+  function openModal(id){document.getElementById('m-'+id).classList.add('open')}
+  function closeModal(id){document.getElementById(id).classList.remove('open')}
+  function overlayClick(e, id){ if(e.target.id===id) closeModal(id); }
+</script>
+
+</body>
+</html>

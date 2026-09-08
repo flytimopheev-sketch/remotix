@@ -1,0 +1,32 @@
+[options]
+work_mode = "sys"
+library = "Vte"
+version = "3.91"
+min_cfg_version = "0.68"
+single_version_file = "."
+girs_directories = ["../../gir-files", "../../"]
+
+external_libraries = [
+    "GLib",
+    "Gio",
+    "GObject",
+    "Pango",
+    "cairo",
+]
+
+ignore = [
+    "Vte.MAJOR_VERSION",
+    "Vte.MICRO_VERSION",
+    "Vte.MINOR_VERSION",
+]
+
+[external_libraries]
+gdk4="Gdk"
+gtk4="Gtk"
+
+[[object]]
+name = "Vte.FeatureFlags"
+status = "generate"
+    [[object.member]]
+    name = "flags_mask"
+    ignore = true

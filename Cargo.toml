@@ -1,0 +1,25 @@
+[package]
+name = "remotix"
+version = "1.0.0"
+edition = "2021"
+description = "Remotix — клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+gtk4 = { version = "0.11", features = ["v4_12"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+argon2 = "0.5"
+aes-gcm = "0.10"
+rand = "0.8"
+base64 = "0.22"
+ssh2 = "0.9"
+chrono = "0.4"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+vte4 = "0.10"
+
+[profile.release]
+opt-level = 3
+lto = true

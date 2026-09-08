@@ -1,0 +1,107 @@
+[package]
+name = "vte4-sys"
+version = "0.10.0"
+license = "MIT"
+description = "FFI bindings to vte-2.91-gtk4"
+homepage = "https://gtk-rs.org/"
+repository = "https://gitlab.gnome.org/World/Rust/vte4-rs"
+links = '"vte-2.91-gtk4"'
+edition = "2021"
+build = "build.rs"
+
+[package.metadata.system-deps.vte_2_91_gtk4]
+name = "vte-2.91-gtk4"
+version = "0.65"
+
+[package.metadata.system-deps.vte_2_91_gtk4.v0_66]
+version = "0.66"
+
+[package.metadata.system-deps.vte_2_91_gtk4.v0_70]
+version = "0.70"
+
+[package.metadata.system-deps.vte_2_91_gtk4.v0_72]
+version = "0.72"
+
+[package.metadata.system-deps.vte_2_91_gtk4.v0_74]
+version = "0.74"
+
+[package.metadata.system-deps.vte_2_91_gtk4.v0_76]
+version = "0.76"
+
+[package.metadata.system-deps.vte_2_91_gtk4.v0_78]
+version = "0.78"
+
+[package.metadata.system-deps.vte_2_91_gtk4.v0_80]
+version = "0.80"
+
+[package.metadata.system-deps.vte_2_91_gtk4.v0_82]
+version = "0.81"
+
+[package.metadata.system-deps.vte_2_91_gtk4.v0_84]
+version = "0.84"
+
+[package.metadata.system-deps.vte_2_91_gtk4.v0_86]
+version = "0.86"
+
+[package.metadata.docs.rs]
+features = []
+
+[lib]
+name = "vte_sys"
+
+[dependencies]
+libc = "0.2"
+
+[dependencies.glib-sys]
+git = "https://github.com/gtk-rs/gtk-rs-core"
+version = "0.22"
+branch = "0.22"
+
+[dependencies.gobject-sys]
+git = "https://github.com/gtk-rs/gtk-rs-core"
+version = "0.22"
+branch = "0.22"
+
+[dependencies.gio-sys]
+git = "https://github.com/gtk-rs/gtk-rs-core"
+version = "0.22"
+branch = "0.22"
+
+[dependencies.pango-sys]
+git = "https://github.com/gtk-rs/gtk-rs-core"
+version = "0.22"
+branch = "0.22"
+
+[dependencies.cairo-sys-rs]
+git = "https://github.com/gtk-rs/gtk-rs-core"
+version = "0.22"
+branch = "0.22"
+
+[dependencies.gdk4-sys]
+git = "https://github.com/gtk-rs/gtk4-rs"
+version = "0.11"
+branch = "0.11"
+
+[dependencies.gtk4-sys]
+git = "https://github.com/gtk-rs/gtk4-rs"
+version = "0.11"
+branch = "0.11"
+
+[build-dependencies]
+system-deps = "7"
+
+[dev-dependencies]
+shell-words = "1.0.0"
+tempfile = "3"
+
+[features]
+v0_66 = []
+v0_70 = []
+v0_72 = ["v0_70"]
+v0_74 = ["v0_72"]
+v0_76 = ["v0_74"]
+v0_78 = ["v0_76"]
+v0_80 = ["v0_78"]
+v0_82 = ["v0_80"]
+v0_84 = ["v0_82"]
+v0_86 = ["v0_84"]

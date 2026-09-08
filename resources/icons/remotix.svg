@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <rect x="8" y="16" width="112" height="80" rx="10" fill="#2d6da3"/>
+  <rect x="16" y="24" width="96" height="56" rx="4" fill="#0d2b45"/>
+  <text x="64" y="60" font-family="monospace" font-size="22" fill="#7fd1ff" text-anchor="middle">ssh&gt;_</text>
+  <rect x="44" y="100" width="40" height="10" rx="3" fill="#2d6da3"/>
+  <rect x="28" y="108" width="72" height="6" rx="3" fill="#1f4e79"/>
+</svg>
