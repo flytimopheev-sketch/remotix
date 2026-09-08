@@ -119,12 +119,13 @@ impl TerminalTab {
         let term_out = term.clone();
         let status = Label::new(None);
         status.set_halign(gtk4::Align::Start);
+        let status_out = status.clone();
         glib::timeout_add_local(Duration::from_millis(PROMPT_MS), move || {
             loop {
                 match rx_out.try_recv() {
                     Ok(ToUi::Out(data)) => term_out.feed(&data),
                     Ok(ToUi::Closed(err)) => {
-                        status.set_text(&match err {
+                        status_out.set_text(&match err {
                             Some(e) => format!("● Сессия закрыта: {e}"),
                             None => "● Сессия закрыта".into(),
                         });
@@ -152,6 +153,7 @@ fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
 
     let controller = EventControllerKey::new();
     let term_ref = term.clone();
+    let tx_key = tx_in.clone();
     controller.connect_key_pressed(move |_, keyval, _code, state| {
         let ctrl = state.contains(ModifierType::CONTROL_MASK);
         let shift = state.contains(ModifierType::SHIFT_MASK);
@@ -161,7 +163,7 @@ fn setup_input(term: &Vte, tx_in: std::sync::mpsc::Sender<ToThread>) {
                 Some("c") => { term_ref.copy_clipboard_format(vte4::Format::Text); return glib::Propagation::Stop; }
                 Some("v") => {
                     let clipboard = term_ref.clipboard();
-                    let tx = tx_in.clone();
+                    let tx = tx_key.clone();
                     glib::spawn_future_local(async move {
                         if let Ok(Some(text)) = clipboard.read_text_future().await {
                             let _ = tx.send(ToThread::Data(text.replace('\n', "\r").into_bytes()));
