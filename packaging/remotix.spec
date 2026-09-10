@@ -29,8 +29,12 @@ Requires:       libssh2
 (Argon2id + AES-256-GCM).
 
 %prep
-%setup -q -n %{name}-%{version}
-tar -xzf %{SOURCE1}
+rm -rf %{_builddir}/%{name}-%{version}
+mkdir -p %{_builddir}/%{name}-%{version}
+tar -xzf %{SOURCE0} -C %{_builddir}/%{name}-%{version} --strip-components=1
+tar -xzf %{SOURCE1} -C %{_builddir}/%{name}-%{version}
+cp %{_sourcedir}/Cargo.lock %{_builddir}/%{name}-%{version}/Cargo.lock 2>/dev/null || true
+chmod -Rf a+rX,u+w,g-w,o-w %{_builddir}/%{name}-%{version}
 
 %build
 cd %{_builddir}/%{name}-%{version}
