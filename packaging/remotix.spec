@@ -30,9 +30,7 @@ Requires:       libssh2
 (Argon2id + AES-256-GCM).
 
 %prep
-%autosetup
-# Распаковка офлайн-зависимостей и Cargo.lock
-tar -xzf %{SOURCE1} -C .
+%autosetup -a 1
 cp %{SOURCE2} .
 
 %build
