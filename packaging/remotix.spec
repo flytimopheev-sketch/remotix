@@ -38,11 +38,13 @@ tar xzf %{_sourcedir}/%{name}-vendor-%{version}.tar.gz
 cp %{_sourcedir}/Cargo.lock .
 %build
 # Полностью офлайн-сборка: крейты берутся из vendor/, системные библиотеки
-# (gtk4-devel, libssh2-devel, freerdp-devel, openssl-devel) — из офлайн-
-# репозитория РЕД ОС. Ничего не скачивается из интернета.
+# (gtk4-devel, libssh2-devel, openssl-devel) — из офлайн-репозитория РЕД ОС.
+# Ничего не скачивается из интернета.
+cd %{name}-%{version}
 cargo build --release --offline
 
 %install
+cd %{name}-%{version}
 install -Dm755 target/release/remotix %{buildroot}/usr/bin/remotix
 install -Dm644 packaging/remotix.desktop %{buildroot}/usr/share/applications/remotix.desktop
 install -Dm644 resources/icons/remotix.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/remotix.svg
