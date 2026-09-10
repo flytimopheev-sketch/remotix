@@ -32,7 +32,7 @@ Requires:       libssh2
 %prep
 %setup -q -n %{name}-%{version} -a 1
 cp %{SOURCE2} .
-
+# end of prep
 %build
 # Полностью офлайн-сборка: крейты берутся из vendor/, системные библиотеки
 # (gtk4-devel, libssh2-devel, freerdp-devel, openssl-devel) — из офлайн-
