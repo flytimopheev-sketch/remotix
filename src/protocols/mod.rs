@@ -1,7 +1,7 @@
 pub mod ssh;
-// Модули rdp и vnc активируются на Linux-сборке (FFI к FreeRDP / libvncclient).
-#[cfg(target_os = "linux")]
+// RDP через IronRDP — чистый Rust, кроссплатформенный (не требует FreeRDP).
 pub mod rdp;
+// VNC через libvncclient (FFI) — только на Linux.
 #[cfg(target_os = "linux")]
 pub mod vnc;
 
