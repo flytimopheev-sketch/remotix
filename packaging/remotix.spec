@@ -30,9 +30,11 @@ Requires:       libssh2
 (Argon2id + AES-256-GCM).
 
 %prep
-%setup -q -n %{name}-%{version}
-%setup -T -D -a 1 -n %{name}-%{version}
-cp %{SOURCE2} .
+cd %{_builddir}
+rm -rf %{name}-%{version}
+%{__tar} xzf %{SOURCE0}
+%{__tar} xzf %{SOURCE1} -C %{name}-%{version}
+cp %{SOURCE2} %{name}-%{version}/
 
 %build
 # Полностью офлайн-сборка: крейты берутся из vendor/, системные библиотеки
