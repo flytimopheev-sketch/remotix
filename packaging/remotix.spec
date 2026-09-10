@@ -8,7 +8,6 @@ Source0:        %{name}-%{version}.tar.gz
 # Tarball с зависимостями crates.io: cargo vendor vendor (готовится один раз
 # на машине с интернетом), чтобы сборка на РЕД ОС шла полностью офлайн.
 Source1:        %{name}-vendor-%{version}.tar.gz
-Source2:        Cargo.lock
 
 BuildRequires:  cargo
 BuildRequires:  rust
@@ -31,8 +30,7 @@ Requires:       libssh2
 
 %prep
 %setup -q -n %{name}-%{version}
-%setup -T -D -a 1 -n %{name}-%{version}
-cp %{SOURCE2} .
+tar -xzf %{SOURCE1} -C %{name}-%{version}
 
 %build
 cd %{_builddir}/%{name}-%{version}
