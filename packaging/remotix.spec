@@ -30,7 +30,8 @@ Requires:       libssh2
 (Argon2id + AES-256-GCM).
 
 %prep
-%autosetup -a 1
+%setup -q -n %{name}-%{version}
+%setup -T -D -a 1 -n %{name}-%{version}
 cp %{SOURCE2} .
 
 %build
