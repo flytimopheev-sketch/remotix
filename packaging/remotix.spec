@@ -30,7 +30,7 @@ Requires:       libssh2
 
 %prep
 %setup -q -n %{name}-%{version}
-tar -xzf %{SOURCE1} -C %{name}-%{version}
+tar -xzf %{SOURCE1}
 
 %build
 cd %{_builddir}/%{name}-%{version}
