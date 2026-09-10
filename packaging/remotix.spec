@@ -4,7 +4,6 @@ Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
 URL:            https://redos.example/remotix
-Maintainer:     flytimopheev <flytimopheev@gmail.com>
 Source0:        %{name}-%{version}.tar.gz
 # Tarball с зависимостями crates.io: cargo vendor vendor (готовится один раз
 # на машине с интернетом), чтобы сборка на РЕД ОС шла полностью офлайн.
@@ -15,9 +14,11 @@ BuildRequires:  cargo
 BuildRequires:  rust
 BuildRequires:  gtk4-devel
 BuildRequires:  libssh2-devel
-BuildRequires:  freerdp-devel
 BuildRequires:  openssl-devel
 BuildRequires:  sqlite-devel
+# Примечание: freerdp-devel больше не нужен — RDP через IronRDP (чистый Rust,
+# все зависимости вендорятся в vendor/). Системный openssl используется только
+# для libssh2; rustls (ring) для RDP-канала — полностью офлайн.
 
 Requires:       gtk4
 Requires:       libssh2
