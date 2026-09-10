@@ -30,9 +30,12 @@ Requires:       libssh2
 (Argon2id + AES-256-GCM).
 
 %prep
-%setup -q -n %{name}-%{version} -a 1
-cp %{SOURCE2} .
-# end of prep
+cd %{_builddir}
+rm -rf %{name}-%{version}
+tar xzf %{_sourcedir}/%{name}-%{version}.tar.gz
+cd %{name}-%{version}
+tar xzf %{_sourcedir}/%{name}-vendor-%{version}.tar.gz
+cp %{_sourcedir}/Cargo.lock .
 %build
 # Полностью офлайн-сборка: крейты берутся из vendor/, системные библиотеки
 # (gtk4-devel, libssh2-devel, freerdp-devel, openssl-devel) — из офлайн-
