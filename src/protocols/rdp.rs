@@ -137,10 +137,21 @@ impl rustls::client::danger::ServerCertVerifier for NoCertificateVerification {
 /// TLS-апгрейд выполняется через rustls (ring), CredSSP/NLA отключена в пользу
 /// TLS-безопасности (PROTOCOL_SSL) — соединение шифруется, но логин происходит
 /// на стороне сервера (графический вход RDP).
+/// Типы активной RDP-сессии (TLS-стрим поверх TCP и состояния просмотра).
+type RdpFramed = ironrdp_blocking::Framed<PrefixedStream<rustls::StreamOwned<rustls::ClientConnection, TcpStream>>>;
+type RdpStage = ironrdp_session::ActiveStage;
+type RdpImage = ironrdp_session::image::DecodedImage;
+
 pub struct RdpConnection {
     profile: Profile,
     clipboard: ClipboardConfig,
     connected: bool,
+    /// Живой TLS-стрим активной сессии (после успешного connect()).
+    framed: Option<RdpFramed>,
+    /// Активная стадия: обработка рамок, быстрый путь (fast-path), каналы.
+    stage: Option<RdpStage>,
+    /// Декодированное изображение рабочего стола для отрисовки.
+    image: Option<RdpImage>,
 }
 
 impl RdpConnection {
@@ -150,25 +161,116 @@ impl RdpConnection {
             profile,
             clipboard,
             connected: false,
+            framed: None,
+            stage: None,
+            image: None,
         }
     }
 
-    /// Двунаправленный буфер обмена: регистрирует виртуальный канал CLIPRDR.
+    /// Двунаправленный буфер обмена (канал CLIPRDR).
     ///
-    /// IronRDP: подключается клиент ironrdp-cliprdr с обработчиками:
-    ///   - FormatList/DataRequest: сервер просит локальные данные буфера,
-    ///     мы читаем из GTK-клипборда (ContentProvider) и отправляем DataResponse;
-    ///   - ServerFormatDataResponse: получаем данные сервера и пишем в
-    ///     локальный gtk4::Clipboard, чтобы вставка работала и туда и обратно.
+    /// Канал CLIPRDR регистрируется коннектором IronRDP автоматически по флагу
+    /// `clipboard` профиля. Здесь мы лишь фиксируем выбранные направления
+    /// обмена; передача данных выполняется GUI-слоем поверх событий сессии:
+    ///   - локальный -> удалённый: местный буфер -> CLIPRDR_FORMAT_LIST,
+    ///   - удалённый -> локальный: CLIPRDR_FORMAT_DATA_RESPONSE -> GTK-клипборд.
     pub fn setup_clipboard(&self) {
         let c = self.clipboard;
         if !c.enabled {
             return; // буфер обмена отключён в профиле
         }
-        // Локальный -> удалённый: подписка на изменение локального буфера
-        // (gtk4::gdk::ContentFormats) -> отправка CLIPRDR_FORMAT_LIST.
+        // Локальный -> удалённый: подписка на изменение локального буфера.
         let _ = c.to_remote;
-        // Удалённый -> локальный: обработка CLIPRDR_FORMAT_DATA_RESPONSE
+        // Удалённый -> локальный: обработка CLIPRDR_FORMAT_DATA_RESPONSE.
+        let _ = c.from_remote;
+    }
+
+    /// Строит активную стадию RDP-сессии из результата подключения и создаёт
+    /// буфер декодированного изображения рабочего стола.
+    pub fn setup_active_stage(&mut self, connection_result: ironrdp_connector::ConnectionResult) {
+        let desktop_size = connection_result.desktop_size;
+        self.image = Some(ironrdp_session::image::DecodedImage::new(
+            ironrdp_graphics::image_processing::PixelFormat::RgbA32,
+            desktop_size.width,
+            desktop_size.height,
+        ));
+
+        self.stage = Some(ironrdp_session::ActiveStageBuilder {
+            static_channels: connection_result.static_channels,
+            user_channel_id: connection_result.user_channel_id,
+            io_channel_id: connection_result.io_channel_id,
+            message_channel_id: connection_result.message_channel_id,
+            share_id: connection_result.share_id,
+            compression_type: connection_result.compression_type,
+            enable_server_pointer: connection_result.enable_server_pointer,
+            pointer_software_rendering: connection_result.pointer_software_rendering,
+        }.build());
+    }
+
+    /// Обрабатывает один шаг активной стадии (просмотр): читает одну рамку
+    /// сервера, декодирует её в изображение и отправляет ответные рамки.
+    ///
+    /// Возвращает `Ok(true)`, пока сессия активна, `Ok(false)` — когда данных
+    /// ещё нет (would-block, вызывайте снова), и `Err` при ошибке/разрыве.
+    pub fn run(&mut self) -> Result<bool, String> {
+        let mut framed = match self.framed {
+            Some(mut f) => f,
+            None => return Err("нет активной RDP-сессии"),
+        };
+        let mut stage = match self.stage {
+            Some(mut s) => s,
+            None => return Err("активная стадия не инициализирована"),
+        };
+        let mut image = match self.image {
+            Some(mut img) => img,
+            None => return Err("изображение рабочего стола не инициализировано"),
+        };
+
+        let (action, payload) = match framed.read_pdu() {
+            Ok(pair) => pair,
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                // Данных пока нет — возвращаем состояние в сессию и даём GUI
+                // продолжить (вызывать run() снова по таймеру / активности).
+                self.framed = Some(framed);
+                self.stage = Some(stage);
+                self.image = Some(image);
+                return Ok(false)
+            }
+            Err(e) => {
+                self.framed = Some(framed);
+                self.stage = Some(stage);
+                self.image = Some(image);
+                return Err(format!("ошибка чтения рамки: {e}"))
+            }
+        };
+
+        let outputs = stage
+            .process(&mut image, action, &payload)
+            .map_err(|e| format!("ошибка обработки рамки: {e}"))?;
+
+        for out in outputs {
+            match out {
+                ironrdp_session::ActiveStageOutput::ResponseFrame(frame) => {
+                    framed
+                        .write_all(&frame)
+                        .map_err(|e| format!("ошибка отправки ответа: {e}"))?;
+                }
+                ironrdp_session::ActiveStageOutput::Terminate(_) => {
+                    self.framed = Some(framed);
+                    self.stage = Some(stage);
+                    self.image = Some(image);
+                    return Ok(true)
+                }
+                _ => {}
+            }
+        }
+
+        self.framed = Some(framed);
+        self.stage = Some(stage);
+        self.image = Some(image);
+        Ok(true)
+    }
+}
 
 impl Connection for RdpConnection {
     fn profile(&self) -> &Profile {
@@ -282,7 +384,7 @@ impl Connection for RdpConnection {
         let upgraded = ironrdp_blocking::mark_as_upgraded(should_upgrade, &mut connector);
 
         // 9. Завершаем процедуру подключения (CredSSP пропущен, enable_credssp: false)
-        let _connection_result = ironrdp_blocking::connect_finalize(
+        let connection_result = ironrdp_blocking::connect_finalize(
             upgraded,
             connector,
             &mut framed,
@@ -293,7 +395,12 @@ impl Connection for RdpConnection {
         )
         .map_err(|e| format!("ошибка завершения RDP-подключения: {e}"))?;
 
-        // 10. Двунаправленный буфер обмена туда и обратно (канал CLIPRDR)
+        // 10. Сохраняем живой TLS-стрим и строим активную стадию (просмотр):
+        //     рамки сервера будут декодироваться в изображение методом run().
+        self.framed = Some(framed);
+        self.setup_active_stage(connection_result);
+
+        // 11. Двунаправленный буфер обмена туда и обратно (канал CLIPRDR).
         self.setup_clipboard();
         self.connected = true;
         Ok(())
