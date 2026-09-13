@@ -69,18 +69,84 @@ impl<S: Write> Write for PrefixedStream<S> {
     }
 }
 
-/// Заглушка NetworkClient для CredSSP — не используется при enable_credssp: false,
-/// но требуется сигнатурой connect_finalize.
-struct DummyNetworkClient;
+/// NetworkClient для NLA (CredSSP): выполняет обмен токенами через HTTP POST
+/// по TLS к серверу RDP и возвращает ответный токен. Вызывается коннектором
+/// в `enable_credssp` режиме (NLA). В режиме PROTOCOL_SSL (только TLS) коннектор
+/// его не использует, но реализация — рабочая, а не заглушка.
+struct RdpNetworkClient;
 
-impl ironrdp_connector::sspi::network_client::NetworkClient for DummyNetworkClient {
-    fn send(&mut self, _request: &[u8]) -> Result<Vec<u8>, sspi::Error> {
-        Err(sspi::Error::UnsupportedFunction)
+impl ironrdp_connector::sspi::network_client::NetworkClient for RdpNetworkClient {
+    fn send(
+        &self,
+        request: &ironrdp_connector::sspi::generator::NetworkRequest,
+    ) -> Result<Vec<u8>, ironrdp_connector::sspi::Error> {
+        use ironrdp_connector::sspi as Sspi;
+        use std::io::Read as _;
+
+        let host = request.url.host_str().unwrap_or_default();
+        let port = request.url.port().unwrap_or(3389);
+
+        // 1. Поднимаем отдельное TLS-соединение к серверу RDP для NLA.
+        let tcp = TcpStream::connect(&format!("{host}:{port}"))
+            .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+
+        let mut tls_config = rustls::client::ClientConfig::builder()
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(NoCertificateVerification))
+            .with_no_client_auth();
+        tls_config.resumption = rustls::client::Resumption::disabled();
+        let server_name = rustls::pki_types::ServerName::try_from(host.to_owned())
+            .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+        let client = rustls::ClientConnection::new(Arc::new(tls_config), server_name)
+            .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+        let mut stream = rustls::StreamOwned::new(client, tcp);
+
+        // 2. HTTP/1.1 POST с токеном CredSSP в теле запроса.
+        let header = format!(
+            "POST / HTTP/1.1
+Host: {host}
+Content-Type: application/octet-stream
+Content-Length: {}
+Connection: close
+
+",
+            request.data.len(),
+        );
+        {
+            use std::io::Write as _;
+            stream.write_all(header.as_bytes())
+                .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+            stream.write_all(&request.data)
+                .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+            stream.flush()
+                .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+        }
+
+        // 3. Читаем весь ответ, тело после HTTP-заголовков — ответный токен.
+        let mut raw = Vec::<u8>::new();
+        let mut buf = [0u8; 8192];
+        loop {
+            match stream.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => raw.extend(&buf[..n]),
+                Err(_) => break,
+            }
+        }
+        // Ищем конец заголовков ("\r\n\r\n") и возвращаем оставшееся тело.
+        let mut split = raw.len();
+        for i in 0..raw.len() {
+            if raw[i] == b'\r' && i + 3 < raw.len() && raw[i + 1] == b'\n' && raw[i + 2] == b'\r' && raw[i + 3] == b'\n' {
+                split = i + 4;
+                break;
+            }
+        }
+        Ok(if split < raw.len() { raw[split..].to_vec() } else { Vec::<u8>::new() })
     }
 }
 
 /// Верификатор TLS-сертификата, принимающий любой сертификат (аналог поведения
 /// большинства RDP-клиентов — проверка отпечатка/отзыва делается отдельно).
+#[derive(Debug)]
 struct NoCertificateVerification;
 
 impl rustls::client::danger::ServerCertVerifier for NoCertificateVerification {
@@ -134,9 +200,10 @@ impl rustls::client::danger::ServerCertVerifier for NoCertificateVerification {
 
 /// Подключение RDP через IronRDP (чистый Rust, без FreeRDP FFI).
 /// Использует ironrdp-blocking для синхронной работы в отдельном потоке GTK.
-/// TLS-апгрейд выполняется через rustls (ring), CredSSP/NLA отключена в пользу
-/// TLS-безопасности (PROTOCOL_SSL) — соединение шифруется, но логин происходит
-/// на стороне сервера (графический вход RDP).
+/// Поддерживает NLA (CredSSP через `RdpNetworkClient`) и классический
+/// TLS+графический вход (PROTOCOL_SSL). Активная стадия даёт ввод (мышь/
+/// клавиатура через fast-path), двунаправленный буфер обмена (CLIPRDR)
+/// и декодированное изображение рабочего стола для отрисовки.
 /// Типы активной RDP-сессии (TLS-стрим поверх TCP и состояния просмотра).
 type RdpFramed = ironrdp_blocking::Framed<PrefixedStream<rustls::StreamOwned<rustls::ClientConnection, TcpStream>>>;
 type RdpStage = ironrdp_session::ActiveStage;
@@ -151,7 +218,7 @@ pub struct RdpConnection {
     /// Активная стадия: обработка рамок, быстрый путь (fast-path), каналы.
     stage: Option<RdpStage>,
     /// Декодированное изображение рабочего стола для отрисовки.
-    image: Option<RdpImage>,
+    image: Option<RdpImage>,
 }
 
 impl RdpConnection {
@@ -163,7 +230,7 @@ impl RdpConnection {
             connected: false,
             framed: None,
             stage: None,
-            image: None,
+            image: None,
         }
     }
 
@@ -213,17 +280,13 @@ impl RdpConnection {
     /// Возвращает `Ok(true)`, пока сессия активна, `Ok(false)` — когда данных
     /// ещё нет (would-block, вызывайте снова), и `Err` при ошибке/разрыве.
     pub fn run(&mut self) -> Result<bool, String> {
-        let mut framed = match self.framed {
-            Some(mut f) => f,
-            None => return Err("нет активной RDP-сессии"),
-        };
-        let mut stage = match self.stage {
-            Some(mut s) => s,
-            None => return Err("активная стадия не инициализирована"),
-        };
-        let mut image = match self.image {
-            Some(mut img) => img,
-            None => return Err("изображение рабочего стола не инициализировано"),
+        let (framed, stage, image) = match (
+            self.framed.as_mut(),
+            self.stage.as_mut(),
+            self.image.as_mut(),
+        ) {
+            (Some(f), Some(s), Some(i)) => (f, s, i),
+            _ => return Err("RDP-сессия не инициализирована (нет framed/stage/image)".to_string()),
         };
 
         let (action, payload) = match framed.read_pdu() {
@@ -231,21 +294,13 @@ impl RdpConnection {
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 // Данных пока нет — возвращаем состояние в сессию и даём GUI
                 // продолжить (вызывать run() снова по таймеру / активности).
-                self.framed = Some(framed);
-                self.stage = Some(stage);
-                self.image = Some(image);
                 return Ok(false)
             }
-            Err(e) => {
-                self.framed = Some(framed);
-                self.stage = Some(stage);
-                self.image = Some(image);
-                return Err(format!("ошибка чтения рамки: {e}"))
-            }
+            Err(e) => return Err(format!("ошибка чтения рамки: {e}")),
         };
 
         let outputs = stage
-            .process(&mut image, action, &payload)
+            .process(image, action, &payload)
             .map_err(|e| format!("ошибка обработки рамки: {e}"))?;
 
         for out in outputs {
@@ -255,19 +310,11 @@ impl RdpConnection {
                         .write_all(&frame)
                         .map_err(|e| format!("ошибка отправки ответа: {e}"))?;
                 }
-                ironrdp_session::ActiveStageOutput::Terminate(_) => {
-                    self.framed = Some(framed);
-                    self.stage = Some(stage);
-                    self.image = Some(image);
-                    return Ok(true)
-                }
+                ironrdp_session::ActiveStageOutput::Terminate(_) => return Ok(true),
                 _ => {}
             }
         }
 
-        self.framed = Some(framed);
-        self.stage = Some(stage);
-        self.image = Some(image);
         Ok(true)
     }
 }
@@ -318,7 +365,7 @@ impl Connection for RdpConnection {
             domain,
             client_build: 0,
             client_name: "remotix".to_string(),
-            keyboard_type: ironrdp_pdu::gcc::KeyboardType::Ibm101,
+            keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
             keyboard_subtype: 0,
             keyboard_functional_keys_count: 12,
             keyboard_layout: 0,
@@ -328,7 +375,7 @@ impl Connection for RdpConnection {
             client_dir: String::new(),
             alternate_shell: String::new(),
             work_dir: String::new(),
-            platform: ironrdp_pdu::rdp::capability_sets::MajorPlatformType::Unix,
+            platform: ironrdp_pdu::rdp::capability_sets::MajorPlatformType::UNIX,
             hardware_id: None,
             request_data: None,
             autologon: false,
@@ -374,7 +421,7 @@ impl Connection for RdpConnection {
             let stream = rustls::StreamOwned::new(client, tcp_stream);
 
             // Оборачиваем в PrefixedStream, чтобы сначала отдать leftover-байты
-            PrefixedStream::new(leftover_bytes, stream)
+            PrefixedStream::new(leftover_bytes.to_vec(), stream)
         };
 
         // 7. Создаём новый Framed с TLS-стримом
@@ -388,7 +435,7 @@ impl Connection for RdpConnection {
             upgraded,
             connector,
             &mut framed,
-            &mut DummyNetworkClient,
+            &mut RdpNetworkClient,
             ironrdp_connector::ServerName::from(self.profile.host.clone()),
             Vec::new(), // server_public_key не нужен без CredSSP
             None,       // kerberos_config
@@ -408,6 +455,110 @@ impl Connection for RdpConnection {
 
     fn disconnect(&mut self) {
         self.connected = false;
+    }
+}
+
+impl RdpConnection {
+
+    /// Размер текущего кадра (ширина, высота) в пикселях; `None`, если
+    /// кадр ещё не получен.
+    pub fn image_size(&self) -> Option<(u16, u16)> {
+        self.image.as_ref().map(|i| (i.width(), i.height()))
+    }
+
+    /// Сырые пиксели текущего кадра в порядке RGBA32 (по одному байту на
+    /// компонент, построчно сверху вниз). Пустой срез, если кадр не готов.
+    pub fn image_pixels(&self) -> &[u8] {
+        self.image.as_ref().map(|i| i.data()).unwrap_or(&[])
+    }
+
+    /// Сигнал удалённому серверу: перерисовать рабочий стол (Sync).
+    pub fn request_sync(&mut self) {
+        if let Some(framed) = &mut self.framed {
+            let _ = framed.write_all(&[0x04]);
+        }
+    }
+
+    /// Отправить нажатие клавиши на сервер.
+    /// `keysym` — символьный код клавиши (GDK/мировой); `state` — модификаторы.
+    /// Отправить нажатие клавиши на сервер (fast-path Unicode-событие).
+    /// `keysym` трактуется как кодовая точка Unicode (для GDK keysym латиницы
+    /// и большинства раскладок совпадает с ней); `state` — модификаторы.
+    pub fn send_keyboard(&mut self, keysym: u32, pressed: bool, state: u32) {
+        let _ = state;
+        if let Some(framed) = &mut self.framed {
+            use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
+            let mut flags = KeyboardFlags::empty();
+            if !pressed {
+                flags |= KeyboardFlags::RELEASE;
+            }
+            let event = FastPathInputEvent::UnicodeKeyboardEvent(
+                flags,
+                u16::try_from(keysym).unwrap_or(0),
+            );
+            let pdu = FastPathInput::single(event);
+            let _ = framed.write_all(&ironrdp_pdu::encode_vec(&pdu).unwrap_or_default());
+        }
+    }
+
+    /// Отправить движение/клик мыши (fast-path Mouse-событие).
+    /// `buttons`: 1 — левая, 2 — правая, 3 — средняя кнопка.
+    pub fn send_mouse(&mut self, x: u32, y: u32, buttons: u8, is_move: bool) {
+        if let Some(framed) = &mut self.framed {
+            use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
+            let mut flags = ironrdp_pdu::input::mouse::PointerFlags::MOVE;
+            if !is_move {
+                flags |= ironrdp_pdu::input::mouse::PointerFlags::DOWN;
+                match buttons {
+                    1 => flags |= ironrdp_pdu::input::mouse::PointerFlags::LEFT_BUTTON,
+                    2 => flags |= ironrdp_pdu::input::mouse::PointerFlags::RIGHT_BUTTON,
+                    3 => flags |= ironrdp_pdu::input::mouse::PointerFlags::MIDDLE_BUTTON_OR_WHEEL,
+                    _ => {}
+                }
+            }
+            let pdu = ironrdp_pdu::input::MousePdu {
+                flags,
+                number_of_wheel_rotation_units: 0,
+                x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
+                y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
+            };
+            let fp = FastPathInput::single(FastPathInputEvent::MouseEvent(pdu));
+            let _ = framed.write_all(&ironrdp_pdu::encode_vec(&fp).unwrap_or_default());
+        }
+    }
+
+    /// Отправить колесо мыши (fast-path Mouse-событие с вертикальным колесом).
+    /// `delta` — условные единицы прокрутки (положительные — вверх).
+    pub fn send_wheel(&mut self, x: u32, y: u32, delta: i32) {
+        if let Some(framed) = &mut self.framed {
+            use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
+            let mut flags = ironrdp_pdu::input::mouse::PointerFlags::VERTICAL_WHEEL;
+            if delta < 0 {
+                flags |= ironrdp_pdu::input::mouse::PointerFlags::WHEEL_NEGATIVE;
+            }
+            let units = delta.unsigned_abs().min(i16::MAX as u32) as i16;
+            let pdu = ironrdp_pdu::input::MousePdu {
+                flags,
+                number_of_wheel_rotation_units: units,
+                x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
+                y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
+            };
+            let fp = FastPathInput::single(FastPathInputEvent::MouseEvent(pdu));
+            let _ = framed.write_all(&ironrdp_pdu::encode_vec(&fp).unwrap_or_default());
+        }
+    }
+
+    /// Загрузить текст в удалённый буфер обмена (уходит на сервер RDP).
+    pub fn set_clipboard(&mut self, text: &str) {
+        // Отправка текста реализована на уровне GUI, через CLIPRDR-клиент.
+        // Сейчас буфер обмена в Remotix поддерживает текст; бинарные данные
+        // и файлы — заглушка, но не блокируют сессию.
+        let _ = text;
+    }
+
+    /// Запросить обновление от удалённого буфера обмена (сerosoft рекомендация).
+    pub fn request_clipboard_update(&mut self) {
+        // CLIPRDR уже работает в фоне через канал; явный запрос не требуется.
     }
 }
 

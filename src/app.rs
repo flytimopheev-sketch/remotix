@@ -73,7 +73,7 @@ pub fn activate(app: &Application) {
     }
     actions.add_action(&about_action);
 
-    app.set_accelerators_for_action("win.about", Some(&["<Primary>I"]));
+    app.set_accels_for_action("win.about", &["<Primary>I"]);
 
     window.present();
 }

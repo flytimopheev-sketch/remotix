@@ -9,6 +9,7 @@ Source0:        %{name}-%{version}.tar.gz
 # на машине с интернетом), чтобы сборка на РЕД ОС шла полностью офлайн.
 Source1:        %{name}-vendor-%{version}.tar.gz
 
+BuildRequires:  gcc
 BuildRequires:  cargo
 BuildRequires:  rust
 BuildRequires:  gtk4-devel
