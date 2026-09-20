@@ -24,7 +24,7 @@ jobs:
 
       - name: Install build dependencies (EL9)
         run: |
-          dnf -y install dnf-plugins-core epel-release curl rsync tar gzip
+          dnf -y install dnf-plugins-core epel-release rsync tar gzip
           dnf config-manager --set-enabled crb
           dnf -y install --setopt=install_weak_deps=False \
             gcc make perl pkg-config \
