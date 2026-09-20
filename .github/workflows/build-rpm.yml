@@ -66,6 +66,7 @@ jobs:
           # Реальный запуск GUI в виртуальном X-сервере: если бинарнику не
           # хватает библиотек/символов или он падает при старте — job падает.
           export GSK_RENDERER=cairo
+          export REMOTIX_MASTER_PASSWORD=ci-smoke-test
           timeout 20 xvfb-run -a ./target/release/remotix > /tmp/smoke.log 2>&1
           code=$?
           echo "exit code: $code (124 = приложение работало до таймаута)"
