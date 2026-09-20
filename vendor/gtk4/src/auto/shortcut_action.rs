@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{ShortcutActionFlags, Widget, ffi};
+use crate::{ffi, ShortcutActionFlags, Widget};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -35,7 +35,12 @@ impl std::fmt::Display for ShortcutAction {
     }
 }
 
-pub trait ShortcutActionExt: IsA<ShortcutAction> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::ShortcutAction>> Sealed for T {}
+}
+
+pub trait ShortcutActionExt: IsA<ShortcutAction> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_shortcut_action_activate")]
     fn activate(
         &self,

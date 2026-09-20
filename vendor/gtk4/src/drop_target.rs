@@ -3,13 +3,13 @@
 use std::{boxed::Box as Box_, mem::transmute};
 
 use glib::{
-    Slice, Type,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
     value::FromValue,
+    Slice, Type,
 };
 
-use crate::{DropTarget, ffi, prelude::*};
+use crate::{ffi, prelude::*, DropTarget};
 
 impl DropTarget {
     #[doc(alias = "gtk_drop_target_set_gtypes")]
@@ -62,22 +62,20 @@ impl DropTarget {
             y: libc::c_double,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    &from_glib_borrow(this),
-                    &*(value as *const glib::Value),
-                    x,
-                    y,
-                )
-                .into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                &from_glib_borrow(this),
+                &*(value as *const glib::Value),
+                x,
+                y,
+            )
+            .into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drop".as_ptr() as *const _,
+                b"drop\0".as_ptr() as *const _,
                 Some(transmute::<*const (), unsafe extern "C" fn()>(
                     drop_trampoline::<F> as *const (),
                 )),

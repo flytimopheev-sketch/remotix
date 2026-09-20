@@ -28,10 +28,7 @@ mod static_ {
             type Interface = MyStaticInterfaceClass;
         }
 
-        pub trait MyStaticInterfaceImpl:
-            ObjectImpl + ObjectSubclass<Type: IsA<super::MyStaticInterface>>
-        {
-        }
+        pub trait MyStaticInterfaceImpl: ObjectImpl + ObjectSubclass {}
 
         // impl for an object subclass to register as a static type and that implements `MyStaticInterface`.
         #[derive(Default)]
@@ -48,10 +45,7 @@ mod static_ {
 
         impl MyStaticInterfaceImpl for MyStaticType {}
 
-        pub trait MyStaticTypeImpl:
-            ObjectImpl + ObjectSubclass<Type: IsA<super::MyStaticType>>
-        {
-        }
+        pub trait MyStaticTypeImpl: ObjectImpl + ObjectSubclass {}
     }
 
     // an object interface to register as a static type.
@@ -101,10 +95,7 @@ mod module {
             type Interface = MyModuleInterfaceClass;
         }
 
-        pub trait MyModuleInterfaceImpl:
-            ObjectImpl + ObjectSubclass<Type: IsA<super::MyModuleInterface>>
-        {
-        }
+        pub trait MyModuleInterfaceImpl: ObjectImpl + ObjectSubclass {}
 
         // impl for an object subclass to register as a dynamic type and that extends `MyStaticType` and that implements `MyStaticInterface` and `MyModuleInterface`.
         #[derive(Default)]
@@ -148,10 +139,7 @@ mod module {
             type Interface = MyModuleInterfaceLazyClass;
         }
 
-        pub trait MyModuleInterfaceLazyImpl:
-            ObjectImpl + ObjectSubclass<Type: IsA<super::MyModuleInterfaceLazy>>
-        {
-        }
+        pub trait MyModuleInterfaceLazyImpl: ObjectImpl + ObjectSubclass {}
 
         // impl for an object subclass to lazy register as a dynamic type and that extends `MyStaticType` and that implements `MyStaticInterface` and `MyModuleInterfaceLazy`.
         #[derive(Default)]
@@ -347,10 +335,7 @@ pub mod plugin {
             type Interface = MyPluginInterfaceClass;
         }
 
-        pub trait MyPluginInterfaceImpl:
-            ObjectImpl + ObjectSubclass<Type: IsA<super::MyPluginInterface>>
-        {
-        }
+        pub trait MyPluginInterfaceImpl: ObjectImpl + ObjectSubclass {}
 
         // impl for an object subclass to register as a dynamic type and that extends `MyStaticType` and that implements `MyStaticInterface` and `MyPluginInterface`.
         #[derive(Default)]
@@ -394,10 +379,7 @@ pub mod plugin {
             type Interface = MyPluginInterfaceLazyClass;
         }
 
-        pub trait MyPluginInterfaceLazyImpl:
-            ObjectImpl + ObjectSubclass<Type: IsA<super::MyPluginInterfaceLazy>>
-        {
-        }
+        pub trait MyPluginInterfaceLazyImpl: ObjectImpl + ObjectSubclass {}
 
         // impl for an object subclass to lazy register as a dynamic type and that extends `MyStaticType` and that implements `MyStaticInterface` and `MyPluginInterfaceLazy`.
         #[derive(Default)]
@@ -571,7 +553,7 @@ pub mod plugin {
 
     // an object subclass to register as a dynamic type and that extends `MyStaticType` and that implements `MyStaticInterface` and `MyPluginInterface`.
     glib::wrapper! {
-        pub struct MyPluginType(ObjectSubclass<imp::MyPluginType>) @extends MyStaticType, @implements MyPluginInterface, MyStaticInterface;
+        pub struct MyPluginType(ObjectSubclass<imp::MyPluginType>) @implements MyPluginInterface;
     }
 
     // an object interface to lazy register as a dynamic type and that extends `MyStaticInterface`.
@@ -583,7 +565,7 @@ pub mod plugin {
 
     // an object subclass to lazy register as a dynamic type and that extends `MyStaticType` that implements `MyStaticInterface` and `MyPluginInterfaceLazy`.
     glib::wrapper! {
-        pub struct MyPluginTypeLazy(ObjectSubclass<imp::MyPluginTypeLazy>) @extends MyStaticType, @implements MyPluginInterfaceLazy, MyStaticInterface;
+        pub struct MyPluginTypeLazy(ObjectSubclass<imp::MyPluginTypeLazy>) @implements MyPluginInterfaceLazy;
     }
 
     // a plugin (must implement `glib::TypePlugin`).

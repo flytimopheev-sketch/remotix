@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.92"
+edition = "2021"
+rust-version = "1.70"
 name = "gobject-sys"
-version = "0.22.9"
+version = "0.20.10"
 authors = ["The gtk-rs Project Developers"]
 build = "build.rs"
 exclude = ["gir-files/*"]
@@ -33,6 +33,18 @@ keywords = [
 ]
 license = "MIT"
 repository = "https://github.com/gtk-rs/gtk-rs-core"
+
+[package.metadata.docs.rs]
+all-features = true
+rustc-args = [
+    "--cfg",
+    "docsrs",
+]
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+    "--generate-link-to-definition",
+]
 
 [package.metadata.system-deps.gobject_2_0]
 name = "gobject-2.0"
@@ -63,7 +75,7 @@ version = "2.74"
 version = "2.76"
 
 [package.metadata.system-deps.gobject_2_0.v2_78]
-version = "2.78"
+version = "2.77"
 
 [package.metadata.system-deps.gobject_2_0.v2_80]
 version = "2.80"
@@ -75,11 +87,7 @@ version = "2.82"
 version = "2.84"
 
 [package.metadata.system-deps.gobject_2_0.v2_86]
-version = "2.86"
-
-[package.metadata.docs.rs]
-rustdoc-args = ["--generate-link-to-definition"]
-all-features = true
+version = "2.85"
 
 [features]
 v2_58 = []
@@ -105,7 +113,7 @@ name = "abi"
 path = "tests/abi.rs"
 
 [dependencies.glib-sys]
-version = "0.22.0"
+version = "0.20.6"
 
 [dependencies.libc]
 version = "0.2"
@@ -117,4 +125,4 @@ version = "1.0.0"
 version = "3"
 
 [build-dependencies.system-deps]
-version = "9"
+version = "7"

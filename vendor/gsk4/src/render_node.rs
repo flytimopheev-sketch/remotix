@@ -2,7 +2,7 @@
 
 use glib::translate::*;
 
-use crate::{ParseLocation, RenderNode, RenderNodeType, ffi, prelude::*};
+use crate::{ffi, prelude::*, ParseLocation, RenderNode, RenderNodeType};
 
 impl RenderNode {
     #[inline]
@@ -45,13 +45,11 @@ impl RenderNode {
             error: *const glib::ffi::GError,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let start = from_glib_borrow(start);
-                let end = from_glib_borrow(end);
-                let error = from_glib_borrow(error);
-                let callback = user_data as *mut P;
-                (*callback)(&start, &end, &error);
-            }
+            let start = from_glib_borrow(start);
+            let end = from_glib_borrow(end);
+            let error = from_glib_borrow(error);
+            let callback = user_data as *mut P;
+            (*callback)(&start, &end, &error);
         }
         let error_func = Some(error_func_func::<P> as _);
         let super_callback0: &mut P = &mut error_func_data;
@@ -114,8 +112,23 @@ pub unsafe trait IsRenderNode:
     fn upcast_ref(&self) -> &RenderNode;
 }
 
+#[doc(hidden)]
+impl AsRef<RenderNode> for RenderNode {
+    #[inline]
+    fn as_ref(&self) -> &Self {
+        self
+    }
+}
+
 macro_rules! define_render_node {
     ($rust_type:ident, $ffi_type:path, $node_type:path) => {
+        impl std::convert::AsRef<crate::RenderNode> for $rust_type {
+            #[inline]
+            fn as_ref(&self) -> &crate::RenderNode {
+                self
+            }
+        }
+
         impl std::ops::Deref for $rust_type {
             type Target = crate::RenderNode;
 
@@ -148,17 +161,7 @@ macro_rules! define_render_node {
         impl glib::translate::FromGlibPtrFull<*mut crate::ffi::GskRenderNode> for $rust_type {
             #[inline]
             unsafe fn from_glib_full(ptr: *mut crate::ffi::GskRenderNode) -> Self {
-                unsafe { glib::translate::from_glib_full(ptr as *mut $ffi_type) }
-            }
-        }
-
-        define_render_node!($rust_type, $ffi_type);
-    };
-    ($rust_type:ident, $ffi_type:path) => {
-        impl std::convert::AsRef<crate::RenderNode> for $rust_type {
-            #[inline]
-            fn as_ref(&self) -> &crate::RenderNode {
-                self
+                glib::translate::from_glib_full(ptr as *mut $ffi_type)
             }
         }
 
@@ -175,12 +178,10 @@ macro_rules! define_render_node {
 
             #[inline]
             unsafe fn from_value(value: &'a glib::Value) -> Self {
-                unsafe {
-                    skip_assert_initialized!();
-                    glib::translate::from_glib_full(crate::ffi::gsk_value_dup_render_node(
-                        glib::translate::ToGlibPtr::to_glib_none(value).0,
-                    ))
-                }
+                skip_assert_initialized!();
+                glib::translate::from_glib_full(crate::ffi::gsk_value_dup_render_node(
+                    glib::translate::ToGlibPtr::to_glib_none(value).0,
+                ))
             }
         }
 
@@ -224,5 +225,3 @@ macro_rules! define_render_node {
         }
     };
 }
-
-define_render_node!(RenderNode, crate::ffi::GskRenderNode);

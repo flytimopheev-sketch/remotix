@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Initable, ffi};
+use crate::{ffi, Initable};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -23,7 +23,12 @@ impl DebugController {
     pub const NONE: Option<&'static DebugController> = None;
 }
 
-pub trait DebugControllerExt: IsA<DebugController> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::DebugController>> Sealed for T {}
+}
+
+pub trait DebugControllerExt: IsA<DebugController> + sealed::Sealed + 'static {
     #[doc(alias = "g_debug_controller_get_debug_enabled")]
     #[doc(alias = "get_debug_enabled")]
     #[doc(alias = "debug-enabled")]
@@ -58,16 +63,14 @@ pub trait DebugControllerExt: IsA<DebugController> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(DebugController::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(DebugController::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::debug-enabled".as_ptr(),
+                b"notify::debug-enabled\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_debug_enabled_trampoline::<Self, F> as *const (),
                 )),

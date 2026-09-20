@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.92"
+edition = "2021"
+rust-version = "1.70"
 name = "pango-sys"
-version = "0.22.9"
+version = "0.20.10"
 authors = ["The gtk-rs Project Developers"]
 build = "build.rs"
 exclude = ["gir-files/*"]
@@ -33,6 +33,18 @@ keywords = [
 ]
 license = "MIT"
 repository = "https://github.com/gtk-rs/gtk-rs-core"
+
+[package.metadata.docs.rs]
+all-features = true
+rustc-args = [
+    "--cfg",
+    "docsrs",
+]
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+    "--generate-link-to-definition",
+]
 
 [package.metadata.system-deps.pango]
 name = "pango"
@@ -62,16 +74,6 @@ version = "1.54"
 [package.metadata.system-deps.pango.v1_56]
 version = "1.55"
 
-[package.metadata.system-deps.pango.v1_57]
-version = "1.57"
-
-[package.metadata.system-deps.pango.v1_58]
-version = "1.58"
-
-[package.metadata.docs.rs]
-rustdoc-args = ["--generate-link-to-definition"]
-all-features = true
-
 [features]
 v1_42 = []
 v1_44 = ["v1_42"]
@@ -81,8 +83,6 @@ v1_50 = ["v1_48"]
 v1_52 = ["v1_50"]
 v1_54 = ["v1_52"]
 v1_56 = ["v1_54"]
-v1_57 = ["v1_56"]
-v1_58 = ["v1_57"]
 
 [lib]
 name = "pango_sys"
@@ -93,10 +93,10 @@ name = "abi"
 path = "tests/abi.rs"
 
 [dependencies.glib-sys]
-version = "0.22.0"
+version = "0.20.6"
 
 [dependencies.gobject-sys]
-version = "0.22.0"
+version = "0.20"
 
 [dependencies.libc]
 version = "0.2"
@@ -108,4 +108,4 @@ version = "1.0.0"
 version = "3"
 
 [build-dependencies.system-deps]
-version = "9"
+version = "7"

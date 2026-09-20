@@ -2,13 +2,18 @@
 
 use std::{io, mem, pin::Pin, ptr};
 
-use glib::{Priority, prelude::*, translate::*};
+use glib::{prelude::*, translate::*, Priority};
 
 #[cfg(feature = "v2_60")]
 use crate::OutputVector;
-use crate::{Cancellable, OutputStream, Seekable, error::to_std_io_result, ffi, prelude::*};
+use crate::{error::to_std_io_result, ffi, prelude::*, Cancellable, OutputStream, Seekable};
 
-pub trait OutputStreamExtManual: IsA<OutputStream> + Sized {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::OutputStream>> Sealed for T {}
+}
+
+pub trait OutputStreamExtManual: sealed::Sealed + IsA<OutputStream> + Sized {
     #[doc(alias = "g_output_stream_write_async")]
     fn write_async<
         B: AsRef<[u8]> + Send + 'static,
@@ -49,22 +54,19 @@ pub trait OutputStreamExtManual: IsA<OutputStream> + Sized {
             res: *mut ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let user_data: Box<(glib::thread_guard::ThreadGuard<Q>, B)> =
-                    Box::from_raw(user_data as *mut _);
-                let (callback, buffer) = *user_data;
-                let callback = callback.into_inner();
+            let user_data: Box<(glib::thread_guard::ThreadGuard<Q>, B)> =
+                Box::from_raw(user_data as *mut _);
+            let (callback, buffer) = *user_data;
+            let callback = callback.into_inner();
 
-                let mut error = ptr::null_mut();
-                let ret =
-                    ffi::g_output_stream_write_finish(_source_object as *mut _, res, &mut error);
-                let result = if error.is_null() {
-                    Ok((buffer, ret as usize))
-                } else {
-                    Err((buffer, from_glib_full(error)))
-                };
-                callback(result);
-            }
+            let mut error = ptr::null_mut();
+            let ret = ffi::g_output_stream_write_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok((buffer, ret as usize))
+            } else {
+                Err((buffer, from_glib_full(error)))
+            };
+            callback(result);
         }
         let callback = write_async_trampoline::<B, Q>;
         unsafe {
@@ -152,30 +154,28 @@ pub trait OutputStreamExtManual: IsA<OutputStream> + Sized {
             res: *mut ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let user_data: Box<(glib::thread_guard::ThreadGuard<Q>, B)> =
-                    Box::from_raw(user_data as *mut _);
-                let (callback, buffer) = *user_data;
-                let callback = callback.into_inner();
+            let user_data: Box<(glib::thread_guard::ThreadGuard<Q>, B)> =
+                Box::from_raw(user_data as *mut _);
+            let (callback, buffer) = *user_data;
+            let callback = callback.into_inner();
 
-                let mut error = ptr::null_mut();
-                let mut bytes_written = mem::MaybeUninit::uninit();
-                let _ = ffi::g_output_stream_write_all_finish(
-                    _source_object as *mut _,
-                    res,
-                    bytes_written.as_mut_ptr(),
-                    &mut error,
-                );
-                let bytes_written = bytes_written.assume_init();
-                let result = if error.is_null() {
-                    Ok((buffer, bytes_written, None))
-                } else if bytes_written != 0 {
-                    Ok((buffer, bytes_written, from_glib_full(error)))
-                } else {
-                    Err((buffer, from_glib_full(error)))
-                };
-                callback(result);
-            }
+            let mut error = ptr::null_mut();
+            let mut bytes_written = mem::MaybeUninit::uninit();
+            let _ = ffi::g_output_stream_write_all_finish(
+                _source_object as *mut _,
+                res,
+                bytes_written.as_mut_ptr(),
+                &mut error,
+            );
+            let bytes_written = bytes_written.assume_init();
+            let result = if error.is_null() {
+                Ok((buffer, bytes_written, None))
+            } else if bytes_written != 0 {
+                Ok((buffer, bytes_written, from_glib_full(error)))
+            } else {
+                Err((buffer, from_glib_full(error)))
+            };
+            callback(result);
         }
         let callback = write_all_async_trampoline::<B, Q>;
         unsafe {
@@ -309,31 +309,29 @@ pub trait OutputStreamExtManual: IsA<OutputStream> + Sized {
             res: *mut ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let user_data: Box<(
-                    glib::thread_guard::ThreadGuard<P>,
-                    Vec<B>,
-                    Vec<ffi::GOutputVector>,
-                )> = Box::from_raw(user_data as *mut _);
-                let (callback, buffers, _) = *user_data;
-                let callback = callback.into_inner();
+            let user_data: Box<(
+                glib::thread_guard::ThreadGuard<P>,
+                Vec<B>,
+                Vec<ffi::GOutputVector>,
+            )> = Box::from_raw(user_data as *mut _);
+            let (callback, buffers, _) = *user_data;
+            let callback = callback.into_inner();
 
-                let mut error = ptr::null_mut();
-                let mut bytes_written = mem::MaybeUninit::uninit();
-                ffi::g_output_stream_writev_finish(
-                    _source_object as *mut _,
-                    res,
-                    bytes_written.as_mut_ptr(),
-                    &mut error,
-                );
-                let bytes_written = bytes_written.assume_init();
-                let result = if error.is_null() {
-                    Ok((buffers, bytes_written))
-                } else {
-                    Err((buffers, from_glib_full(error)))
-                };
-                callback(result);
-            }
+            let mut error = ptr::null_mut();
+            let mut bytes_written = mem::MaybeUninit::uninit();
+            ffi::g_output_stream_writev_finish(
+                _source_object as *mut _,
+                res,
+                bytes_written.as_mut_ptr(),
+                &mut error,
+            );
+            let bytes_written = bytes_written.assume_init();
+            let result = if error.is_null() {
+                Ok((buffers, bytes_written))
+            } else {
+                Err((buffers, from_glib_full(error)))
+            };
+            callback(result);
         }
         let callback = writev_async_trampoline::<B, P>;
         unsafe {
@@ -455,33 +453,31 @@ pub trait OutputStreamExtManual: IsA<OutputStream> + Sized {
             res: *mut ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let user_data: Box<(
-                    glib::thread_guard::ThreadGuard<P>,
-                    Vec<B>,
-                    Vec<ffi::GOutputVector>,
-                )> = Box::from_raw(user_data as *mut _);
-                let (callback, buffers, _) = *user_data;
-                let callback = callback.into_inner();
+            let user_data: Box<(
+                glib::thread_guard::ThreadGuard<P>,
+                Vec<B>,
+                Vec<ffi::GOutputVector>,
+            )> = Box::from_raw(user_data as *mut _);
+            let (callback, buffers, _) = *user_data;
+            let callback = callback.into_inner();
 
-                let mut error = ptr::null_mut();
-                let mut bytes_written = mem::MaybeUninit::uninit();
-                ffi::g_output_stream_writev_all_finish(
-                    _source_object as *mut _,
-                    res,
-                    bytes_written.as_mut_ptr(),
-                    &mut error,
-                );
-                let bytes_written = bytes_written.assume_init();
-                let result = if error.is_null() {
-                    Ok((buffers, bytes_written, None))
-                } else if bytes_written != 0 {
-                    Ok((buffers, bytes_written, from_glib_full(error)))
-                } else {
-                    Err((buffers, from_glib_full(error)))
-                };
-                callback(result);
-            }
+            let mut error = ptr::null_mut();
+            let mut bytes_written = mem::MaybeUninit::uninit();
+            ffi::g_output_stream_writev_all_finish(
+                _source_object as *mut _,
+                res,
+                bytes_written.as_mut_ptr(),
+                &mut error,
+            );
+            let bytes_written = bytes_written.assume_init();
+            let result = if error.is_null() {
+                Ok((buffers, bytes_written, None))
+            } else if bytes_written != 0 {
+                Ok((buffers, bytes_written, from_glib_full(error)))
+            } else {
+                Err((buffers, from_glib_full(error)))
+            };
+            callback(result);
         }
         let callback = writev_all_async_trampoline::<B, P>;
         unsafe {
@@ -602,7 +598,7 @@ mod tests {
 
     #[cfg(feature = "v2_60")]
     use crate::OutputVector;
-    use crate::{MemoryInputStream, MemoryOutputStream, prelude::*, test_util::run_async};
+    use crate::{prelude::*, test_util::run_async, MemoryInputStream, MemoryOutputStream};
 
     #[test]
     fn splice_async() {

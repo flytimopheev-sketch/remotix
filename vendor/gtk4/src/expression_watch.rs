@@ -1,6 +1,6 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
-use glib::{Value, translate::*, value::FromValue};
+use glib::{translate::*, value::FromValue, Value};
 
 use crate::ffi;
 
@@ -25,7 +25,11 @@ impl ExpressionWatch {
                 self.to_glib_none().0,
                 value.to_glib_none_mut().0,
             );
-            if from_glib(ret) { Some(value) } else { None }
+            if from_glib(ret) {
+                Some(value)
+            } else {
+                None
+            }
         }
     }
 

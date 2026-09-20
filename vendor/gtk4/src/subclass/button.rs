@@ -1,13 +1,13 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`Button`].
+//! Traits intended for subclassing [`Button`](crate::Button).
 
 use glib::translate::*;
 
-use crate::{Actionable, Button, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, Button};
 
-pub trait ButtonImpl: WidgetImpl + ObjectSubclass<Type: IsA<Button> + IsA<Actionable>> {
+pub trait ButtonImpl: ButtonImplExt + WidgetImpl {
     fn activate(&self) {
         self.parent_activate()
     }
@@ -17,7 +17,12 @@ pub trait ButtonImpl: WidgetImpl + ObjectSubclass<Type: IsA<Button> + IsA<Action
     }
 }
 
-pub trait ButtonImplExt: ButtonImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::ButtonImplExt> Sealed for T {}
+}
+
+pub trait ButtonImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_activate(&self) {
         unsafe {
             let data = Self::type_data();
@@ -51,19 +56,15 @@ unsafe impl<T: ButtonImpl> IsSubclassable<T> for Button {
 }
 
 unsafe extern "C" fn button_activate<T: ButtonImpl>(ptr: *mut ffi::GtkButton) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.activate()
-    }
+    imp.activate()
 }
 
 unsafe extern "C" fn button_clicked<T: ButtonImpl>(ptr: *mut ffi::GtkButton) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.clicked()
-    }
+    imp.clicked()
 }

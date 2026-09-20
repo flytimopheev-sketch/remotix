@@ -3,7 +3,7 @@
 use std::{fmt, marker::PhantomData, ptr};
 
 use crate::ffi;
-use glib::{Type, translate::*};
+use glib::{translate::*, Type};
 
 // rustdoc-stripper-ignore-next
 /// The implementation of an `IOExtensionPoint`.
@@ -24,10 +24,8 @@ impl fmt::Debug for IOExtension {
 impl FromGlibPtrNone<*mut ffi::GIOExtension> for IOExtension {
     #[inline]
     unsafe fn from_glib_none(ptr: *mut ffi::GIOExtension) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            IOExtension(ptr::NonNull::new_unchecked(ptr))
-        }
+        debug_assert!(!ptr.is_null());
+        IOExtension(ptr::NonNull::new_unchecked(ptr))
     }
 }
 

@@ -7,15 +7,15 @@ use std::boxed::Box as Box_;
 use std::mem;
 #[cfg(not(windows))]
 #[cfg(feature = "v2_58")]
-use std::os::unix::io::{AsFd, AsRawFd};
+use std::os::unix::io::AsRawFd;
 #[cfg(not(windows))]
-use std::os::unix::io::{FromRawFd, OwnedFd};
+use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
 use std::ptr;
 
 // #[cfg(windows)]
 // #[cfg(feature = "v2_58")]
 // use std::os::windows::io::AsRawHandle;
-use crate::{ChecksumType, GStr, ffi, translate::*};
+use crate::{ffi, translate::*, ChecksumType, GStr};
 #[cfg(not(windows))]
 use crate::{Error, Pid, SpawnFlags};
 
@@ -24,24 +24,22 @@ use crate::{Error, Pid, SpawnFlags};
 #[cfg_attr(docsrs, doc(cfg(all(feature = "v2_58", not(windows)))))]
 #[allow(clippy::too_many_arguments)]
 #[doc(alias = "g_spawn_async_with_fds")]
-pub fn spawn_async_with_fds<P: AsRef<std::path::Path>>(
+pub fn spawn_async_with_fds<P: AsRef<std::path::Path>, T: AsRawFd, U: AsRawFd, V: AsRawFd>(
     working_directory: P,
     argv: &[&str],
     envp: &[&str],
     flags: SpawnFlags,
     child_setup: Option<Box_<dyn FnOnce() + 'static>>,
-    stdin_fd: Option<impl AsFd>,
-    stdout_fd: Option<impl AsFd>,
-    stderr_fd: Option<impl AsFd>,
+    stdin_fd: T,
+    stdout_fd: U,
+    stderr_fd: V,
 ) -> Result<Pid, Error> {
     let child_setup_data: Box_<Option<Box_<dyn FnOnce() + 'static>>> = Box_::new(child_setup);
     unsafe extern "C" fn child_setup_func(user_data: ffi::gpointer) {
-        unsafe {
-            let callback: Box_<Option<Box_<dyn FnOnce() + 'static>>> =
-                Box_::from_raw(user_data as *mut _);
-            let callback = (*callback).expect("cannot get closure...");
-            callback()
-        }
+        let callback: Box_<Option<Box_<dyn FnOnce() + 'static>>> =
+            Box_::from_raw(user_data as *mut _);
+        let callback = (*callback).expect("cannot get closure...");
+        callback()
     }
     let child_setup = if child_setup_data.is_some() {
         Some(child_setup_func as _)
@@ -49,9 +47,6 @@ pub fn spawn_async_with_fds<P: AsRef<std::path::Path>>(
         None
     };
     let super_callback0: Box_<Option<Box_<dyn FnOnce() + 'static>>> = child_setup_data;
-    let stdin_raw_fd = stdin_fd.map_or(-1, |fd| fd.as_fd().as_raw_fd());
-    let stdout_raw_fd = stdout_fd.map_or(-1, |fd| fd.as_fd().as_raw_fd());
-    let stderr_raw_fd = stderr_fd.map_or(-1, |fd| fd.as_fd().as_raw_fd());
     unsafe {
         let mut child_pid = mem::MaybeUninit::uninit();
         let mut error = ptr::null_mut();
@@ -63,9 +58,9 @@ pub fn spawn_async_with_fds<P: AsRef<std::path::Path>>(
             child_setup,
             Box_::into_raw(super_callback0) as *mut _,
             child_pid.as_mut_ptr(),
-            stdin_raw_fd,
-            stdout_raw_fd,
-            stderr_raw_fd,
+            stdin_fd.as_raw_fd(),
+            stdout_fd.as_raw_fd(),
+            stderr_fd.as_raw_fd(),
             &mut error,
         );
         let child_pid = from_glib(child_pid.assume_init());
@@ -151,12 +146,10 @@ pub fn spawn_async_with_pipes<
 ) -> Result<(Pid, T, U, V), Error> {
     let child_setup_data: Box_<Option<Box_<dyn FnOnce() + 'static>>> = Box_::new(child_setup);
     unsafe extern "C" fn child_setup_func(user_data: ffi::gpointer) {
-        unsafe {
-            let callback: Box_<Option<Box_<dyn FnOnce() + 'static>>> =
-                Box_::from_raw(user_data as *mut _);
-            let callback = (*callback).expect("cannot get closure...");
-            callback()
-        }
+        let callback: Box_<Option<Box_<dyn FnOnce() + 'static>>> =
+            Box_::from_raw(user_data as *mut _);
+        let callback = (*callback).expect("cannot get closure...");
+        callback()
     }
     let child_setup = if child_setup_data.is_some() {
         Some(child_setup_func as _)
@@ -183,11 +176,11 @@ pub fn spawn_async_with_pipes<
             standard_error.as_mut_ptr(),
             &mut error,
         );
+        let child_pid = from_glib(child_pid.assume_init());
+        let standard_input = standard_input.assume_init();
+        let standard_output = standard_output.assume_init();
+        let standard_error = standard_error.assume_init();
         if error.is_null() {
-            let child_pid = from_glib(child_pid.assume_init());
-            let standard_input = standard_input.assume_init();
-            let standard_output = standard_output.assume_init();
-            let standard_error = standard_error.assume_init();
             #[cfg(not(windows))]
             {
                 Ok((
@@ -244,10 +237,28 @@ pub fn compute_checksum_for_string(
 }
 
 #[cfg(unix)]
+#[doc(alias = "g_unix_open_pipe")]
+pub fn unix_open_pipe(flags: i32) -> Result<(RawFd, RawFd), Error> {
+    unsafe {
+        let mut fds = [0, 2];
+        let mut error = ptr::null_mut();
+        let _ = ffi::g_unix_open_pipe(&mut fds, flags, &mut error);
+        if error.is_null() {
+            Ok((
+                FromRawFd::from_raw_fd(fds[0]),
+                FromRawFd::from_raw_fd(fds[1]),
+            ))
+        } else {
+            Err(from_glib_full(error))
+        }
+    }
+}
+
+#[cfg(unix)]
 #[doc(alias = "g_file_open_tmp")]
 pub fn file_open_tmp(
     tmpl: Option<impl AsRef<std::path::Path>>,
-) -> Result<(OwnedFd, std::path::PathBuf), crate::Error> {
+) -> Result<(RawFd, std::path::PathBuf), crate::Error> {
     unsafe {
         let mut name_used = ptr::null_mut();
         let mut error = ptr::null_mut();
@@ -257,7 +268,7 @@ pub fn file_open_tmp(
             &mut error,
         );
         if error.is_null() {
-            Ok((OwnedFd::from_raw_fd(ret), from_glib_full(name_used)))
+            Ok((ret.into_raw_fd(), from_glib_full(name_used)))
         } else {
             Err(from_glib_full(error))
         }
@@ -269,7 +280,6 @@ pub fn file_open_tmp(
 ///
 /// This can be called from any thread and will execute the future from the thread
 /// where main context is running, e.g. via a `MainLoop`.
-#[cfg(feature = "futures")]
 pub fn spawn_future<R: Send + 'static, F: std::future::Future<Output = R> + Send + 'static>(
     f: F,
 ) -> crate::JoinHandle<R> {
@@ -285,7 +295,6 @@ pub fn spawn_future<R: Send + 'static, F: std::future::Future<Output = R> + Send
 /// This can be called only from the thread where the main context is running, e.g.
 /// from any other `Future` that is executed on this main context, or after calling
 /// `with_thread_default` or `acquire` on the main context.
-#[cfg(feature = "futures")]
 pub fn spawn_future_local<R: 'static, F: std::future::Future<Output = R> + 'static>(
     f: F,
 ) -> crate::JoinHandle<R> {

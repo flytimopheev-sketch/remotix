@@ -3,11 +3,11 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-use crate::{FontChooserLevel, ffi};
+use crate::{ffi, FontChooserLevel};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -25,7 +25,12 @@ impl FontChooser {
     pub const NONE: Option<&'static FontChooser> = None;
 }
 
-pub trait FontChooserExt: IsA<FontChooser> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::FontChooser>> Sealed for T {}
+}
+
+pub trait FontChooserExt: IsA<FontChooser> + sealed::Sealed + 'static {
     #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
     #[allow(deprecated)]
     #[doc(alias = "gtk_font_chooser_get_font")]
@@ -173,12 +178,10 @@ pub trait FontChooserExt: IsA<FontChooser> + 'static {
             face: *const pango::ffi::PangoFontFace,
             data: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let family = from_glib_borrow(family);
-                let face = from_glib_borrow(face);
-                let callback = &*(data as *mut P);
-                (*callback)(&family, &face).into_glib()
-            }
+            let family = from_glib_borrow(family);
+            let face = from_glib_borrow(face);
+            let callback = &*(data as *mut P);
+            (*callback)(&family, &face).into_glib()
         }
         let filter = Some(filter_func::<P> as _);
         unsafe extern "C" fn destroy_func<
@@ -186,9 +189,7 @@ pub trait FontChooserExt: IsA<FontChooser> + 'static {
         >(
             data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let _callback = Box_::from_raw(data as *mut P);
-            }
+            let _callback = Box_::from_raw(data as *mut P);
         }
         let destroy_call3 = Some(destroy_func::<P> as _);
         let super_callback0: Box_<P> = filter_data;
@@ -300,19 +301,17 @@ pub trait FontChooserExt: IsA<FontChooser> + 'static {
             fontname: *mut std::ffi::c_char,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    FontChooser::from_glib_borrow(this).unsafe_cast_ref(),
-                    &glib::GString::from_glib_borrow(fontname),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                FontChooser::from_glib_borrow(this).unsafe_cast_ref(),
+                &glib::GString::from_glib_borrow(fontname),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"font-activated".as_ptr(),
+                b"font-activated\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     font_activated_trampoline::<Self, F> as *const (),
                 )),
@@ -329,16 +328,14 @@ pub trait FontChooserExt: IsA<FontChooser> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::font".as_ptr(),
+                b"notify::font\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_font_trampoline::<Self, F> as *const (),
                 )),
@@ -358,16 +355,14 @@ pub trait FontChooserExt: IsA<FontChooser> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::font-desc".as_ptr(),
+                b"notify::font-desc\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_font_desc_trampoline::<Self, F> as *const (),
                 )),
@@ -387,16 +382,14 @@ pub trait FontChooserExt: IsA<FontChooser> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::font-features".as_ptr(),
+                b"notify::font-features\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_font_features_trampoline::<Self, F> as *const (),
                 )),
@@ -416,16 +409,14 @@ pub trait FontChooserExt: IsA<FontChooser> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::language".as_ptr(),
+                b"notify::language\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_language_trampoline::<Self, F> as *const (),
                 )),
@@ -442,16 +433,14 @@ pub trait FontChooserExt: IsA<FontChooser> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::level".as_ptr(),
+                b"notify::level\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_level_trampoline::<Self, F> as *const (),
                 )),
@@ -471,16 +460,14 @@ pub trait FontChooserExt: IsA<FontChooser> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::preview-text".as_ptr(),
+                b"notify::preview-text\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_preview_text_trampoline::<Self, F> as *const (),
                 )),
@@ -500,16 +487,14 @@ pub trait FontChooserExt: IsA<FontChooser> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(FontChooser::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-preview-entry".as_ptr(),
+                b"notify::show-preview-entry\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_preview_entry_trampoline::<Self, F> as *const (),
                 )),

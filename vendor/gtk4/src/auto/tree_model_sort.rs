@@ -3,7 +3,7 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-use crate::{TreeDragSource, TreeIter, TreeModel, TreePath, TreeSortable, ffi};
+use crate::{ffi, TreeDragSource, TreeIter, TreeModel, TreePath, TreeSortable};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -18,8 +18,6 @@ glib::wrapper! {
 impl TreeModelSort {
     pub const NONE: Option<&'static TreeModelSort> = None;
 
-    #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
-    #[allow(deprecated)]
     #[doc(alias = "gtk_tree_model_sort_new_with_model")]
     #[doc(alias = "new_with_model")]
     pub fn with_model(child_model: &impl IsA<TreeModel>) -> TreeModelSort {
@@ -32,7 +30,12 @@ impl TreeModelSort {
     }
 }
 
-pub trait TreeModelSortExt: IsA<TreeModelSort> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TreeModelSort>> Sealed for T {}
+}
+
+pub trait TreeModelSortExt: IsA<TreeModelSort> + sealed::Sealed + 'static {
     #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
     #[allow(deprecated)]
     #[doc(alias = "gtk_tree_model_sort_clear_cache")]
@@ -53,7 +56,11 @@ pub trait TreeModelSortExt: IsA<TreeModelSort> + 'static {
                 sort_iter.to_glib_none_mut().0,
                 mut_override(child_iter.to_glib_none().0),
             ));
-            if ret { Some(sort_iter) } else { None }
+            if ret {
+                Some(sort_iter)
+            } else {
+                None
+            }
         }
     }
 
@@ -96,8 +103,6 @@ pub trait TreeModelSortExt: IsA<TreeModelSort> + 'static {
         }
     }
 
-    #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
-    #[allow(deprecated)]
     #[doc(alias = "gtk_tree_model_sort_get_model")]
     #[doc(alias = "get_model")]
     fn model(&self) -> TreeModel {

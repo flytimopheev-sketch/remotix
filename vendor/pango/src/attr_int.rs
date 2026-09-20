@@ -12,9 +12,7 @@ use crate::Overline;
 use crate::ShowFlags;
 #[cfg(feature = "v1_50")]
 use crate::TextTransform;
-#[cfg(feature = "v1_58")]
-use crate::Width;
-use crate::{AttrType, Gravity, GravityHint, Stretch, Style, Underline, Variant, Weight, ffi};
+use crate::{ffi, AttrType, Gravity, GravityHint, Stretch, Style, Underline, Variant, Weight};
 
 define_attribute_struct!(
     AttrInt,
@@ -48,9 +46,7 @@ define_attribute_struct!(
         AttrType::Style,
         AttrType::Underline,
         AttrType::Variant,
-        AttrType::Weight,
-        #[cfg(feature = "v1_58")]
-        AttrType::Width
+        AttrType::Weight
     ]
 );
 
@@ -192,13 +188,6 @@ impl AttrInt {
     #[doc(alias = "pango_attr_variant_new")]
     pub fn new_variant(variant: Variant) -> Self {
         unsafe { from_glib_full(ffi::pango_attr_variant_new(variant.into_glib())) }
-    }
-
-    #[cfg(feature = "v1_58")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-    #[doc(alias = "pango_attr_width_new")]
-    pub fn new_width(width: Width) -> Self {
-        unsafe { from_glib_full(ffi::pango_attr_width_new(width.into_glib())) }
     }
 
     pub fn value(&self) -> i32 {

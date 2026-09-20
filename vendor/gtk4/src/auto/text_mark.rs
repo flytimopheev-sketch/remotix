@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{TextBuffer, ffi};
+use crate::{ffi, TextBuffer};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -80,7 +80,12 @@ impl TextMarkBuilder {
     }
 }
 
-pub trait TextMarkExt: IsA<TextMark> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TextMark>> Sealed for T {}
+}
+
+pub trait TextMarkExt: IsA<TextMark> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_text_mark_get_buffer")]
     #[doc(alias = "get_buffer")]
     fn buffer(&self) -> Option<TextBuffer> {

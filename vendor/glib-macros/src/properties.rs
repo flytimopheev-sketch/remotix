@@ -5,14 +5,14 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
 use quote::{quote, quote_spanned};
-use std::collections::BTreeMap;
-use syn::Token;
+use std::collections::HashMap;
 use syn::ext::IdentExt;
 use syn::parenthesized;
 use syn::parse::Parse;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Attribute, LitStr, parse_quote_spanned};
+use syn::Token;
+use syn::{parse_quote_spanned, Attribute, LitStr};
 
 pub struct PropsMacroInput {
     wrapper_ty: syn::Path,
@@ -82,7 +82,7 @@ impl Parse for PropsMacroInput {
                 return Err(syn::Error::new(
                     derive_input.span(),
                     "Properties can only be derived on structs",
-                ));
+                ))
             }
         };
         Ok(Self {
@@ -138,9 +138,6 @@ enum PropAttr {
 
     // ident = "literal"
     Name(syn::LitStr),
-
-    // ident
-    Default,
 }
 
 impl Parse for PropAttr {
@@ -179,7 +176,7 @@ impl Parse for PropAttr {
                     return Err(syn::Error::new(
                         name.span(),
                         format!("Unsupported attribute list {name_str}(...)"),
-                    ));
+                    ))
                 }
             }
         } else {
@@ -195,9 +192,8 @@ impl Parse for PropAttr {
                             "{name} is a flag managed by the Properties macro. \
                             Use `get` and `set` to manage read and write access to a property",
                         ),
-                    ));
+                    ))
                 }
-                "default" => PropAttr::Default,
                 _ => PropAttr::BuilderField((name, None)),
             }
         };
@@ -216,8 +212,7 @@ struct ReceivedAttrs {
     member: Option<syn::Ident>,
     name: Option<syn::LitStr>,
     builder: Option<(Punctuated<syn::Expr, Token![,]>, TokenStream2)>,
-    builder_fields: BTreeMap<syn::Ident, Option<syn::Expr>>,
-    use_default: bool,
+    builder_fields: HashMap<syn::Ident, Option<syn::Expr>>,
 }
 
 impl Parse for ReceivedAttrs {
@@ -249,9 +244,6 @@ impl ReceivedAttrs {
             PropAttr::BuilderField((ident, expr)) => {
                 self.builder_fields.insert(ident, expr);
             }
-            PropAttr::Default => {
-                self.use_default = true;
-            }
         }
     }
 }
@@ -271,9 +263,8 @@ struct PropDesc {
     set: Option<MaybeCustomFn>,
     member: Option<syn::Ident>,
     builder: Option<(Punctuated<syn::Expr, Token![,]>, TokenStream2)>,
-    builder_fields: BTreeMap<syn::Ident, Option<syn::Expr>>,
+    builder_fields: HashMap<syn::Ident, Option<syn::Expr>>,
     is_construct_only: bool,
-    use_default: bool,
 }
 
 impl PropDesc {
@@ -295,7 +286,6 @@ impl PropDesc {
             name,
             builder,
             builder_fields,
-            use_default,
         } = attrs;
 
         let is_construct_only = builder_fields.iter().any(|(k, _)| *k == "construct_only");
@@ -343,7 +333,6 @@ impl PropDesc {
             builder,
             builder_fields,
             is_construct_only,
-            use_default,
         })
     }
     fn is_overriding(&self) -> bool {
@@ -354,20 +343,16 @@ impl PropDesc {
 fn expand_param_spec(prop: &PropDesc) -> TokenStream2 {
     let crate_ident = crate_ident_new();
     let PropDesc {
-        ty,
-        name,
-        builder,
-        use_default,
-        ..
+        ty, name, builder, ..
     } = prop;
     let stripped_name = strip_raw_prefix_from_name(name);
 
     match (&prop.override_class, &prop.override_interface) {
         (Some(c), None) => {
-            return quote!(#crate_ident::ParamSpecOverride::for_class::<#c>(#stripped_name));
+            return quote!(#crate_ident::ParamSpecOverride::for_class::<#c>(#stripped_name))
         }
         (None, Some(i)) => {
-            return quote!(#crate_ident::ParamSpecOverride::for_interface::<#i>(#stripped_name));
+            return quote!(#crate_ident::ParamSpecOverride::for_interface::<#i>(#stripped_name))
         }
         (Some(_), Some(_)) => {
             unreachable!("Both `override_class` and `override_interface` specified")
@@ -390,7 +375,7 @@ fn expand_param_spec(prop: &PropDesc) -> TokenStream2 {
                 attrs: vec![],
                 lit: syn::Lit::Str(stripped_name.to_owned()),
             };
-            required_params.insert(0, syn::Expr::Lit(name_expr));
+            required_params.insert(0, name_expr.into());
             let required_params = required_params.iter();
 
             quote!((#(#required_params,)*)#chained_methods)
@@ -400,20 +385,9 @@ fn expand_param_spec(prop: &PropDesc) -> TokenStream2 {
     let builder_fields = prop.builder_fields.iter().map(|(k, v)| quote!(.#k(#v)));
 
     let span = prop.attrs_span;
-
-    // Figure out if we should use the default version or the one that explicitly sets the `Default` value.
-    let (trait_name, fn_name) = if *use_default {
-        (
-            quote!(HasParamSpecDefaulted),
-            quote!(param_spec_builder_defaulted),
-        )
-    } else {
-        (quote!(HasParamSpec), quote!(param_spec_builder))
-    };
-
     quote_spanned! {span=>
-        <<#ty as #crate_ident::property::Property>::Value as #crate_ident::#trait_name>
-            ::#fn_name() #builder_call
+        <<#ty as #crate_ident::property::Property>::Value as #crate_ident::prelude::HasParamSpec>
+            ::param_spec_builder() #builder_call
             #rw_flags
             #(#builder_fields)*
             .build()
@@ -608,24 +582,25 @@ fn arrange_property_comments(comments: &[Attribute]) -> (Vec<&Attribute>, Vec<&A
     // We start with no tags so if the programmer doesn't split the comments we can still arrange them.
     let mut current_section = &mut untagged;
     for attr in comments {
-        if let syn::Meta::NameValue(meta) = &attr.meta
-            && let syn::Expr::Lit(expr) = &meta.value
-            && let syn::Lit::Str(lit_str) = &expr.lit
-        {
-            // Now that we have the one line of comment, see if we need
-            // to switch a particular section to be the active one (via
-            // the header syntax) or add the current line to the active
-            // section.
-            match lit_str.value().trim() {
-                "# Getter" => {
-                    current_section = &mut getter;
-                    saw_section = true;
+        if let syn::Meta::NameValue(meta) = &attr.meta {
+            if let syn::Expr::Lit(expr) = &meta.value {
+                if let syn::Lit::Str(lit_str) = &expr.lit {
+                    // Now that we have the one line of comment, see if we need
+                    // to switch a particular section to be the active one (via
+                    // the header syntax) or add the current line to the active
+                    // section.
+                    match lit_str.value().trim() {
+                        "# Getter" => {
+                            current_section = &mut getter;
+                            saw_section = true;
+                        }
+                        "# Setter" => {
+                            current_section = &mut setter;
+                            saw_section = true;
+                        }
+                        _ => current_section.push(attr),
+                    }
                 }
-                "# Setter" => {
-                    current_section = &mut setter;
-                    saw_section = true;
-                }
-                _ => current_section.push(attr),
             }
         }
     }

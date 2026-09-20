@@ -1,7 +1,7 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
-use glib::ParamFlags;
 use glib::prelude::*;
+use glib::ParamFlags;
 
 #[cfg(test)]
 mod base {
@@ -69,7 +69,6 @@ mod foo {
     pub enum SimpleEnum {
         #[default]
         One,
-        Two,
     }
 
     #[derive(Default, Clone)]
@@ -130,14 +129,10 @@ mod foo {
             builder_fields_without_builder: RefCell<u32>,
             #[property(get, set, builder('c'))]
             builder_with_required_param: RefCell<char>,
-            #[property(get, set, default)]
-            char_default: RefCell<char>,
             #[property(get, set)]
             boxed: RefCell<SimpleBoxedString>,
-            #[property(get, set, builder(SimpleEnum::Two))]
+            #[property(get, set, builder(SimpleEnum::One))]
             fenum: RefCell<SimpleEnum>,
-            #[property(get, set, default)]
-            fenum_default: RefCell<SimpleEnum>,
             #[property(get, set, nullable)]
             object: RefCell<Option<glib::Object>>,
             #[property(get, set, nullable)]
@@ -178,14 +173,14 @@ mod foo {
                 String::from("Hello world!")
             }
             fn set_fizz(&self, value: String) {
-                *self.fizz.borrow_mut() = format!("custom set: {value}");
+                *self.fizz.borrow_mut() = format!("custom set: {}", value);
             }
             fn overridden(&self) -> u32 {
                 43
             }
             fn set_construct_only_custom(&self, value: Option<String>) {
                 self.construct_only_custom_setter
-                    .set(value.map(|v| format!("custom set: {v}")))
+                    .set(value.map(|v| format!("custom set: {}", v)))
                     .expect("Setter to be only called once");
             }
         }
@@ -211,8 +206,6 @@ mod foo {
 
 #[test]
 fn props() {
-    use crate::foo::SimpleEnum;
-
     let myfoo: foo::Foo = glib::object::Object::new();
 
     // Read values
@@ -279,25 +272,6 @@ fn props() {
             .get::<String>()
             .unwrap(),
         "hello".to_string()
-    );
-
-    assert_eq!(
-        myfoo
-            .find_property("fenum")
-            .unwrap()
-            .default_value()
-            .get::<SimpleEnum>()
-            .unwrap(),
-        SimpleEnum::Two
-    );
-    assert_eq!(
-        myfoo
-            .find_property("fenum_default")
-            .unwrap()
-            .default_value()
-            .get::<SimpleEnum>()
-            .unwrap(),
-        SimpleEnum::One
     );
 
     // numeric builder

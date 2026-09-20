@@ -74,9 +74,7 @@ impl Bytes {
         };
 
         unsafe extern "C" fn drop_box<T: AsRef<[u8]> + Send + 'static>(b: ffi::gpointer) {
-            unsafe {
-                let _: Box<T> = Box::from_raw(b as *mut _);
-            }
+            let _: Box<T> = Box::from_raw(b as *mut _);
         }
 
         unsafe {
@@ -111,7 +109,7 @@ impl Bytes {
             Bound::Excluded(v) => v.checked_add(1).expect("Invalid start offset"),
             Bound::Unbounded => 0,
         };
-        assert!(start_offset <= len, "Start offset after valid range");
+        assert!(start_offset < len, "Start offset after valid range");
 
         let end_offset = match range.end_bound() {
             Bound::Included(v) => v.checked_add(1).expect("Invalid end offset"),
@@ -340,8 +338,6 @@ mod tests {
         assert_eq!(b2, [1u8, 2u8].as_ref());
         let b2 = Bytes::from_bytes(&b1, ..);
         assert_eq!(b2, [1u8, 2u8, 3u8].as_ref());
-        let b2 = Bytes::from_bytes(&b1, 3..);
-        assert_eq!(b2, [].as_ref());
     }
 
     #[test]

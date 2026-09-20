@@ -1,9 +1,8 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
-use crate::{FileEnumerator, FileInfo, prelude::*};
+use crate::{prelude::*, FileEnumerator, FileInfo};
 use futures_core::future::LocalBoxFuture;
 use futures_util::FutureExt;
-use glib::translate::{ToGlibPtr, from_glib, from_glib_full};
 use std::{iter::FusedIterator, task::Poll};
 
 impl Iterator for FileEnumerator {
@@ -19,33 +18,21 @@ impl Iterator for FileEnumerator {
 
 impl FusedIterator for FileEnumerator {}
 
-pub trait FileEnumeratorExtManual: IsA<FileEnumerator> {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::FileEnumerator>> Sealed for T {}
+}
+
+pub trait FileEnumeratorExtManual: sealed::Sealed + IsA<FileEnumerator> {
     // rustdoc-stripper-ignore-next
     /// Converts the enumerator into a [`Stream`](futures_core::Stream).
     fn into_stream(self, num_files: i32, priority: glib::Priority) -> FileEnumeratorStream {
-        let future: Option<std::pin::Pin<Box<dyn Future<Output = _>>>> =
-            Some(Box::pin(self.next_files_future(num_files, priority)));
+        let future = Some(self.next_files_future(num_files, priority));
         FileEnumeratorStream {
             enumerator: self.upcast(),
             future,
             num_files,
             priority,
-        }
-    }
-
-    #[doc(alias = "g_file_enumerator_close")]
-    fn close(
-        &self,
-        cancellable: Option<&impl IsA<crate::Cancellable>>,
-    ) -> (bool, Option<glib::Error>) {
-        unsafe {
-            let mut error = std::ptr::null_mut();
-            let ret = crate::ffi::g_file_enumerator_close(
-                self.as_ref().to_glib_none().0,
-                cancellable.map(|p| p.as_ref()).to_glib_none().0,
-                &mut error,
-            );
-            (from_glib(ret), from_glib_full(error))
         }
     }
 }
@@ -84,10 +71,10 @@ impl futures_core::Stream for FileEnumeratorStream {
             Some(mut f) => match f.poll_unpin(cx) {
                 Poll::Ready(Ok(fs)) if fs.is_empty() => Poll::Ready(None),
                 Poll::Ready(Ok(fs)) => {
-                    self.future = Some(Box::pin(
+                    self.future = Some(
                         self.enumerator
                             .next_files_future(self.num_files, self.priority),
-                    ));
+                    );
                     Poll::Ready(Some(Ok(fs)))
                 }
                 Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),

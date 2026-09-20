@@ -3,7 +3,7 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-use crate::{GLUniformType, Renderer, ffi};
+use crate::{ffi, GLUniformType, Renderer};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {

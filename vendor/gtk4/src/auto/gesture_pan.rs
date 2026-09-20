@@ -3,13 +3,13 @@
 // DO NOT EDIT
 
 use crate::{
-    EventController, Gesture, GestureDrag, GestureSingle, Orientation, PanDirection,
-    PropagationLimit, PropagationPhase, ffi,
+    ffi, EventController, Gesture, GestureDrag, GestureSingle, Orientation, PanDirection,
+    PropagationLimit, PropagationPhase,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -62,16 +62,14 @@ impl GesturePan {
             offset: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), from_glib(direction), offset)
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), from_glib(direction), offset)
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"pan".as_ptr(),
+                b"pan\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     pan_trampoline::<F> as *const (),
                 )),
@@ -87,16 +85,14 @@ impl GesturePan {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::orientation".as_ptr(),
+                b"notify::orientation\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_orientation_trampoline::<F> as *const (),
                 )),

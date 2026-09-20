@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.92"
+edition = "2021"
+rust-version = "1.70"
 name = "gtk4-macros"
-version = "0.11.4"
+version = "0.9.5"
 authors = ["The gtk-rs Project Developers"]
 build = false
 autolib = false
@@ -39,11 +39,6 @@ categories = [
 license = "MIT"
 repository = "https://github.com/gtk-rs/gtk4-rs"
 
-[features]
-blueprint = []
-default = []
-xml_validation = ["quick-xml"]
-
 [lib]
 name = "gtk4_macros"
 path = "src/lib.rs"
@@ -58,13 +53,13 @@ name = "templates"
 path = "tests/templates.rs"
 
 [dependencies.proc-macro-crate]
-version = "3.3"
+version = "3.0"
 
 [dependencies.proc-macro2]
 version = "1.0"
 
 [dependencies.quick-xml]
-version = "0.39"
+version = "0.37"
 optional = true
 
 [dependencies.quote]
@@ -81,9 +76,13 @@ version = "0.3"
 version = "0.3"
 
 [dev-dependencies.gtk]
-version = "0.11.0"
-features = ["v4_10"]
+version = "0.9"
 package = "gtk4"
 
 [dev-dependencies.trybuild2]
 version = "1.0"
+
+[features]
+blueprint = []
+default = []
+xml_validation = ["quick-xml"]

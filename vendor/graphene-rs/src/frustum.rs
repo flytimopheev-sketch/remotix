@@ -4,7 +4,7 @@ use std::fmt;
 
 use glib::translate::*;
 
-use crate::{Frustum, Matrix, Plane, ffi};
+use crate::{ffi, Frustum, Matrix, Plane};
 
 impl Frustum {
     #[doc(alias = "graphene_frustum_get_planes")]

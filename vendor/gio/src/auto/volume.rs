@@ -3,13 +3,13 @@
 // DO NOT EDIT
 
 use crate::{
-    AsyncResult, Cancellable, Drive, File, Icon, Mount, MountMountFlags, MountOperation,
-    MountUnmountFlags, ffi,
+    ffi, AsyncResult, Cancellable, Drive, File, Icon, Mount, MountMountFlags, MountOperation,
+    MountUnmountFlags,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::{boxed::Box as Box_, pin::Pin};
@@ -27,7 +27,12 @@ impl Volume {
     pub const NONE: Option<&'static Volume> = None;
 }
 
-pub trait VolumeExt: IsA<Volume> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Volume>> Sealed for T {}
+}
+
+pub trait VolumeExt: IsA<Volume> + sealed::Sealed + 'static {
     #[doc(alias = "g_volume_can_eject")]
     fn can_eject(&self) -> bool {
         unsafe { from_glib(ffi::g_volume_can_eject(self.as_ref().to_glib_none().0)) }
@@ -65,23 +70,17 @@ pub trait VolumeExt: IsA<Volume> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                ffi::g_volume_eject_with_operation_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(())
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            ffi::g_volume_eject_with_operation_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(())
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = eject_with_operation_trampoline::<P>;
         unsafe {
@@ -217,19 +216,17 @@ pub trait VolumeExt: IsA<Volume> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                ffi::g_volume_mount_finish(_source_object as *mut _, res, &mut error);
-                let result = if error.is_null() {
-                    Ok(())
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            ffi::g_volume_mount_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(())
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = mount_trampoline::<P>;
         unsafe {
@@ -280,16 +277,14 @@ pub trait VolumeExt: IsA<Volume> + 'static {
             this: *mut ffi::GVolume,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Volume::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Volume::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"changed".as_ptr(),
+                b"changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     changed_trampoline::<Self, F> as *const (),
                 )),
@@ -304,16 +299,14 @@ pub trait VolumeExt: IsA<Volume> + 'static {
             this: *mut ffi::GVolume,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Volume::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Volume::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"removed".as_ptr(),
+                b"removed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     removed_trampoline::<Self, F> as *const (),
                 )),

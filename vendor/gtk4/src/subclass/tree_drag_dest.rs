@@ -1,22 +1,28 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for implementing the [`TreeDragDest`] interface.
+//! Traits intended for implementing the [`TreeDragDest`](crate::TreeDragDest)
+//! interface.
 
-use glib::{Value, translate::*};
+use glib::{translate::*, Value};
 
-use crate::{TreeDragDest, TreePath, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, TreeDragDest, TreePath};
 
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait TreeDragDestImpl: ObjectImpl + ObjectSubclass<Type: IsA<TreeDragDest>> {
+pub trait TreeDragDestImpl: ObjectImpl {
     fn drag_data_received(&self, dest: &TreePath, value: Value) -> bool;
     fn row_drop_possible(&self, dest: &TreePath, value: Value) -> bool;
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::TreeDragDestImplExt> Sealed for T {}
+}
+
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait TreeDragDestImplExt: TreeDragDestImpl {
+pub trait TreeDragDestImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_drag_data_received(&self, dest: &TreePath, value: Value) -> bool {
         unsafe {
             let type_data = Self::type_data();
@@ -78,15 +84,13 @@ unsafe extern "C" fn tree_drag_dest_drag_data_received<T: TreeDragDestImpl>(
     destptr: *mut ffi::GtkTreePath,
     valueptr: *const glib::gobject_ffi::GValue,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(tree_drag_dest as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(tree_drag_dest as *mut T::Instance);
+    let imp = instance.imp();
 
-        let dest: Borrowed<TreePath> = from_glib_borrow(destptr);
-        let value: Value = from_glib_none(valueptr);
+    let dest: Borrowed<TreePath> = from_glib_borrow(destptr);
+    let value: Value = from_glib_none(valueptr);
 
-        imp.drag_data_received(&dest, value).into_glib()
-    }
+    imp.drag_data_received(&dest, value).into_glib()
 }
 
 unsafe extern "C" fn tree_drag_dest_row_drop_possible<T: TreeDragDestImpl>(
@@ -94,12 +98,10 @@ unsafe extern "C" fn tree_drag_dest_row_drop_possible<T: TreeDragDestImpl>(
     destptr: *mut ffi::GtkTreePath,
     valueptr: *const glib::gobject_ffi::GValue,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(tree_drag_dest as *mut T::Instance);
-        let imp = instance.imp();
-        let dest: Borrowed<TreePath> = from_glib_borrow(destptr);
-        let value: Value = from_glib_none(valueptr);
+    let instance = &*(tree_drag_dest as *mut T::Instance);
+    let imp = instance.imp();
+    let dest: Borrowed<TreePath> = from_glib_borrow(destptr);
+    let value: Value = from_glib_none(valueptr);
 
-        imp.row_drop_possible(&dest, value).into_glib()
-    }
+    imp.row_drop_possible(&dest, value).into_glib()
 }

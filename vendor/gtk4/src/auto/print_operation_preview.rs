@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{PageSetup, PrintContext, ffi};
+use crate::{ffi, PageSetup, PrintContext};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -24,7 +24,12 @@ impl PrintOperationPreview {
     pub const NONE: Option<&'static PrintOperationPreview> = None;
 }
 
-pub trait PrintOperationPreviewExt: IsA<PrintOperationPreview> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::PrintOperationPreview>> Sealed for T {}
+}
+
+pub trait PrintOperationPreviewExt: IsA<PrintOperationPreview> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_print_operation_preview_end_preview")]
     fn end_preview(&self) {
         unsafe {
@@ -63,20 +68,18 @@ pub trait PrintOperationPreviewExt: IsA<PrintOperationPreview> + 'static {
             page_setup: *mut ffi::GtkPageSetup,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperationPreview::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(context),
-                    &from_glib_borrow(page_setup),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperationPreview::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(context),
+                &from_glib_borrow(page_setup),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"got-page-size".as_ptr(),
+                b"got-page-size\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     got_page_size_trampoline::<Self, F> as *const (),
                 )),
@@ -95,19 +98,17 @@ pub trait PrintOperationPreviewExt: IsA<PrintOperationPreview> + 'static {
             context: *mut ffi::GtkPrintContext,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperationPreview::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(context),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperationPreview::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(context),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"ready".as_ptr(),
+                b"ready\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     ready_trampoline::<Self, F> as *const (),
                 )),

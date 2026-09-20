@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{SocketAddress, SocketConnectable, ffi};
+use crate::{ffi, SocketAddress, SocketConnectable};
 
 glib::wrapper! {
     #[doc(alias = "GNativeSocketAddress")]

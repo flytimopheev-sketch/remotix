@@ -4,11 +4,16 @@ use std::{fmt, future::Future, io, mem, pin::Pin, ptr};
 
 use futures_core::task::{Context, Poll};
 use futures_io::{AsyncBufRead, AsyncRead};
-use glib::{Priority, prelude::*, translate::*};
+use glib::{prelude::*, translate::*, Priority};
 
-use crate::{Cancellable, InputStream, Seekable, error::to_std_io_result, ffi, prelude::*};
+use crate::{error::to_std_io_result, ffi, prelude::*, Cancellable, InputStream, Seekable};
 
-pub trait InputStreamExtManual: IsA<InputStream> + Sized {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::InputStream>> Sealed for T {}
+}
+
+pub trait InputStreamExtManual: sealed::Sealed + IsA<InputStream> + Sized {
     #[doc(alias = "g_input_stream_read")]
     fn read<B: AsMut<[u8]>, C: IsA<Cancellable>>(
         &self,
@@ -111,32 +116,30 @@ pub trait InputStreamExtManual: IsA<InputStream> + Sized {
             res: *mut ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let user_data: Box<(glib::thread_guard::ThreadGuard<Q>, B)> =
-                    Box::from_raw(user_data as *mut _);
-                let (callback, buffer) = *user_data;
-                let callback = callback.into_inner();
+            let user_data: Box<(glib::thread_guard::ThreadGuard<Q>, B)> =
+                Box::from_raw(user_data as *mut _);
+            let (callback, buffer) = *user_data;
+            let callback = callback.into_inner();
 
-                let mut error = ptr::null_mut();
-                let mut bytes_read = mem::MaybeUninit::uninit();
-                let _ = ffi::g_input_stream_read_all_finish(
-                    _source_object as *mut _,
-                    res,
-                    bytes_read.as_mut_ptr(),
-                    &mut error,
-                );
+            let mut error = ptr::null_mut();
+            let mut bytes_read = mem::MaybeUninit::uninit();
+            let _ = ffi::g_input_stream_read_all_finish(
+                _source_object as *mut _,
+                res,
+                bytes_read.as_mut_ptr(),
+                &mut error,
+            );
 
-                let bytes_read = bytes_read.assume_init();
-                let result = if error.is_null() {
-                    Ok((buffer, bytes_read, None))
-                } else if bytes_read != 0 {
-                    Ok((buffer, bytes_read, Some(from_glib_full(error))))
-                } else {
-                    Err((buffer, from_glib_full(error)))
-                };
+            let bytes_read = bytes_read.assume_init();
+            let result = if error.is_null() {
+                Ok((buffer, bytes_read, None))
+            } else if bytes_read != 0 {
+                Ok((buffer, bytes_read, Some(from_glib_full(error))))
+            } else {
+                Err((buffer, from_glib_full(error)))
+            };
 
-                callback(result);
-            }
+            callback(result);
         }
         let callback = read_all_async_trampoline::<B, Q>;
         unsafe {
@@ -192,24 +195,21 @@ pub trait InputStreamExtManual: IsA<InputStream> + Sized {
             res: *mut ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let user_data: Box<(glib::thread_guard::ThreadGuard<Q>, B)> =
-                    Box::from_raw(user_data as *mut _);
-                let (callback, buffer) = *user_data;
-                let callback = callback.into_inner();
+            let user_data: Box<(glib::thread_guard::ThreadGuard<Q>, B)> =
+                Box::from_raw(user_data as *mut _);
+            let (callback, buffer) = *user_data;
+            let callback = callback.into_inner();
 
-                let mut error = ptr::null_mut();
-                let ret =
-                    ffi::g_input_stream_read_finish(_source_object as *mut _, res, &mut error);
+            let mut error = ptr::null_mut();
+            let ret = ffi::g_input_stream_read_finish(_source_object as *mut _, res, &mut error);
 
-                let result = if error.is_null() {
-                    Ok((buffer, ret as usize))
-                } else {
-                    Err((buffer, from_glib_full(error)))
-                };
+            let result = if error.is_null() {
+                Ok((buffer, ret as usize))
+            } else {
+                Err((buffer, from_glib_full(error)))
+            };
 
-                callback(result);
-            }
+            callback(result);
         }
         let callback = read_async_trampoline::<B, Q>;
         unsafe {
@@ -352,7 +352,7 @@ impl State {
         >,
     > {
         match self {
-            State::Reading { pending } => pending,
+            State::Reading { ref mut pending } => pending,
             _ => panic!("Invalid state"),
         }
     }
@@ -549,7 +549,7 @@ mod tests {
 
     use glib::Bytes;
 
-    use crate::{MemoryInputStream, prelude::*, test_util::run_async};
+    use crate::{prelude::*, test_util::run_async, MemoryInputStream};
 
     #[test]
     fn read_all_async() {

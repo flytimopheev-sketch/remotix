@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{File, FileMonitorEvent, ffi};
+use crate::{ffi, File, FileMonitorEvent};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -24,7 +24,12 @@ impl FileMonitor {
     pub const NONE: Option<&'static FileMonitor> = None;
 }
 
-pub trait FileMonitorExt: IsA<FileMonitor> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::FileMonitor>> Sealed for T {}
+}
+
+pub trait FileMonitorExt: IsA<FileMonitor> + sealed::Sealed + 'static {
     #[doc(alias = "g_file_monitor_cancel")]
     fn cancel(&self) -> bool {
         unsafe { from_glib(ffi::g_file_monitor_cancel(self.as_ref().to_glib_none().0)) }
@@ -34,14 +39,14 @@ pub trait FileMonitorExt: IsA<FileMonitor> + 'static {
     fn emit_event(
         &self,
         child: &impl IsA<File>,
-        other_file: Option<&impl IsA<File>>,
+        other_file: &impl IsA<File>,
         event_type: FileMonitorEvent,
     ) {
         unsafe {
             ffi::g_file_monitor_emit_event(
                 self.as_ref().to_glib_none().0,
                 child.as_ref().to_glib_none().0,
-                other_file.map(|p| p.as_ref()).to_glib_none().0,
+                other_file.as_ref().to_glib_none().0,
                 event_type.into_glib(),
             );
         }
@@ -85,23 +90,21 @@ pub trait FileMonitorExt: IsA<FileMonitor> + 'static {
             event_type: ffi::GFileMonitorEvent,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    FileMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(file),
-                    Option::<File>::from_glib_borrow(other_file)
-                        .as_ref()
-                        .as_ref(),
-                    from_glib(event_type),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                FileMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(file),
+                Option::<File>::from_glib_borrow(other_file)
+                    .as_ref()
+                    .as_ref(),
+                from_glib(event_type),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"changed".as_ptr(),
+                b"changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     changed_trampoline::<Self, F> as *const (),
                 )),
@@ -120,16 +123,14 @@ pub trait FileMonitorExt: IsA<FileMonitor> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(FileMonitor::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(FileMonitor::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::cancelled".as_ptr(),
+                b"notify::cancelled\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_cancelled_trampoline::<Self, F> as *const (),
                 )),
@@ -148,16 +149,14 @@ pub trait FileMonitorExt: IsA<FileMonitor> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(FileMonitor::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(FileMonitor::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::rate-limit".as_ptr(),
+                b"notify::rate-limit\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_rate_limit_trampoline::<Self, F> as *const (),
                 )),

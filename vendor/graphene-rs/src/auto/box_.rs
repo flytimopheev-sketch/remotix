@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Point3D, Sphere, Vec3, ffi};
+use crate::{ffi, Point3D, Sphere, Vec3};
 use glib::translate::*;
 
 glib::wrapper! {
@@ -128,23 +128,6 @@ impl Box {
         }
     }
 
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    #[doc(alias = "graphene_box_get_minmax")]
-    #[doc(alias = "get_minmax")]
-    pub fn minmax(&self) -> (Point3D, Point3D) {
-        unsafe {
-            let mut min = Point3D::uninitialized();
-            let mut max = Point3D::uninitialized();
-            ffi::graphene_box_get_minmax(
-                self.to_glib_none().0,
-                min.to_glib_none_mut().0,
-                max.to_glib_none_mut().0,
-            );
-            (min, max)
-        }
-    }
-
     #[doc(alias = "graphene_box_get_size")]
     #[doc(alias = "get_size")]
     pub fn size(&self) -> Vec3 {
@@ -170,7 +153,11 @@ impl Box {
                 b.to_glib_none().0,
                 res.to_glib_none_mut().0,
             );
-            if ret { Some(res) } else { None }
+            if ret {
+                Some(res)
+            } else {
+                None
+            }
         }
     }
 

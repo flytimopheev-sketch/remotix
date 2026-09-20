@@ -1,11 +1,8 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
-use std::{panic, ptr};
+use std::{future::Future, panic, ptr};
 
-#[cfg(feature = "futures")]
 use futures_channel::oneshot;
-#[cfg(feature = "futures")]
-use std::future::Future;
 
 use crate::{ffi, translate::*};
 
@@ -107,14 +104,11 @@ impl ThreadPool {
         }
     }
 
-    #[cfg(feature = "futures")]
     pub fn push_future<T: Send + 'static, F: FnOnce() -> T + Send + 'static>(
         &self,
         func: F,
-    ) -> Result<
-        impl Future<Output = std::thread::Result<T>> + Send + Sync + 'static + use<T, F>,
-        crate::Error,
-    > {
+    ) -> Result<impl Future<Output = std::thread::Result<T>> + Send + Sync + 'static, crate::Error>
+    {
         let (sender, receiver) = oneshot::channel();
 
         self.push(move || {
@@ -221,10 +215,8 @@ impl Drop for ThreadPool {
 }
 
 unsafe extern "C" fn spawn_func(func: ffi::gpointer, _data: ffi::gpointer) {
-    unsafe {
-        let func: Box<Box<dyn FnOnce()>> = Box::from_raw(func as *mut _);
-        func()
-    }
+    let func: Box<Box<dyn FnOnce()>> = Box::from_raw(func as *mut _);
+    func()
 }
 
 #[cfg(test)]
@@ -249,7 +241,6 @@ mod tests {
         assert_eq!(receiver.recv(), Ok(true));
     }
 
-    #[cfg(feature = "futures")]
     #[test]
     fn test_push_future() {
         let c = crate::MainContext::new();

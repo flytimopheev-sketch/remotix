@@ -262,7 +262,7 @@ pub type cairo_destroy_func_t = Option<unsafe extern "C" fn(*mut c_void)>;
 pub type cairo_read_func_t =
     Option<unsafe extern "C" fn(*mut c_void, *mut c_uchar, c_uint) -> cairo_status_t>;
 pub type cairo_write_func_t =
-    Option<unsafe extern "C" fn(*mut c_void, *const c_uchar, c_uint) -> cairo_status_t>;
+    Option<unsafe extern "C" fn(*mut c_void, *mut c_uchar, c_uint) -> cairo_status_t>;
 
 #[cfg(feature = "freetype")]
 #[cfg_attr(docsrs, doc(cfg(feature = "freetype")))]
@@ -306,7 +306,7 @@ pub type cairo_user_scaled_font_unicode_to_glyph_func_t = Option<
     ) -> cairo_status_t,
 >;
 
-unsafe extern "C" {
+extern "C" {
     pub fn cairo_create(target: *mut cairo_surface_t) -> *mut cairo_t;
     pub fn cairo_reference(cr: *mut cairo_t) -> *mut cairo_t;
     pub fn cairo_destroy(cr: *mut cairo_t);
@@ -724,7 +724,7 @@ unsafe extern "C" {
         rectangle: *mut cairo_rectangle_int_t,
     ) -> cairo_status_t;
     pub fn cairo_region_xor(dst: *mut cairo_region_t, other: *mut cairo_region_t)
-    -> cairo_status_t;
+        -> cairo_status_t;
     pub fn cairo_region_xor_rectangle(
         dst: *mut cairo_region_t,
         rectangle: *mut cairo_rectangle_int_t,
@@ -778,7 +778,7 @@ unsafe extern "C" {
     pub fn cairo_toy_font_face_get_family(font_face: *mut cairo_font_face_t) -> *const c_char;
     pub fn cairo_toy_font_face_get_slant(font_face: *mut cairo_font_face_t) -> cairo_font_slant_t;
     pub fn cairo_toy_font_face_get_weight(font_face: *mut cairo_font_face_t)
-    -> cairo_font_weight_t;
+        -> cairo_font_weight_t;
     pub fn cairo_glyph_allocate(num_glyphs: c_int) -> *mut cairo_glyph_t;
     pub fn cairo_glyph_free(glyphs: *mut cairo_glyph_t);
     pub fn cairo_text_cluster_allocate(num_clusters: c_int) -> *mut cairo_text_cluster_t;
@@ -793,7 +793,7 @@ unsafe extern "C" {
     #[cfg(feature = "freetype")]
     #[cfg_attr(docsrs, doc(cfg(feature = "freetype")))]
     pub fn cairo_ft_font_face_create_for_pattern(pattern: *mut FcPattern)
-    -> *mut cairo_font_face_t;
+        -> *mut cairo_font_face_t;
     #[cfg(feature = "freetype")]
     #[cfg_attr(docsrs, doc(cfg(feature = "freetype")))]
     pub fn cairo_ft_font_options_substitute(
@@ -1264,7 +1264,7 @@ unsafe extern "C" {
     #[cfg(all(feature = "svg", feature = "v1_16"))]
     #[cfg_attr(docsrs, doc(cfg(all(feature = "svg", feature = "v1_16"))))]
     pub fn cairo_svg_surface_get_document_unit(surface: *const cairo_surface_t)
-    -> cairo_svg_unit_t;
+        -> cairo_svg_unit_t;
     #[cfg(all(feature = "svg", feature = "v1_16"))]
     #[cfg_attr(docsrs, doc(cfg(all(feature = "svg", feature = "v1_16"))))]
     pub fn cairo_svg_surface_set_document_unit(
@@ -1496,22 +1496,22 @@ unsafe extern "C" {
     #[cfg_attr(docsrs, doc(cfg(all(windows, feature = "win32-surface"))))]
     pub fn cairo_win32_surface_get_image(surface: *mut cairo_surface_t) -> *mut cairo_surface_t;
 
-    #[cfg(all(target_os = "macos", feature = "quartz-surface"))]
-    #[cfg_attr(docsrs, doc(cfg(all(target_os = "macos", feature = "quartz-surface"))))]
+    #[cfg(target_os = "macos")]
+    #[cfg_attr(docsrs, doc(cfg(target_os = "macos")))]
     pub fn cairo_quartz_surface_create(
         format: cairo_format_t,
         width: c_uint,
         height: c_uint,
     ) -> *mut cairo_surface_t;
-    #[cfg(all(target_os = "macos", feature = "quartz-surface"))]
-    #[cfg_attr(docsrs, doc(cfg(all(target_os = "macos", feature = "quartz-surface"))))]
+    #[cfg(target_os = "macos")]
+    #[cfg_attr(docsrs, doc(cfg(target_os = "macos")))]
     pub fn cairo_quartz_surface_create_for_cg_context(
         cg_context: CGContextRef,
         width: c_uint,
         height: c_uint,
     ) -> *mut cairo_surface_t;
-    #[cfg(all(target_os = "macos", feature = "quartz-surface"))]
-    #[cfg_attr(docsrs, doc(cfg(all(target_os = "macos", feature = "quartz-surface"))))]
+    #[cfg(target_os = "macos")]
+    #[cfg_attr(docsrs, doc(cfg(target_os = "macos")))]
     pub fn cairo_quartz_surface_get_cg_context(surface: *mut cairo_surface_t) -> CGContextRef;
 
     // CAIRO SCRIPT
@@ -1523,7 +1523,7 @@ unsafe extern "C" {
     pub fn cairo_script_create_for_stream(
         write_func: cairo_write_func_t,
         closure: *mut c_void,
-    ) -> *mut cairo_device_t;
+    ) -> cairo_status_t;
     #[cfg(feature = "script")]
     #[cfg_attr(docsrs, doc(cfg(feature = "script")))]
     pub fn cairo_script_from_recording_surface(

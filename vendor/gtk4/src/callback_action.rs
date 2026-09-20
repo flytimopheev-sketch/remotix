@@ -3,7 +3,7 @@
 use glib::translate::*;
 use std::boxed::Box as Box_;
 
-use crate::{CallbackAction, Widget, ffi};
+use crate::{ffi, CallbackAction, Widget};
 
 impl CallbackAction {
     #[doc(alias = "gtk_callback_action_new")]
@@ -19,12 +19,10 @@ impl CallbackAction {
             args: *mut glib::ffi::GVariant,
             user_data: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let widget = from_glib_borrow(widget);
-                let args: Borrowed<Option<glib::Variant>> = from_glib_borrow(args);
-                let callback = &*(user_data as *mut P);
-                (*callback)(&widget, args.as_ref().as_ref()).into_glib()
-            }
+            let widget = from_glib_borrow(widget);
+            let args: Borrowed<Option<glib::Variant>> = from_glib_borrow(args);
+            let callback = &*(user_data as *mut P);
+            (*callback)(&widget, args.as_ref().as_ref()).into_glib()
         }
         let callback = Some(callback_func::<P> as _);
         unsafe extern "C" fn destroy_func<
@@ -32,9 +30,7 @@ impl CallbackAction {
         >(
             data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let _callback = Box_::from_raw(data as *mut P);
-            }
+            let _callback = Box_::from_raw(data as *mut P);
         }
         let destroy_call2 = Some(destroy_func::<P> as _);
         let super_callback0: Box_<P> = callback_data;

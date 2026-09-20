@@ -2,14 +2,19 @@
 
 use glib::translate::*;
 
-use crate::{ComboBox, ffi, prelude::*};
+use crate::{ffi, prelude::*, ComboBox};
+
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::ComboBox>> Sealed for T {}
+}
 
 // rustdoc-stripper-ignore-next
 /// Trait containing manually implemented methods of
 /// [`ComboBox`](crate::ComboBox).
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait ComboBoxExtManual: IsA<ComboBox> + 'static {
+pub trait ComboBoxExtManual: sealed::Sealed + IsA<ComboBox> + 'static {
     #[doc(alias = "gtk_combo_box_set_row_separator_func")]
     #[doc(alias = "set_row_separator_func")]
     fn unset_row_separator_func(&self) {

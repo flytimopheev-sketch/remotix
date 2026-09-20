@@ -5,10 +5,10 @@
 #[cfg(feature = "v4_12")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_12")))]
 use crate::SectionModel;
-use crate::{Filter, ffi};
+use crate::{ffi, Filter};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -24,7 +24,7 @@ glib::wrapper! {
     }
 }
 
-#[cfg(not(feature = "v4_12"))]
+#[cfg(not(any(feature = "v4_12")))]
 glib::wrapper! {
     #[doc(alias = "GtkFilterListModel")]
     pub struct FilterListModel(Object<ffi::GtkFilterListModel, ffi::GtkFilterListModelClass>) @implements gio::ListModel;
@@ -86,19 +86,6 @@ impl FilterListModel {
         unsafe { ffi::gtk_filter_list_model_get_pending(self.to_glib_none().0) }
     }
 
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "gtk_filter_list_model_get_watch_items")]
-    #[doc(alias = "get_watch_items")]
-    #[doc(alias = "watch-items")]
-    pub fn is_watch_items(&self) -> bool {
-        unsafe {
-            from_glib(ffi::gtk_filter_list_model_get_watch_items(
-                self.to_glib_none().0,
-            ))
-        }
-    }
-
     #[doc(alias = "gtk_filter_list_model_set_filter")]
     #[doc(alias = "filter")]
     pub fn set_filter(&self, filter: Option<&impl IsA<Filter>>) {
@@ -132,19 +119,6 @@ impl FilterListModel {
         }
     }
 
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "gtk_filter_list_model_set_watch_items")]
-    #[doc(alias = "watch-items")]
-    pub fn set_watch_items(&self, watch_items: bool) {
-        unsafe {
-            ffi::gtk_filter_list_model_set_watch_items(
-                self.to_glib_none().0,
-                watch_items.into_glib(),
-            );
-        }
-    }
-
     #[doc(alias = "filter")]
     pub fn connect_filter_notify<F: Fn(&Self) + 'static>(&self, f: F) -> SignalHandlerId {
         unsafe extern "C" fn notify_filter_trampoline<F: Fn(&FilterListModel) + 'static>(
@@ -152,16 +126,14 @@ impl FilterListModel {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::filter".as_ptr(),
+                b"notify::filter\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_filter_trampoline::<F> as *const (),
                 )),
@@ -177,16 +149,14 @@ impl FilterListModel {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::incremental".as_ptr(),
+                b"notify::incremental\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_incremental_trampoline::<F> as *const (),
                 )),
@@ -202,16 +172,14 @@ impl FilterListModel {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::model".as_ptr(),
+                b"notify::model\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_model_trampoline::<F> as *const (),
                 )),
@@ -227,45 +195,16 @@ impl FilterListModel {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::pending".as_ptr(),
+                b"notify::pending\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_pending_trampoline::<F> as *const (),
-                )),
-                Box_::into_raw(f),
-            )
-        }
-    }
-
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "watch-items")]
-    pub fn connect_watch_items_notify<F: Fn(&Self) + 'static>(&self, f: F) -> SignalHandlerId {
-        unsafe extern "C" fn notify_watch_items_trampoline<F: Fn(&FilterListModel) + 'static>(
-            this: *mut ffi::GtkFilterListModel,
-            _param_spec: glib::ffi::gpointer,
-            f: glib::ffi::gpointer,
-        ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"notify::watch-items".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    notify_watch_items_trampoline::<F> as *const (),
                 )),
                 Box_::into_raw(f),
             )
@@ -310,14 +249,6 @@ impl FilterListModelBuilder {
     pub fn model(self, model: &impl IsA<gio::ListModel>) -> Self {
         Self {
             builder: self.builder.property("model", model.clone().upcast()),
-        }
-    }
-
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn watch_items(self, watch_items: bool) -> Self {
-        Self {
-            builder: self.builder.property("watch-items", watch_items),
         }
     }
 

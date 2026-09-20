@@ -2,12 +2,17 @@
 
 use glib::translate::*;
 
-use crate::{Surface, ffi, prelude::*};
+use crate::{ffi, prelude::*, Surface};
+
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Surface>> Sealed for T {}
+}
 
 // rustdoc-stripper-ignore-next
 /// Trait containing manually implemented methods of
 /// [`Surface`](crate::Surface).
-pub trait SurfaceExtManual: IsA<Surface> + 'static {
+pub trait SurfaceExtManual: sealed::Sealed + IsA<Surface> + 'static {
     #[doc(alias = "gdk_surface_create_similar_surface")]
     fn create_similar_surface(
         &self,

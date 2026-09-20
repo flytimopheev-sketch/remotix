@@ -1,9 +1,10 @@
 [package]
 name = "gio"
-keywords = ["glib", "D-Bus", "DBus", "gtk-rs", "gnome"]
+keywords = ["glib", "gio", "gtk-rs", "gnome"]
 readme = "README.md"
 documentation = "https://gtk-rs.org/gtk-rs-core/stable/latest/docs/gio/"
 description = "Rust bindings for the Gio library"
+build = "build.rs"
 authors.workspace = true
 edition.workspace = true
 exclude.workspace = true
@@ -32,8 +33,6 @@ v2_80 = ["v2_78", "gio-sys/v2_80", "glib/v2_80"]
 v2_82 = ["v2_80", "gio-sys/v2_82", "glib/v2_82"]
 v2_84 = ["v2_82", "gio-sys/v2_84", "glib/v2_84"]
 v2_86 = ["v2_84", "gio-sys/v2_86", "glib/v2_86"]
-v2_88 = ["v2_86", "gio-sys/v2_88", "glib/v2_88"]
-v2_90 = ["v2_88", "gio-sys/v2_90", "glib/v2_90"]
 
 [dependencies]
 libc.workspace = true
@@ -42,17 +41,17 @@ futures-channel = "0.3"
 futures-io = "0.3"
 futures-util = { version = "0.3", default-features = false }
 gio-sys.workspace = true
-glib = { workspace = true, features = ["futures"] }
+glib.workspace = true
 pin-project-lite = "0.2"
 smallvec = "1"
 
 [dev-dependencies]
 futures = "0.3"
 futures-util = { version = "0.3", features = ["io"] }
-async-channel = "2.5"
 gir-format-check.workspace = true
 serial_test = "3"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]

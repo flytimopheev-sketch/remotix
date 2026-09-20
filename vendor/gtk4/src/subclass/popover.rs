@@ -1,15 +1,13 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`Popover`].
+//! Traits intended for subclassing [`Popover`](crate::Popover).
 
 use glib::translate::*;
 
-use crate::{Native, Popover, ShortcutManager, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, Popover};
 
-pub trait PopoverImpl:
-    WidgetImpl + ObjectSubclass<Type: IsA<Popover> + IsA<Native> + IsA<ShortcutManager>>
-{
+pub trait PopoverImpl: PopoverImplExt + WidgetImpl {
     fn activate_default(&self) {
         self.parent_activate_default()
     }
@@ -19,7 +17,12 @@ pub trait PopoverImpl:
     }
 }
 
-pub trait PopoverImplExt: PopoverImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::PopoverImplExt> Sealed for T {}
+}
+
+pub trait PopoverImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_activate_default(&self) {
         unsafe {
             let data = Self::type_data();
@@ -54,19 +57,15 @@ unsafe impl<T: PopoverImpl> IsSubclassable<T> for Popover {
 }
 
 unsafe extern "C" fn popover_activate_default<T: PopoverImpl>(ptr: *mut ffi::GtkPopover) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.activate_default()
-    }
+    imp.activate_default()
 }
 
 unsafe extern "C" fn popover_closed<T: PopoverImpl>(ptr: *mut ffi::GtkPopover) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.closed()
-    }
+    imp.closed()
 }

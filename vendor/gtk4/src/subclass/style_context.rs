@@ -1,23 +1,28 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`StyleContext`].
+//! Traits intended for subclassing [`StyleContext`](crate::StyleContext).
 
 use glib::translate::*;
 
-use crate::{StyleContext, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, StyleContext};
 
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait StyleContextImpl: ObjectImpl + ObjectSubclass<Type: IsA<StyleContext>> {
+pub trait StyleContextImpl: StyleContextImplExt + ObjectImpl {
     fn changed(&self) {
         self.parent_changed()
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::StyleContextImplExt> Sealed for T {}
+}
+
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait StyleContextImplExt: StyleContextImpl {
+pub trait StyleContextImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_changed(&self) {
         unsafe {
             let data = Self::type_data();
@@ -46,10 +51,8 @@ unsafe impl<T: StyleContextImpl> IsSubclassable<T> for StyleContext {
 }
 
 unsafe extern "C" fn style_context_changed<T: StyleContextImpl>(ptr: *mut ffi::GtkStyleContext) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.changed()
-    }
+    imp.changed()
 }

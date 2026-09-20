@@ -7,10 +7,11 @@
 use std::{mem, ptr};
 
 use crate::{
-    Object, ParamSpec, Slice, Value, ffi, gobject_ffi,
+    ffi, gobject_ffi,
     prelude::*,
-    subclass::{Signal, prelude::*},
+    subclass::{prelude::*, Signal},
     translate::*,
+    Object, ParamSpec, Slice, Value,
 };
 
 // rustdoc-stripper-ignore-next
@@ -18,7 +19,7 @@ use crate::{
 ///
 /// This allows overriding the virtual methods of `glib::Object`. Except for
 /// `finalize` as implementing `Drop` would allow the same behavior.
-pub trait ObjectImpl: ObjectSubclass<Type: IsA<Object>> {
+pub trait ObjectImpl: ObjectSubclass + ObjectImplExt {
     // rustdoc-stripper-ignore-next
     /// Properties installed for this type.
     fn properties() -> &'static [ParamSpec] {
@@ -92,24 +93,22 @@ unsafe extern "C" fn property<T: ObjectImpl>(
     value: *mut gobject_ffi::GValue,
     pspec: *mut gobject_ffi::GParamSpec,
 ) {
-    unsafe {
-        let instance = &*(obj as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(obj as *mut T::Instance);
+    let imp = instance.imp();
 
-        let v = imp.property(id as usize, &from_glib_borrow(pspec));
+    let v = imp.property(id as usize, &from_glib_borrow(pspec));
 
-        // We first unset the value we get passed in, in case it contained
-        // any previous data. Then we directly overwrite it with our new
-        // value, and pass ownership of the contained data to the C GValue
-        // by forgetting it on the Rust side.
-        //
-        // Without this, by using the GValue API, we would have to create
-        // a copy of the value when setting it on the destination just to
-        // immediately free the original value afterwards.
-        gobject_ffi::g_value_unset(value);
-        let v = mem::ManuallyDrop::new(v);
-        ptr::write(value, ptr::read(v.to_glib_none().0));
-    }
+    // We first unset the value we get passed in, in case it contained
+    // any previous data. Then we directly overwrite it with our new
+    // value, and pass ownership of the contained data to the C GValue
+    // by forgetting it on the Rust side.
+    //
+    // Without this, by using the GValue API, we would have to create
+    // a copy of the value when setting it on the destination just to
+    // immediately free the original value afterwards.
+    gobject_ffi::g_value_unset(value);
+    let v = mem::ManuallyDrop::new(v);
+    ptr::write(value, ptr::read(v.to_glib_none().0));
 }
 
 unsafe extern "C" fn set_property<T: ObjectImpl>(
@@ -118,35 +117,29 @@ unsafe extern "C" fn set_property<T: ObjectImpl>(
     value: *mut gobject_ffi::GValue,
     pspec: *mut gobject_ffi::GParamSpec,
 ) {
-    unsafe {
-        let instance = &*(obj as *mut T::Instance);
-        let imp = instance.imp();
-        imp.set_property(
-            id as usize,
-            &*(value as *mut Value),
-            &from_glib_borrow(pspec),
-        );
-    }
+    let instance = &*(obj as *mut T::Instance);
+    let imp = instance.imp();
+    imp.set_property(
+        id as usize,
+        &*(value as *mut Value),
+        &from_glib_borrow(pspec),
+    );
 }
 
 unsafe extern "C" fn constructed<T: ObjectImpl>(obj: *mut gobject_ffi::GObject) {
-    unsafe {
-        let instance = &*(obj as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(obj as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.constructed();
-    }
+    imp.constructed();
 }
 
 unsafe extern "C" fn notify<T: ObjectImpl>(
     obj: *mut gobject_ffi::GObject,
     pspec: *mut gobject_ffi::GParamSpec,
 ) {
-    unsafe {
-        let instance = &*(obj as *mut T::Instance);
-        let imp = instance.imp();
-        imp.notify(&from_glib_borrow(pspec));
-    }
+    let instance = &*(obj as *mut T::Instance);
+    let imp = instance.imp();
+    imp.notify(&from_glib_borrow(pspec));
 }
 
 unsafe extern "C" fn dispatch_properties_changed<T: ObjectImpl>(
@@ -154,26 +147,22 @@ unsafe extern "C" fn dispatch_properties_changed<T: ObjectImpl>(
     n_pspecs: u32,
     pspecs: *mut *mut gobject_ffi::GParamSpec,
 ) {
-    unsafe {
-        let instance = &*(obj as *mut T::Instance);
-        let imp = instance.imp();
-        imp.dispatch_properties_changed(Slice::from_glib_borrow_num(pspecs, n_pspecs as _));
-    }
+    let instance = &*(obj as *mut T::Instance);
+    let imp = instance.imp();
+    imp.dispatch_properties_changed(Slice::from_glib_borrow_num(pspecs, n_pspecs as _));
 }
 
 unsafe extern "C" fn dispose<T: ObjectImpl>(obj: *mut gobject_ffi::GObject) {
-    unsafe {
-        let instance = &*(obj as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(obj as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.dispose();
+    imp.dispose();
 
-        // Chain up to the parent's dispose.
-        let data = T::type_data();
-        let parent_class = data.as_ref().parent_class() as *mut gobject_ffi::GObjectClass;
-        if let Some(ref func) = (*parent_class).dispose {
-            func(obj);
-        }
+    // Chain up to the parent's dispose.
+    let data = T::type_data();
+    let parent_class = data.as_ref().parent_class() as *mut gobject_ffi::GObjectClass;
+    if let Some(ref func) = (*parent_class).dispose {
+        func(obj);
     }
 }
 
@@ -264,7 +253,12 @@ unsafe impl<T: ObjectImpl> IsSubclassable<T> for Object {
     fn instance_init(_instance: &mut super::InitializingObject<T>) {}
 }
 
-pub trait ObjectImplExt: ObjectImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::ObjectImplExt> Sealed for T {}
+}
+
+pub trait ObjectImplExt: sealed::Sealed + ObjectSubclass {
     // rustdoc-stripper-ignore-next
     /// Chain up to the parent class' implementation of `glib::Object::constructed()`.
     #[inline]
@@ -415,7 +409,7 @@ mod test {
                             .param_types([String::static_type()])
                             .return_type::<String>()
                             .action()
-                            .class_handler(|args| {
+                            .class_handler(|_, args| {
                                 let obj = args[0]
                                     .get::<super::SimpleObject>()
                                     .expect("Failed to get Object from args[0]");
@@ -433,32 +427,9 @@ mod test {
                             .build(),
                         super::Signal::builder("create-string")
                             .return_type::<String>()
-                            .accumulator(|_hint, acc, val| {
-                                // join all strings from signal handlers by newline
-                                let mut acc = acc
-                                    .get_owned::<Option<String>>()
-                                    .unwrap()
-                                    .map(|mut acc| {
-                                        acc.push('\n');
-                                        acc
-                                    })
-                                    .unwrap_or_default();
-                                acc.push_str(val.get::<&str>().unwrap());
-                                std::ops::ControlFlow::Continue(acc.to_value())
-                            })
                             .build(),
                         super::Signal::builder("create-child-object")
                             .return_type::<super::ChildObject>()
-                            .build(),
-                        super::Signal::builder("return-string")
-                            .return_type::<String>()
-                            .action()
-                            .class_handler(|args| {
-                                let _obj = args[0]
-                                    .get::<super::SimpleObject>()
-                                    .expect("Failed to get Object from args[0]");
-                                Some("base".to_value())
-                            })
                             .build(),
                     ]
                 })
@@ -521,33 +492,6 @@ mod test {
             }
         }
 
-        #[derive(Default)]
-        pub struct SimpleSubObject;
-
-        #[glib::object_subclass]
-        impl ObjectSubclass for SimpleSubObject {
-            const NAME: &'static str = "SimpleSubObject";
-            type Type = super::SimpleSubObject;
-            type ParentType = super::SimpleObject;
-
-            fn class_init(class: &mut Self::Class) {
-                class.override_signal_class_handler("return-string", |token, args| {
-                    let obj = args[0]
-                        .get::<super::SimpleSubObject>()
-                        .expect("Failed to get Object from args[0]");
-
-                    let res = obj.imp().signal_chain_from_overridden(token, args);
-                    assert_eq!(res.unwrap().get::<&str>().unwrap(), "base");
-
-                    Some("sub".to_value())
-                });
-            }
-        }
-
-        impl ObjectImpl for SimpleSubObject {}
-
-        impl SimpleObjectImpl for SimpleSubObject {}
-
         #[derive(Clone, Copy)]
         #[repr(C)]
         pub struct DummyInterface {
@@ -573,14 +517,6 @@ mod test {
 
     wrapper! {
         pub struct SimpleObject(ObjectSubclass<imp::SimpleObject>);
-    }
-
-    pub trait SimpleObjectImpl: ObjectImpl {}
-
-    unsafe impl<Obj: SimpleObjectImpl> IsSubclassable<Obj> for SimpleObject {}
-
-    wrapper! {
-        pub struct SimpleSubObject(ObjectSubclass<imp::SimpleSubObject>) @extends SimpleObject;
     }
 
     wrapper! {
@@ -610,14 +546,6 @@ mod test {
         let weak = obj.downgrade();
         drop(obj);
         assert!(weak.upgrade().is_none());
-    }
-
-    #[test]
-    fn test_sub_create() {
-        let obj = Object::builder::<SimpleSubObject>().build();
-        assert!(obj.type_().is_a(SimpleObject::static_type()));
-        assert_eq!(obj.type_(), SimpleSubObject::static_type());
-        assert!(obj.property::<bool>("constructed"));
     }
 
     #[test]
@@ -701,12 +629,11 @@ mod test {
             Some("some name")
         );
         assert_eq!(obj.property::<i32>("answer"), 21);
-        assert!(
-            obj.property::<ValueArray>("array")
-                .iter()
-                .map(|val| val.get::<&str>().unwrap())
-                .eq(array)
-        );
+        assert!(obj
+            .property::<ValueArray>("array")
+            .iter()
+            .map(|val| val.get::<&str>().unwrap())
+            .eq(array));
 
         let obj = Object::builder::<SimpleObject>()
             .property_if("name", "some name", false)
@@ -716,12 +643,11 @@ mod test {
 
         assert!(obj.property::<Option<String>>("name").is_none());
         assert_eq!(obj.property::<i32>("answer"), 42);
-        assert!(
-            obj.property::<ValueArray>("array")
-                .iter()
-                .map(|val| val.get::<&str>().unwrap())
-                .eq(["default0", "default1"])
-        );
+        assert!(obj
+            .property::<ValueArray>("array")
+            .iter()
+            .map(|val| val.get::<&str>().unwrap())
+            .eq(["default0", "default1"]));
     }
 
     #[test]
@@ -741,12 +667,11 @@ mod test {
             Some("some name")
         );
         assert_eq!(obj.property::<i32>("answer"), 21);
-        assert!(
-            obj.property::<ValueArray>("array")
-                .iter()
-                .map(|val| val.get::<&str>().unwrap())
-                .eq(array)
-        );
+        assert!(obj
+            .property::<ValueArray>("array")
+            .iter()
+            .map(|val| val.get::<&str>().unwrap())
+            .eq(array));
 
         let obj = Object::builder::<SimpleObject>()
             .property_if_some("name", Option::<&str>::None)
@@ -756,12 +681,11 @@ mod test {
 
         assert!(obj.property::<Option<String>>("name").is_none());
         assert_eq!(obj.property::<i32>("answer"), 42);
-        assert!(
-            obj.property::<ValueArray>("array")
-                .iter()
-                .map(|val| val.get::<&str>().unwrap())
-                .eq(["default0", "default1"])
-        );
+        assert!(obj
+            .property::<ValueArray>("array")
+            .iter()
+            .map(|val| val.get::<&str>().unwrap())
+            .eq(["default0", "default1"]));
     }
 
     #[test]
@@ -773,12 +697,11 @@ mod test {
             .property_from_iter::<ValueArray>("array", &array)
             .build();
 
-        assert!(
-            obj.property::<ValueArray>("array")
-                .iter()
-                .map(|val| val.get::<&str>().unwrap())
-                .eq(array)
-        );
+        assert!(obj
+            .property::<ValueArray>("array")
+            .iter()
+            .map(|val| val.get::<&str>().unwrap())
+            .eq(array));
 
         let obj = Object::builder::<SimpleObject>()
             .property_from_iter::<ValueArray>("array", Vec::<&str>::new())
@@ -796,24 +719,22 @@ mod test {
             .property_if_not_empty::<ValueArray>("array", &array)
             .build();
 
-        assert!(
-            obj.property::<ValueArray>("array")
-                .iter()
-                .map(|val| val.get::<&str>().unwrap())
-                .eq(array)
-        );
+        assert!(obj
+            .property::<ValueArray>("array")
+            .iter()
+            .map(|val| val.get::<&str>().unwrap())
+            .eq(array));
 
         let empty_vec = Vec::<String>::new();
         let obj = Object::builder::<SimpleObject>()
             .property_if_not_empty::<ValueArray>("array", &empty_vec)
             .build();
 
-        assert!(
-            obj.property::<ValueArray>("array")
-                .iter()
-                .map(|val| val.get::<&str>().unwrap())
-                .eq(["default0", "default1"])
-        );
+        assert!(obj
+            .property::<ValueArray>("array")
+            .iter()
+            .map(|val| val.get::<&str>().unwrap())
+            .eq(["default0", "default1"]));
     }
 
     #[test]
@@ -885,8 +806,8 @@ mod test {
     #[test]
     fn test_signals() {
         use std::sync::{
-            Arc,
             atomic::{AtomicBool, Ordering},
+            Arc,
         };
 
         let obj = Object::builder::<SimpleObject>()
@@ -913,8 +834,6 @@ mod test {
             "old-name"
         );
         assert!(name_changed_triggered.load(Ordering::Relaxed));
-
-        assert_eq!(obj.emit_by_name::<String>("return-string", &[]), "base");
     }
 
     #[test]
@@ -922,31 +841,20 @@ mod test {
         let obj = Object::with_type(SimpleObject::static_type());
 
         obj.connect("create-string", false, move |_args| {
-            Some("return value 1".to_value())
-        });
-
-        obj.connect("create-string", false, move |_args| {
-            Some("return value 2".to_value())
+            Some("return value".to_value())
         });
 
         let signal_id = imp::SimpleObject::signals()[2].signal_id();
 
         let value = obj.emit::<String>(signal_id, &[]);
-        assert_eq!(value, "return value 1\nreturn value 2");
-    }
-
-    #[test]
-    fn test_signal_override() {
-        let obj = Object::builder::<SimpleSubObject>().build();
-
-        assert_eq!(obj.emit_by_name::<String>("return-string", &[]), "sub");
+        assert_eq!(value, "return value");
     }
 
     #[test]
     fn test_callback_validity() {
         use std::sync::{
-            Arc,
             atomic::{AtomicBool, Ordering},
+            Arc,
         };
 
         let obj = Object::builder::<SimpleObject>()

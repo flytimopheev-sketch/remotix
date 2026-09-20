@@ -29,7 +29,6 @@ pub mod application;
 pub mod application_window;
 pub mod box_;
 pub mod buildable;
-mod buildable_parser;
 pub mod builder_scope;
 pub mod button;
 pub mod cell_area;
@@ -90,8 +89,6 @@ pub mod widget;
 pub mod window;
 pub mod window_group;
 
-pub use buildable_parser::{BuildableParseContext, BuildableParser, BuildableParserImpl};
-
 // rustdoc-stripper-ignore-next
 /// Traits intended for blanket imports.
 pub mod prelude {
@@ -112,12 +109,13 @@ pub mod prelude {
     pub use super::section_model::{SectionModelImpl, SectionModelImplExt};
     #[cfg(feature = "v4_6")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_6")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v4_6")))]
     pub use super::symbolic_paintable::{SymbolicPaintableImpl, SymbolicPaintableImplExt};
     pub use super::{
         actionable::{ActionableImpl, ActionableImplExt},
         adjustment::{AdjustmentImpl, AdjustmentImplExt},
         application::{GtkApplicationImpl, GtkApplicationImplExt},
-        application_window::{ApplicationWindowImpl, ApplicationWindowImplExt},
+        application_window::ApplicationWindowImpl,
         box_::BoxImpl,
         buildable::{BuildableImpl, BuildableImplExt},
         builder_scope::{BuilderCScopeImpl, BuilderScopeImpl, BuilderScopeImplExt},
@@ -179,5 +177,4 @@ pub mod prelude {
         window::{WindowImpl, WindowImplExt},
         window_group::WindowGroupImpl,
     };
-    pub use crate::widget::WidgetClassManualExt;
 }

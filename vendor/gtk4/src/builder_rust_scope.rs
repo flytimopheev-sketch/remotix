@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use crate::{BuilderCScope, BuilderScope, subclass::prelude::*};
+use crate::{subclass::prelude::*, BuilderCScope, BuilderScope};
 
 glib::wrapper! {
     // rustdoc-stripper-ignore-next
@@ -70,10 +70,10 @@ impl BuilderRustScope {
 mod imp {
     use std::{cell::RefCell, collections::HashMap};
 
-    use glib::{Closure, RustClosure, translate::*};
+    use glib::{translate::*, Closure, RustClosure};
 
     use super::*;
-    use crate::{Builder, BuilderClosureFlags, BuilderError, prelude::*};
+    use crate::{prelude::*, Builder, BuilderClosureFlags, BuilderError};
 
     type Callback = dyn Fn(&[glib::Value]) -> Option<glib::Value>;
 
@@ -192,7 +192,7 @@ mod imp {
 #[cfg(test)]
 mod tests {
     use super::BuilderRustScope;
-    use crate::{self as gtk4, Builder, prelude::*, subclass::prelude::*};
+    use crate::{self as gtk4, prelude::*, subclass::prelude::*, Builder};
 
     const SIGNAL_XML: &str = r#"
     <?xml version="1.0" encoding="UTF-8"?>

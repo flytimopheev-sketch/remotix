@@ -29,7 +29,6 @@ int main() {
     printf("%s;%zu;%zu\n", "PangoEllipsizeMode", sizeof(PangoEllipsizeMode), alignof(PangoEllipsizeMode));
     printf("%s;%zu;%zu\n", "PangoFont", sizeof(PangoFont), alignof(PangoFont));
     printf("%s;%zu;%zu\n", "PangoFontClass", sizeof(PangoFontClass), alignof(PangoFontClass));
-    printf("%s;%zu;%zu\n", "PangoFontColor", sizeof(PangoFontColor), alignof(PangoFontColor));
     printf("%s;%zu;%zu\n", "PangoFontFace", sizeof(PangoFontFace), alignof(PangoFontFace));
     printf("%s;%zu;%zu\n", "PangoFontFaceClass", sizeof(PangoFontFaceClass), alignof(PangoFontFaceClass));
     printf("%s;%zu;%zu\n", "PangoFontFamily", sizeof(PangoFontFamily), alignof(PangoFontFamily));
@@ -59,7 +58,6 @@ int main() {
     printf("%s;%zu;%zu\n", "PangoMatrix", sizeof(PangoMatrix), alignof(PangoMatrix));
     printf("%s;%zu;%zu\n", "PangoOverline", sizeof(PangoOverline), alignof(PangoOverline));
     printf("%s;%zu;%zu\n", "PangoRectangle", sizeof(PangoRectangle), alignof(PangoRectangle));
-    printf("%s;%zu;%zu\n", "PangoRenderComponent", sizeof(PangoRenderComponent), alignof(PangoRenderComponent));
     printf("%s;%zu;%zu\n", "PangoRenderPart", sizeof(PangoRenderPart), alignof(PangoRenderPart));
     printf("%s;%zu;%zu\n", "PangoRenderer", sizeof(PangoRenderer), alignof(PangoRenderer));
     printf("%s;%zu;%zu\n", "PangoRendererClass", sizeof(PangoRendererClass), alignof(PangoRendererClass));
@@ -73,7 +71,6 @@ int main() {
     printf("%s;%zu;%zu\n", "PangoUnderline", sizeof(PangoUnderline), alignof(PangoUnderline));
     printf("%s;%zu;%zu\n", "PangoVariant", sizeof(PangoVariant), alignof(PangoVariant));
     printf("%s;%zu;%zu\n", "PangoWeight", sizeof(PangoWeight), alignof(PangoWeight));
-    printf("%s;%zu;%zu\n", "PangoWidth", sizeof(PangoWidth), alignof(PangoWidth));
     printf("%s;%zu;%zu\n", "PangoWrapMode", sizeof(PangoWrapMode), alignof(PangoWrapMode));
     return 0;
 }

@@ -2,27 +2,12 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
-use crate::{Buildable, ConstraintTarget, Native, Widget, ffi};
+use crate::{ffi, Accessible, Buildable, ConstraintTarget, Native, Widget};
 use glib::{prelude::*, translate::*};
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkRoot")]
     pub struct Root(Interface<ffi::GtkRoot, ffi::GtkRootInterface>) @requires Native, Widget, Accessible, Buildable, ConstraintTarget;
-
-    match fn {
-        type_ => || ffi::gtk_root_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkRoot")]
-    pub struct Root(Interface<ffi::GtkRoot, ffi::GtkRootInterface>) @requires Native, Widget, Buildable, ConstraintTarget;
 
     match fn {
         type_ => || ffi::gtk_root_get_type(),
@@ -33,7 +18,12 @@ impl Root {
     pub const NONE: Option<&'static Root> = None;
 }
 
-pub trait RootExt: IsA<Root> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Root>> Sealed for T {}
+}
+
+pub trait RootExt: IsA<Root> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_root_get_display")]
     #[doc(alias = "get_display")]
     fn display(&self) -> gdk::Display {

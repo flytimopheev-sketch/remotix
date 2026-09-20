@@ -3,36 +3,21 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, AppChooser, Buildable, ConstraintTarget, LayoutManager, Overflow,
-    Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, AppChooser, Buildable, ConstraintTarget, LayoutManager,
+    Overflow, Widget,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkAppChooserWidget")]
     pub struct AppChooserWidget(Object<ffi::GtkAppChooserWidget>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, AppChooser;
-
-    match fn {
-        type_ => || ffi::gtk_app_chooser_widget_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkAppChooserWidget")]
-    pub struct AppChooserWidget(Object<ffi::GtkAppChooserWidget>) @extends Widget, @implements Buildable, ConstraintTarget, AppChooser;
 
     match fn {
         type_ => || ffi::gtk_app_chooser_widget_get_type(),
@@ -223,16 +208,14 @@ impl AppChooserWidget {
             application: *mut gio::ffi::GAppInfo,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), &from_glib_borrow(application))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), &from_glib_borrow(application))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"application-activated".as_ptr(),
+                b"application-activated\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     application_activated_trampoline::<F> as *const (),
                 )),
@@ -253,16 +236,14 @@ impl AppChooserWidget {
             application: *mut gio::ffi::GAppInfo,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), &from_glib_borrow(application))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), &from_glib_borrow(application))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"application-selected".as_ptr(),
+                b"application-selected\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     application_selected_trampoline::<F> as *const (),
                 )),
@@ -278,16 +259,14 @@ impl AppChooserWidget {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::default-text".as_ptr(),
+                b"notify::default-text\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_default_text_trampoline::<F> as *const (),
                 )),
@@ -303,16 +282,14 @@ impl AppChooserWidget {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-all".as_ptr(),
+                b"notify::show-all\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_all_trampoline::<F> as *const (),
                 )),
@@ -328,16 +305,14 @@ impl AppChooserWidget {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-default".as_ptr(),
+                b"notify::show-default\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_default_trampoline::<F> as *const (),
                 )),
@@ -353,16 +328,14 @@ impl AppChooserWidget {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-fallback".as_ptr(),
+                b"notify::show-fallback\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_fallback_trampoline::<F> as *const (),
                 )),
@@ -378,16 +351,14 @@ impl AppChooserWidget {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-other".as_ptr(),
+                b"notify::show-other\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_other_trampoline::<F> as *const (),
                 )),
@@ -405,16 +376,14 @@ impl AppChooserWidget {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-recommended".as_ptr(),
+                b"notify::show-recommended\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_recommended_trampoline::<F> as *const (),
                 )),

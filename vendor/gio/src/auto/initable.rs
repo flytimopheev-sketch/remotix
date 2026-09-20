@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Cancellable, ffi};
+use crate::{ffi, Cancellable};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -18,22 +18,25 @@ impl Initable {
     pub const NONE: Option<&'static Initable> = None;
 }
 
-pub trait InitableExt: IsA<Initable> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Initable>> Sealed for T {}
+}
+
+pub trait InitableExt: IsA<Initable> + sealed::Sealed + 'static {
     #[doc(alias = "g_initable_init")]
     unsafe fn init(&self, cancellable: Option<&impl IsA<Cancellable>>) -> Result<(), glib::Error> {
-        unsafe {
-            let mut error = std::ptr::null_mut();
-            let is_ok = ffi::g_initable_init(
-                self.as_ref().to_glib_none().0,
-                cancellable.map(|p| p.as_ref()).to_glib_none().0,
-                &mut error,
-            );
-            debug_assert_eq!(is_ok == glib::ffi::GFALSE, !error.is_null());
-            if error.is_null() {
-                Ok(())
-            } else {
-                Err(from_glib_full(error))
-            }
+        let mut error = std::ptr::null_mut();
+        let is_ok = ffi::g_initable_init(
+            self.as_ref().to_glib_none().0,
+            cancellable.map(|p| p.as_ref()).to_glib_none().0,
+            &mut error,
+        );
+        debug_assert_eq!(is_ok == glib::ffi::GFALSE, !error.is_null());
+        if error.is_null() {
+            Ok(())
+        } else {
+            Err(from_glib_full(error))
         }
     }
 }

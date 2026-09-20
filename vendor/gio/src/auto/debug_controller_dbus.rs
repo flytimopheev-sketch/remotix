@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Cancellable, DBusConnection, DBusMethodInvocation, DebugController, Initable, ffi};
+use crate::{ffi, Cancellable, DBusConnection, DBusMethodInvocation, DebugController, Initable};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -44,7 +44,12 @@ impl DebugControllerDBus {
     }
 }
 
-pub trait DebugControllerDBusExt: IsA<DebugControllerDBus> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::DebugControllerDBus>> Sealed for T {}
+}
+
+pub trait DebugControllerDBusExt: IsA<DebugControllerDBus> + sealed::Sealed + 'static {
     #[doc(alias = "g_debug_controller_dbus_stop")]
     fn stop(&self) {
         unsafe {
@@ -67,20 +72,18 @@ pub trait DebugControllerDBusExt: IsA<DebugControllerDBus> + 'static {
             invocation: *mut ffi::GDBusMethodInvocation,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    DebugControllerDBus::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(invocation),
-                )
-                .into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                DebugControllerDBus::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(invocation),
+            )
+            .into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"authorize".as_ptr(),
+                b"authorize\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     authorize_trampoline::<Self, F> as *const (),
                 )),

@@ -11,7 +11,7 @@ use glib::translate::*;
 
 #[cfg(feature = "freetype")]
 use crate::FtSynthesize;
-use crate::{Error, FontSlant, FontType, FontWeight, ffi, utils::status_to_result};
+use crate::{ffi, utils::status_to_result, Error, FontSlant, FontType, FontWeight};
 
 #[cfg(feature = "freetype")]
 static FT_FACE_KEY: crate::UserDataKey<freetype::face::Face> = crate::UserDataKey::new();
@@ -111,7 +111,7 @@ impl FontFace {
     #[cfg(feature = "use_glib")]
     #[inline]
     pub unsafe fn from_raw_full(ptr: *mut ffi::cairo_font_face_t) -> FontFace {
-        unsafe { from_glib_full(ptr) }
+        from_glib_full(ptr)
     }
 
     #[cfg(not(feature = "use_glib"))]
@@ -124,7 +124,7 @@ impl FontFace {
     #[cfg(feature = "use_glib")]
     #[inline]
     pub unsafe fn from_raw_none(ptr: *mut ffi::cairo_font_face_t) -> FontFace {
-        unsafe { from_glib_none(ptr) }
+        from_glib_none(ptr)
     }
 
     #[cfg(not(feature = "use_glib"))]
@@ -223,11 +223,9 @@ impl Clone for FontFace {
 }
 
 pub(crate) unsafe fn to_optional_string(str: *const libc::c_char) -> Option<String> {
-    unsafe {
-        if str.is_null() {
-            None
-        } else {
-            Some(String::from_utf8_lossy(CStr::from_ptr(str).to_bytes()).into_owned())
-        }
+    if str.is_null() {
+        None
+    } else {
+        Some(String::from_utf8_lossy(CStr::from_ptr(str).to_bytes()).into_owned())
     }
 }

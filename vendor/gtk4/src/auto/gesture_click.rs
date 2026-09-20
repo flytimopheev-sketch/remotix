@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{EventController, Gesture, GestureSingle, PropagationLimit, PropagationPhase, ffi};
+use crate::{ffi, EventController, Gesture, GestureSingle, PropagationLimit, PropagationPhase};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -44,16 +44,14 @@ impl GestureClick {
             y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), n_press, x, y)
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), n_press, x, y)
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"pressed".as_ptr(),
+                b"pressed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     pressed_trampoline::<F> as *const (),
                 )),
@@ -71,16 +69,14 @@ impl GestureClick {
             y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), n_press, x, y)
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), n_press, x, y)
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"released".as_ptr(),
+                b"released\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     released_trampoline::<F> as *const (),
                 )),
@@ -95,16 +91,14 @@ impl GestureClick {
             this: *mut ffi::GtkGestureClick,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"stopped".as_ptr(),
+                b"stopped\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     stopped_trampoline::<F> as *const (),
                 )),
@@ -130,24 +124,22 @@ impl GestureClick {
             sequence: *mut gdk::ffi::GdkEventSequence,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    &from_glib_borrow(this),
-                    x,
-                    y,
-                    button,
-                    Option::<gdk::EventSequence>::from_glib_borrow(sequence)
-                        .as_ref()
-                        .as_ref(),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                &from_glib_borrow(this),
+                x,
+                y,
+                button,
+                Option::<gdk::EventSequence>::from_glib_borrow(sequence)
+                    .as_ref()
+                    .as_ref(),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"unpaired-release".as_ptr(),
+                b"unpaired-release\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     unpaired_release_trampoline::<F> as *const (),
                 )),

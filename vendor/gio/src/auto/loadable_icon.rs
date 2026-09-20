@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{AsyncResult, Cancellable, Icon, InputStream, ffi};
+use crate::{ffi, AsyncResult, Cancellable, Icon, InputStream};
 use glib::{prelude::*, translate::*};
 use std::{boxed::Box as Box_, pin::Pin};
 
@@ -19,7 +19,12 @@ impl LoadableIcon {
     pub const NONE: Option<&'static LoadableIcon> = None;
 }
 
-pub trait LoadableIconExt: IsA<LoadableIcon> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::LoadableIcon>> Sealed for T {}
+}
+
+pub trait LoadableIconExt: IsA<LoadableIcon> + sealed::Sealed + 'static {
     #[doc(alias = "g_loadable_icon_load")]
     fn load(
         &self,
@@ -70,25 +75,23 @@ pub trait LoadableIconExt: IsA<LoadableIcon> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let mut type_ = std::ptr::null_mut();
-                let ret = ffi::g_loadable_icon_load_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut type_,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok((from_glib_full(ret), from_glib_full(type_)))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let mut type_ = std::ptr::null_mut();
+            let ret = ffi::g_loadable_icon_load_finish(
+                _source_object as *mut _,
+                res,
+                &mut type_,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok((from_glib_full(ret), from_glib_full(type_)))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = load_async_trampoline::<P>;
         unsafe {

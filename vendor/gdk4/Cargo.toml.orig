@@ -26,9 +26,6 @@ v4_12 = ["gdk4-sys/v4_12", "v4_10"]
 v4_14 = ["gdk4-sys/v4_14", "v4_12"]
 v4_16 = ["gdk4-sys/v4_16", "v4_14"]
 v4_18 = ["gdk4-sys/v4_18", "v4_16"]
-v4_20 = ["gdk4-sys/v4_20", "v4_18"]
-v4_22 = ["gdk4-sys/v4_22", "v4_20"]
-v4_24 = ["gdk4-sys/v4_24", "v4_22"]
 gl = ["dep:gl"]
 
 [dependencies]
@@ -46,4 +43,5 @@ gir-format-check.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]

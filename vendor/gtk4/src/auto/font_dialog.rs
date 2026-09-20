@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Filter, Window, ffi};
+use crate::{ffi, Filter, Window};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::{boxed::Box as Box_, pin::Pin};
@@ -61,23 +61,18 @@ impl FontDialog {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::gtk_font_dialog_choose_face_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret =
+                ffi::gtk_font_dialog_choose_face_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = choose_face_trampoline::<P>;
         unsafe {
@@ -139,23 +134,21 @@ impl FontDialog {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::gtk_font_dialog_choose_family_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::gtk_font_dialog_choose_family_finish(
+                _source_object as *mut _,
+                res,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = choose_family_trampoline::<P>;
         unsafe {
@@ -217,23 +210,18 @@ impl FontDialog {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::gtk_font_dialog_choose_font_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret =
+                ffi::gtk_font_dialog_choose_font_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = choose_font_trampoline::<P>;
         unsafe {
@@ -361,16 +349,14 @@ impl FontDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::filter".as_ptr(),
+                b"notify::filter\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_filter_trampoline::<F> as *const (),
                 )),
@@ -388,16 +374,14 @@ impl FontDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::font-map".as_ptr(),
+                b"notify::font-map\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_font_map_trampoline::<F> as *const (),
                 )),
@@ -415,16 +399,14 @@ impl FontDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::language".as_ptr(),
+                b"notify::language\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_language_trampoline::<F> as *const (),
                 )),
@@ -442,16 +424,14 @@ impl FontDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::modal".as_ptr(),
+                b"notify::modal\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_modal_trampoline::<F> as *const (),
                 )),
@@ -469,16 +449,14 @@ impl FontDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::title".as_ptr(),
+                b"notify::title\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_title_trampoline::<F> as *const (),
                 )),

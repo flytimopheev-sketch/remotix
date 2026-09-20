@@ -4,14 +4,14 @@
 
 #[cfg(feature = "v4_10")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::{Accessible, AccessibleRange};
+use crate::AccessibleRange;
 use crate::{
-    AccessibleRole, Adjustment, Align, Buildable, ConstraintTarget, LayoutManager, Orientable,
-    Orientation, Overflow, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Adjustment, Align, Buildable, ConstraintTarget, LayoutManager,
+    Orientable, Orientation, Overflow, Widget,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -27,10 +27,10 @@ glib::wrapper! {
     }
 }
 
-#[cfg(not(feature = "v4_10"))]
+#[cfg(not(any(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkScrollbar")]
-    pub struct Scrollbar(Object<ffi::GtkScrollbar>) @extends Widget, @implements Buildable, ConstraintTarget, Orientable;
+    pub struct Scrollbar(Object<ffi::GtkScrollbar>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, Orientable;
 
     match fn {
         type_ => || ffi::gtk_scrollbar_get_type(),
@@ -82,16 +82,14 @@ impl Scrollbar {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::adjustment".as_ptr(),
+                b"notify::adjustment\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_adjustment_trampoline::<F> as *const (),
                 )),

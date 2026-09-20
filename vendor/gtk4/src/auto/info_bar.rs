@@ -3,36 +3,21 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, Buildable, Button, ConstraintTarget, LayoutManager, MessageType,
-    Overflow, ResponseType, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, Buildable, Button, ConstraintTarget, LayoutManager,
+    MessageType, Overflow, ResponseType, Widget,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkInfoBar")]
     pub struct InfoBar(Object<ffi::GtkInfoBar>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget;
-
-    match fn {
-        type_ => || ffi::gtk_info_bar_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkInfoBar")]
-    pub struct InfoBar(Object<ffi::GtkInfoBar>) @extends Widget, @implements Buildable, ConstraintTarget;
 
     match fn {
         type_ => || ffi::gtk_info_bar_get_type(),
@@ -210,16 +195,14 @@ impl InfoBar {
             this: *mut ffi::GtkInfoBar,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"close".as_ptr(),
+                b"close\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     close_trampoline::<F> as *const (),
                 )),
@@ -239,16 +222,14 @@ impl InfoBar {
             response_id: ffi::GtkResponseType,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), from_glib(response_id))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), from_glib(response_id))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"response".as_ptr(),
+                b"response\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     response_trampoline::<F> as *const (),
                 )),
@@ -264,16 +245,14 @@ impl InfoBar {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::message-type".as_ptr(),
+                b"notify::message-type\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_message_type_trampoline::<F> as *const (),
                 )),
@@ -289,16 +268,14 @@ impl InfoBar {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::revealed".as_ptr(),
+                b"notify::revealed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_revealed_trampoline::<F> as *const (),
                 )),
@@ -317,16 +294,14 @@ impl InfoBar {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-close-button".as_ptr(),
+                b"notify::show-close-button\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_close_button_trampoline::<F> as *const (),
                 )),

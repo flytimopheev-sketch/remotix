@@ -33,32 +33,11 @@ pub use self::color_matrix_node::ColorMatrixNode;
 mod color_node;
 pub use self::color_node::ColorNode;
 
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-mod component_transfer_node;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub use self::component_transfer_node::ComponentTransferNode;
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod composite_node;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::composite_node::CompositeNode;
-
 mod conic_gradient_node;
 pub use self::conic_gradient_node::ConicGradientNode;
 
 mod container_node;
 pub use self::container_node::ContainerNode;
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod copy_node;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::copy_node::CopyNode;
 
 mod cross_fade_node;
 pub use self::cross_fade_node::CrossFadeNode;
@@ -80,9 +59,7 @@ mod gl_renderer;
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_2")))]
 pub use self::gl_renderer::GLRenderer;
 
-#[cfg_attr(feature = "v4_16", deprecated = "Since 4.16")]
 mod gl_shader;
-#[cfg_attr(feature = "v4_16", deprecated = "Since 4.16")]
 pub use self::gl_shader::GLShader;
 
 mod gl_shader_node;
@@ -90,13 +67,6 @@ pub use self::gl_shader_node::GLShaderNode;
 
 mod inset_shadow_node;
 pub use self::inset_shadow_node::InsetShadowNode;
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod isolation_node;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::isolation_node::IsolationNode;
 
 mod linear_gradient_node;
 pub use self::linear_gradient_node::LinearGradientNode;
@@ -113,13 +83,6 @@ pub use self::opacity_node::OpacityNode;
 
 mod outset_shadow_node;
 pub use self::outset_shadow_node::OutsetShadowNode;
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod paste_node;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::paste_node::PasteNode;
 
 mod radial_gradient_node;
 pub use self::radial_gradient_node::RadialGradientNode;
@@ -152,13 +115,6 @@ mod stroke_node;
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 pub use self::stroke_node::StrokeNode;
 
-#[cfg(feature = "v4_14")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-mod subsurface_node;
-#[cfg(feature = "v4_14")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-pub use self::subsurface_node::SubsurfaceNode;
-
 mod text_node;
 pub use self::text_node::TextNode;
 
@@ -181,13 +137,6 @@ mod vulkan_renderer;
 #[cfg(feature = "vulkan")]
 #[cfg_attr(docsrs, doc(cfg(feature = "vulkan")))]
 pub use self::vulkan_renderer::VulkanRenderer;
-
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-mod component_transfer;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub use self::component_transfer::ComponentTransfer;
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
@@ -217,13 +166,6 @@ mod path_point;
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 pub use self::path_point::PathPoint;
 
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod render_replay;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::render_replay::RenderReplay;
-
 mod shader_args_builder;
 pub use self::shader_args_builder::ShaderArgsBuilder;
 
@@ -243,7 +185,6 @@ pub use self::enums::Corner;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 pub use self::enums::FillRule;
-#[allow(deprecated)]
 pub use self::enums::GLUniformType;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
@@ -257,40 +198,22 @@ pub use self::enums::MaskMode;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 pub use self::enums::PathDirection;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub use self::enums::PathIntersection;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 pub use self::enums::PathOperation;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::enums::PorterDuff;
 pub use self::enums::RenderNodeType;
 pub use self::enums::ScalingFilter;
 pub use self::enums::SerializationError;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub use self::enums::Side;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub use self::enums::SnapDirection;
 pub use self::enums::TransformCategory;
 
 mod flags;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::flags::Isolation;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 pub use self::flags::PathForeachFlags;
-
-pub(crate) mod functions;
 
 pub(crate) mod traits {
     pub use super::renderer::GskRendererExt;
 }
 pub(crate) mod builders {
-    #[cfg_attr(feature = "v4_16", deprecated = "Since 4.16")]
     pub use super::gl_shader::GLShaderBuilder;
 }

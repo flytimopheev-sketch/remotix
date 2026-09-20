@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    OutputStream, prelude::*, read_input_stream::std_error_to_gio_error, subclass::prelude::*,
+    prelude::*, read_input_stream::std_error_to_gio_error, subclass::prelude::*, OutputStream,
 };
 
 mod imp {
@@ -263,11 +263,14 @@ impl AnyWriter {
                     Ok(res) => res,
                     Err(panic) => {
                         self.writer = AnyOrPanic::Panic(panic);
-                        Err(std::io::Error::other("Panicked"))
+                        Err(std::io::Error::new(std::io::ErrorKind::Other, "Panicked"))
                     }
                 }
             }
-            AnyOrPanic::Panic(_) => Err(std::io::Error::other("Panicked before")),
+            AnyOrPanic::Panic(_) => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Panicked before",
+            )),
         }
     }
 

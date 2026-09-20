@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{BaselinePosition, LayoutManager, Orientation, Widget, ffi};
+use crate::{ffi, BaselinePosition, LayoutManager, Orientation, Widget};
 #[cfg(feature = "v4_12")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_12")))]
-use glib::signal::{SignalHandlerId, connect_raw};
+use glib::signal::{connect_raw, SignalHandlerId};
 use glib::{prelude::*, translate::*};
 #[cfg(feature = "v4_12")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_12")))]
@@ -160,16 +160,14 @@ impl CenterLayout {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::shrink-center-last".as_ptr(),
+                b"notify::shrink-center-last\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_shrink_center_last_trampoline::<F> as *const (),
                 )),

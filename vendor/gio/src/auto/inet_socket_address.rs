@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{InetAddress, SocketAddress, SocketConnectable, ffi};
+use crate::{ffi, InetAddress, SocketAddress, SocketConnectable};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -44,7 +44,12 @@ impl InetSocketAddress {
 unsafe impl Send for InetSocketAddress {}
 unsafe impl Sync for InetSocketAddress {}
 
-pub trait InetSocketAddressExt: IsA<InetSocketAddress> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::InetSocketAddress>> Sealed for T {}
+}
+
+pub trait InetSocketAddressExt: IsA<InetSocketAddress> + sealed::Sealed + 'static {
     #[doc(alias = "g_inet_socket_address_get_address")]
     #[doc(alias = "get_address")]
     fn address(&self) -> InetAddress {

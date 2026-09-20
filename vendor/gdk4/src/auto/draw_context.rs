@@ -3,7 +3,7 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-use crate::{Display, Surface, ffi};
+use crate::{ffi, Display, Surface};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -19,7 +19,12 @@ impl DrawContext {
     pub const NONE: Option<&'static DrawContext> = None;
 }
 
-pub trait DrawContextExt: IsA<DrawContext> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::DrawContext>> Sealed for T {}
+}
+
+pub trait DrawContextExt: IsA<DrawContext> + sealed::Sealed + 'static {
     #[cfg_attr(feature = "v4_16", deprecated = "Since 4.16")]
     #[allow(deprecated)]
     #[doc(alias = "gdk_draw_context_begin_frame")]

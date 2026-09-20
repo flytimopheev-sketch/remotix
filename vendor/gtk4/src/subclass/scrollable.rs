@@ -1,20 +1,26 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for implementing the [`Scrollable`] interface.
+//! Traits intended for implementing the [`Scrollable`](crate::Scrollable)
+//! interface.
 
 use glib::translate::*;
 
-use crate::{Border, Scrollable, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, Border, Scrollable};
 
-pub trait ScrollableImpl: WidgetImpl + ObjectSubclass<Type: IsA<Scrollable>> {
+pub trait ScrollableImpl: WidgetImpl {
     #[doc(alias = "get_border")]
     fn border(&self) -> Option<Border> {
         self.parent_border()
     }
 }
 
-pub trait ScrollableImplExt: ScrollableImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::ScrollableImplExt> Sealed for T {}
+}
+
+pub trait ScrollableImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_border(&self) -> Option<Border> {
         unsafe {
             let type_data = Self::type_data();
@@ -49,21 +55,19 @@ unsafe extern "C" fn scrollable_get_border<T: ScrollableImpl>(
     scrollable: *mut ffi::GtkScrollable,
     borderptr: *mut ffi::GtkBorder,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(scrollable as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(scrollable as *mut T::Instance);
+    let imp = instance.imp();
 
-        if let Some(border) = imp.border() {
-            *borderptr = *IntoGlibPtr::<*mut _>::into_glib_ptr(border);
-            true.into_glib()
-        } else {
-            *borderptr = ffi::GtkBorder {
-                top: 0,
-                right: 0,
-                left: 0,
-                bottom: 0,
-            };
-            false.into_glib()
-        }
+    if let Some(border) = imp.border() {
+        *borderptr = *IntoGlibPtr::<*mut _>::into_glib_ptr(border);
+        true.into_glib()
+    } else {
+        *borderptr = ffi::GtkBorder {
+            top: 0,
+            right: 0,
+            left: 0,
+            bottom: 0,
+        };
+        false.into_glib()
     }
 }

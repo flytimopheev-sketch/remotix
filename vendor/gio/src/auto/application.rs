@@ -3,12 +3,13 @@
 // DO NOT EDIT
 
 use crate::{
-    ActionGroup, ActionMap, ApplicationFlags, Cancellable, DBusConnection, File, Notification, ffi,
+    ffi, ActionGroup, ActionMap, ApplicationCommandLine, ApplicationFlags, Cancellable,
+    DBusConnection, File, Notification,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -128,7 +129,12 @@ impl ApplicationBuilder {
     }
 }
 
-pub trait ApplicationExt: IsA<Application> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Application>> Sealed for T {}
+}
+
+pub trait ApplicationExt: IsA<Application> + sealed::Sealed + 'static {
     #[doc(alias = "g_application_activate")]
     fn activate(&self) {
         unsafe {
@@ -447,18 +453,80 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             this: *mut ffi::GApplication,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"activate".as_ptr(),
+                b"activate\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     activate_trampoline::<Self, F> as *const (),
+                )),
+                Box_::into_raw(f),
+            )
+        }
+    }
+
+    #[doc(alias = "command-line")]
+    fn connect_command_line<F: Fn(&Self, &ApplicationCommandLine) -> i32 + 'static>(
+        &self,
+        f: F,
+    ) -> SignalHandlerId {
+        unsafe extern "C" fn command_line_trampoline<
+            P: IsA<Application>,
+            F: Fn(&P, &ApplicationCommandLine) -> i32 + 'static,
+        >(
+            this: *mut ffi::GApplication,
+            command_line: *mut ffi::GApplicationCommandLine,
+            f: glib::ffi::gpointer,
+        ) -> std::ffi::c_int {
+            let f: &F = &*(f as *const F);
+            f(
+                Application::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(command_line),
+            )
+        }
+        unsafe {
+            let f: Box_<F> = Box_::new(f);
+            connect_raw(
+                self.as_ptr() as *mut _,
+                b"command-line\0".as_ptr() as *const _,
+                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
+                    command_line_trampoline::<Self, F> as *const (),
+                )),
+                Box_::into_raw(f),
+            )
+        }
+    }
+
+    #[doc(alias = "handle-local-options")]
+    fn connect_handle_local_options<F: Fn(&Self, &glib::VariantDict) -> i32 + 'static>(
+        &self,
+        f: F,
+    ) -> SignalHandlerId {
+        unsafe extern "C" fn handle_local_options_trampoline<
+            P: IsA<Application>,
+            F: Fn(&P, &glib::VariantDict) -> i32 + 'static,
+        >(
+            this: *mut ffi::GApplication,
+            options: *mut glib::ffi::GVariantDict,
+            f: glib::ffi::gpointer,
+        ) -> std::ffi::c_int {
+            let f: &F = &*(f as *const F);
+            f(
+                Application::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(options),
+            )
+        }
+        unsafe {
+            let f: Box_<F> = Box_::new(f);
+            connect_raw(
+                self.as_ptr() as *mut _,
+                b"handle-local-options\0".as_ptr() as *const _,
+                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
+                    handle_local_options_trampoline::<Self, F> as *const (),
                 )),
                 Box_::into_raw(f),
             )
@@ -476,16 +544,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             this: *mut ffi::GApplication,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref()).into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref()).into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"name-lost".as_ptr(),
+                b"name-lost\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     name_lost_trampoline::<Self, F> as *const (),
                 )),
@@ -500,16 +566,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             this: *mut ffi::GApplication,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"shutdown".as_ptr(),
+                b"shutdown\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     shutdown_trampoline::<Self, F> as *const (),
                 )),
@@ -524,16 +588,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             this: *mut ffi::GApplication,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"startup".as_ptr(),
+                b"startup\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     startup_trampoline::<Self, F> as *const (),
                 )),
@@ -552,16 +614,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::application-id".as_ptr(),
+                b"notify::application-id\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_application_id_trampoline::<Self, F> as *const (),
                 )),
@@ -577,16 +637,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::flags".as_ptr(),
+                b"notify::flags\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_flags_trampoline::<Self, F> as *const (),
                 )),
@@ -605,16 +663,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::inactivity-timeout".as_ptr(),
+                b"notify::inactivity-timeout\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_inactivity_timeout_trampoline::<Self, F> as *const (),
                 )),
@@ -630,16 +686,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-busy".as_ptr(),
+                b"notify::is-busy\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_busy_trampoline::<Self, F> as *const (),
                 )),
@@ -658,16 +712,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-registered".as_ptr(),
+                b"notify::is-registered\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_registered_trampoline::<Self, F> as *const (),
                 )),
@@ -686,16 +738,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-remote".as_ptr(),
+                b"notify::is-remote\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_remote_trampoline::<Self, F> as *const (),
                 )),
@@ -714,16 +764,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::resource-base-path".as_ptr(),
+                b"notify::resource-base-path\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_resource_base_path_trampoline::<Self, F> as *const (),
                 )),
@@ -741,16 +789,14 @@ pub trait ApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::version".as_ptr(),
+                b"notify::version\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_version_trampoline::<Self, F> as *const (),
                 )),

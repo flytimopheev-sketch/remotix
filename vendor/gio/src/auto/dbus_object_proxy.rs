@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{DBusConnection, DBusObject, ffi};
+use crate::{ffi, DBusConnection, DBusObject};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -28,10 +28,14 @@ impl DBusObjectProxy {
     }
 }
 
-pub trait DBusObjectProxyExt: IsA<DBusObjectProxy> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::DBusObjectProxy>> Sealed for T {}
+}
+
+pub trait DBusObjectProxyExt: IsA<DBusObjectProxy> + sealed::Sealed + 'static {
     #[doc(alias = "g_dbus_object_proxy_get_connection")]
     #[doc(alias = "get_connection")]
-    #[doc(alias = "g-connection")]
     fn connection(&self) -> DBusConnection {
         unsafe {
             from_glib_none(ffi::g_dbus_object_proxy_get_connection(

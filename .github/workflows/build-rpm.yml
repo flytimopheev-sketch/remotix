@@ -12,41 +12,39 @@ permissions:
 jobs:
   build-rpm:
     runs-on: ubuntu-24.04
+    # Сборка выполняется внутри EL9 (AlmaLinux 9) — та же платформенная база,
+    # что у РЕД ОС 8: glibc 2.34, OpenSSL 3, GTK4. Пакет, собранный на Ubuntu,
+    # требует GLIBC/GTK/OpenSSL из Ubuntu и на РЕД ОС не запускается.
+    container:
+      image: almalinux:9
+      options: --user root
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Install build dependencies (EL9)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            rpm \
-            libgtk-4-dev \
-            libssh2-1-dev \
-            libssl-dev \
-            libsqlite3-dev \
-            libvte-2.91-gtk4-dev \
-            pkg-config
+          dnf -y install dnf-plugins-core epel-release curl rsync tar gzip
+          dnf config-manager --set-enabled crb
+          dnf -y install --setopt=install_weak_deps=False \
+            gcc make perl pkg-config \
+            gtk4-devel pango-devel cairo-devel cairo-gobject-devel \
+            gdk-pixbuf2-devel graphene-devel libepoxy-devel \
+            glib2-devel openssl-devel \
+            zlib-devel dejavu-sans-fonts \
+            rpm-build xorg-x11-server-Xvfb
 
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Prepare RPM sources
         run: |
-          VERSION=1.0.0
-          NAME=remotix-${VERSION}
-          mkdir -p "$HOME/rpmbuild/SOURCES"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup.sh
+          sh /tmp/rustup.sh -y --profile minimal --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
-          # Дерево исходников без служебных каталогов
-          rsync -a --exclude .git --exclude target --exclude .github ./ "/tmp/$NAME/"
-
-          # vendor/ пересоздаём через cargo vendor — контрольные суммы гарантированно
-          # совпадают (в git файлы могли измениться при конверсии переводов строк)
-          cd "/tmp/$NAME"
-          rm -rf vendor
-          # .cargo/config.toml из репозитория включает offline-режим и vendored
-          # sources — для cargo vendor на CI он не нужен
-          rm -rf .cargo
+      - name: Vendor crates (offline dependencies)
+        run: |
+          # vendor/ пересоздаём через cargo vendor — контрольные суммы
+          # гарантированно совпадают с Cargo.lock
+          rm -rf vendor .cargo
           cargo vendor vendor > /dev/null
           mkdir -p .cargo
           cat > .cargo/config.toml <<'EOF'
@@ -60,16 +58,55 @@ jobs:
           offline = true
           EOF
 
-          tar -czf "$HOME/rpmbuild/SOURCES/remotix-vendor-${VERSION}.tar.gz" -C "/tmp/$NAME" vendor
-          cp Cargo.lock "$HOME/rpmbuild/SOURCES/"
+      - name: Build release binary
+        run: cargo build --release --offline
 
+      - name: Smoke test (приложение должно запускаться)
+        run: |
+          # Реальный запуск GUI в виртуальном X-сервере: если бинарнику не
+          # хватает библиотек/символов или он падает при старте — job падает.
+          export GSK_RENDERER=cairo
+          timeout 20 xvfb-run -a ./target/release/remotix > /tmp/smoke.log 2>&1
+          code=$?
+          echo "exit code: $code (124 = приложение работало до таймаута)"
+          cat /tmp/smoke.log || true
+          if [ "$code" -ne 124 ]; then
+            echo "::error::приложение завершилось с кодом $code — RPM не собираем"
+            exit 1
+          fi
+
+      - name: Show ELF dependencies
+        run: |
+          ldd target/release/remotix
+          echo '--- максимальная требуемая версия glibc ---'
+          objdump -T target/release/remotix | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+
+      - name: Prepare RPM sources
+        run: |
+          VERSION=1.0.0
+          NAME=remotix-${VERSION}
+          mkdir -p "$HOME/rpmbuild/SOURCES"
+
+          # Дерево исходников без служебных каталогов (vendor оставляем: он
+          # попадает и в Source0, и отдельным архивом Source1)
+          rsync -a --exclude .git --exclude target --exclude .github ./ "/tmp/$NAME/"
+
+          tar -czf "$HOME/rpmbuild/SOURCES/remotix-vendor-${VERSION}.tar.gz" -C "/tmp/$NAME" vendor
+          cp "/tmp/$NAME/Cargo.lock" "$HOME/rpmbuild/SOURCES/"
           tar -czf "$HOME/rpmbuild/SOURCES/${NAME}.tar.gz" -C /tmp "$NAME"
 
       - name: Build RPM
         run: |
-          # Зависимости установлены через apt (см. выше); --nodeps отключает
-          # проверку BuildRequires по именам пакетов RED OS (cargo, gtk4-devel и т.д.)
+          # Зависимости установлены через dnf (см. выше); --nodeps отключает
+          # проверку BuildRequires по именам пакетов РЕД ОС (cargo/rust идут
+          # из rustup, а не из rpm).
           rpmbuild -ba packaging/remotix.spec --nodeps
+
+      - name: Check RPM dependencies
+        run: |
+          rpm -qpi "$HOME"/rpmbuild/RPMS/*/remotix-*.rpm | head -20
+          echo '--- Requires ---'
+          rpm -qp --requires "$HOME"/rpmbuild/RPMS/*/remotix-*.rpm
 
       - name: Show results
         run: |

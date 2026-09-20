@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{TlsDatabase, ffi};
+use crate::{ffi, TlsDatabase};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -36,7 +36,12 @@ impl TlsFileDatabase {
     }
 }
 
-pub trait TlsFileDatabaseExt: IsA<TlsFileDatabase> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TlsFileDatabase>> Sealed for T {}
+}
+
+pub trait TlsFileDatabaseExt: IsA<TlsFileDatabase> + sealed::Sealed + 'static {
     fn anchors(&self) -> Option<glib::GString> {
         ObjectExt::property(self.as_ref(), "anchors")
     }
@@ -55,16 +60,14 @@ pub trait TlsFileDatabaseExt: IsA<TlsFileDatabase> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(TlsFileDatabase::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(TlsFileDatabase::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::anchors".as_ptr(),
+                b"notify::anchors\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_anchors_trampoline::<Self, F> as *const (),
                 )),

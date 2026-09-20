@@ -3,33 +3,18 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
-use crate::{Buildable, ConstraintTarget, Widget, ffi};
+use crate::{ffi, Accessible, Buildable, ConstraintTarget, Widget};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkCellEditable")]
     pub struct CellEditable(Interface<ffi::GtkCellEditable, ffi::GtkCellEditableIface>) @requires Widget, Accessible, Buildable, ConstraintTarget;
-
-    match fn {
-        type_ => || ffi::gtk_cell_editable_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkCellEditable")]
-    pub struct CellEditable(Interface<ffi::GtkCellEditable, ffi::GtkCellEditableIface>) @requires Widget, Buildable, ConstraintTarget;
 
     match fn {
         type_ => || ffi::gtk_cell_editable_get_type(),
@@ -40,7 +25,12 @@ impl CellEditable {
     pub const NONE: Option<&'static CellEditable> = None;
 }
 
-pub trait CellEditableExt: IsA<CellEditable> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::CellEditable>> Sealed for T {}
+}
+
+pub trait CellEditableExt: IsA<CellEditable> + sealed::Sealed + 'static {
     #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
     #[allow(deprecated)]
     #[doc(alias = "gtk_cell_editable_editing_done")]
@@ -59,8 +49,6 @@ pub trait CellEditableExt: IsA<CellEditable> + 'static {
         }
     }
 
-    #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
-    #[allow(deprecated)]
     #[doc(alias = "gtk_cell_editable_start_editing")]
     fn start_editing(&self, event: Option<impl AsRef<gdk::Event>>) {
         unsafe {
@@ -87,16 +75,14 @@ pub trait CellEditableExt: IsA<CellEditable> + 'static {
             this: *mut ffi::GtkCellEditable,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(CellEditable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(CellEditable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"editing-done".as_ptr(),
+                b"editing-done\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     editing_done_trampoline::<Self, F> as *const (),
                 )),
@@ -111,16 +97,14 @@ pub trait CellEditableExt: IsA<CellEditable> + 'static {
             this: *mut ffi::GtkCellEditable,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(CellEditable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(CellEditable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"remove-widget".as_ptr(),
+                b"remove-widget\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     remove_widget_trampoline::<Self, F> as *const (),
                 )),
@@ -139,16 +123,14 @@ pub trait CellEditableExt: IsA<CellEditable> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(CellEditable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(CellEditable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::editing-canceled".as_ptr(),
+                b"notify::editing-canceled\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_editing_canceled_trampoline::<Self, F> as *const (),
                 )),

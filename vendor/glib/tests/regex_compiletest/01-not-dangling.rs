@@ -1,8 +1,8 @@
 fn main() {
     let r = glib::Regex::new(
         "hello",
-        glib::RegexCompileFlags::empty(),
-        glib::RegexMatchFlags::empty(),
+        glib::RegexCompileFlags::DEFAULT,
+        glib::RegexMatchFlags::DEFAULT,
     )
     .unwrap()
     .unwrap();
@@ -10,7 +10,7 @@ fn main() {
     {
         let s = glib::GString::from("hello");
         let match_info = r
-            .match_(s.as_gstr(), glib::RegexMatchFlags::empty())
+            .match_(s.as_gstr(), glib::RegexMatchFlags::DEFAULT)
             .expect("should match");
         assert_eq!(match_info.fetch_all(), vec!["hello"]);
         // match_info is dropped
@@ -20,7 +20,7 @@ fn main() {
     {
         let s = glib::GString::from("hello");
         let match_info = r
-            .match_(s.as_gstr(), glib::RegexMatchFlags::empty())
+            .match_(s.as_gstr(), glib::RegexMatchFlags::DEFAULT)
             .expect("should match");
         assert_eq!(match_info.fetch_all(), vec!["hello"]);
         drop(match_info);

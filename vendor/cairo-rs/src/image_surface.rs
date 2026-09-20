@@ -9,7 +9,7 @@ use std::{
 #[cfg(feature = "use_glib")]
 use glib::translate::*;
 
-use crate::{BorrowError, Error, Format, Surface, SurfaceType, ffi, utils::status_to_result};
+use crate::{ffi, utils::status_to_result, BorrowError, Error, Format, Surface, SurfaceType};
 
 declare_surface!(ImageSurface, SurfaceType::Image);
 
@@ -39,15 +39,13 @@ impl ImageSurface {
         height: i32,
         stride: i32,
     ) -> Result<ImageSurface, Error> {
-        unsafe {
-            ImageSurface::from_raw_full(ffi::cairo_image_surface_create_for_data(
-                data,
-                format.into(),
-                width,
-                height,
-                stride,
-            ))
-        }
+        ImageSurface::from_raw_full(ffi::cairo_image_surface_create_for_data(
+            data,
+            format.into(),
+            width,
+            height,
+            stride,
+        ))
     }
 
     #[doc(alias = "cairo_image_surface_create_for_data")]
@@ -66,12 +64,7 @@ impl ImageSurface {
             (data.as_mut_ptr(), data.len())
         };
 
-        assert!(width >= 0, "width must be non-negative");
-        assert!(height >= 0, "height must be non-negative");
-        assert!(stride >= 0, "stride must be non-negative");
-
-        // check if there is integer overflow
-        assert!(len >= height.checked_mul(stride).unwrap() as usize);
+        assert!(len >= (height * stride) as usize);
         let result = unsafe {
             ImageSurface::from_raw_full(ffi::cairo_image_surface_create_for_data(
                 ptr,

@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{InetAddress, InetSocketAddress, SocketAddress, SocketConnectable, ffi};
+use crate::{ffi, InetAddress, InetSocketAddress, SocketAddress, SocketConnectable};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -45,7 +45,12 @@ impl ProxyAddress {
 unsafe impl Send for ProxyAddress {}
 unsafe impl Sync for ProxyAddress {}
 
-pub trait ProxyAddressExt: IsA<ProxyAddress> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::ProxyAddress>> Sealed for T {}
+}
+
+pub trait ProxyAddressExt: IsA<ProxyAddress> + sealed::Sealed + 'static {
     #[doc(alias = "g_proxy_address_get_destination_hostname")]
     #[doc(alias = "get_destination_hostname")]
     #[doc(alias = "destination-hostname")]

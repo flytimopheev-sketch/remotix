@@ -2,14 +2,19 @@
 
 use glib::{translate::*, value::FromValue};
 
-use crate::{TreeIter, TreeModel, ffi, prelude::*};
+use crate::{ffi, prelude::*, TreeIter, TreeModel};
+
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TreeModel>> Sealed for T {}
+}
 
 // rustdoc-stripper-ignore-next
 /// Trait containing manually implemented methods of
 /// [`TreeModel`](crate::TreeModel).
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait TreeModelExtManual: IsA<TreeModel> + 'static {
+pub trait TreeModelExtManual: sealed::Sealed + IsA<TreeModel> + 'static {
     #[doc(alias = "gtk_tree_model_get")]
     #[doc(alias = "gtk_tree_model_get_value")]
     #[doc(alias = "gtk_tree_model_get_valist")]
@@ -42,34 +47,6 @@ pub trait TreeModelExtManual: IsA<TreeModel> + 'static {
         value
             .get_owned::<V>()
             .expect("Failed to get TreeModel value")
-    }
-
-    // rustdoc-stripper-ignore-next
-    /// Manual implementation of iter_next that takes a mutable TreeIter.
-    #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
-    #[allow(deprecated)]
-    #[doc(alias = "gtk_tree_model_iter_next")]
-    fn iter_next(&self, iter: &mut TreeIter) -> bool {
-        unsafe {
-            from_glib(ffi::gtk_tree_model_iter_next(
-                self.as_ref().to_glib_none().0,
-                iter.to_glib_none_mut().0,
-            ))
-        }
-    }
-
-    // rustdoc-stripper-ignore-next
-    /// Manual implementation of iter_previous that takes a mutable TreeIter.
-    #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
-    #[allow(deprecated)]
-    #[doc(alias = "gtk_tree_model_iter_previous")]
-    fn iter_previous(&self, iter: &mut TreeIter) -> bool {
-        unsafe {
-            from_glib(ffi::gtk_tree_model_iter_previous(
-                self.as_ref().to_glib_none().0,
-                mut_override(iter.to_glib_none().0),
-            ))
-        }
     }
 }
 

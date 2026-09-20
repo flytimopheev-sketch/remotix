@@ -7,12 +7,12 @@ use std::{
     fmt,
     marker::PhantomData,
     mem,
-    num::{NonZeroI8, NonZeroI32, NonZeroI64, NonZeroU8, NonZeroU32, NonZeroU64},
+    num::{NonZeroI32, NonZeroI64, NonZeroI8, NonZeroU32, NonZeroU64, NonZeroU8},
     path::{Path, PathBuf},
     ptr,
 };
 
-use crate::{Slice, TypeFlags, TypePlugin, ffi, gobject_ffi, prelude::*, translate::*};
+use crate::{ffi, gobject_ffi, prelude::*, translate::*, Slice, TypeFlags, TypePlugin};
 
 // rustdoc-stripper-ignore-next
 /// A GLib or GLib-based library type
@@ -326,7 +326,7 @@ unsafe impl<'a> crate::value::FromValue<'a> for Type {
 
     #[inline]
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe { from_glib(gobject_ffi::g_value_get_gtype(value.to_glib_none().0)) }
+        from_glib(gobject_ffi::g_value_get_gtype(value.to_glib_none().0))
     }
 }
 
@@ -578,12 +578,10 @@ impl StaticType for () {
 
 #[inline]
 pub unsafe fn instance_of<C: StaticType>(ptr: ffi::gconstpointer) -> bool {
-    unsafe {
-        from_glib(gobject_ffi::g_type_check_instance_is_a(
-            ptr as *mut _,
-            <C as StaticType>::static_type().into_glib(),
-        ))
-    }
+    from_glib(gobject_ffi::g_type_check_instance_is_a(
+        ptr as *mut _,
+        <C as StaticType>::static_type().into_glib(),
+    ))
 }
 
 impl FromGlib<ffi::GType> for Type {
@@ -632,17 +630,15 @@ impl<'a> ToGlibContainerFromSlice<'a, *mut ffi::GType> for Type {
 
 impl FromGlibContainerAsVec<Type, *const ffi::GType> for Type {
     unsafe fn from_glib_none_num_as_vec(ptr: *const ffi::GType, num: usize) -> Vec<Self> {
-        unsafe {
-            if num == 0 || ptr.is_null() {
-                return Vec::new();
-            }
-
-            let mut res = Vec::<Self>::with_capacity(num);
-            let res_ptr = res.as_mut_ptr() as *mut ffi::GType;
-            std::ptr::copy_nonoverlapping(ptr, res_ptr, num);
-            res.set_len(num);
-            res
+        if num == 0 || ptr.is_null() {
+            return Vec::new();
         }
+
+        let mut res = Vec::<Self>::with_capacity(num);
+        let res_ptr = res.as_mut_ptr() as *mut ffi::GType;
+        std::ptr::copy_nonoverlapping(ptr, res_ptr, num);
+        res.set_len(num);
+        res
     }
 
     unsafe fn from_glib_container_num_as_vec(_: *const ffi::GType, _: usize) -> Vec<Self> {
@@ -658,19 +654,17 @@ impl FromGlibContainerAsVec<Type, *const ffi::GType> for Type {
 
 impl FromGlibContainerAsVec<Type, *mut ffi::GType> for Type {
     unsafe fn from_glib_none_num_as_vec(ptr: *mut ffi::GType, num: usize) -> Vec<Self> {
-        unsafe { FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr as *const _, num) }
+        FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr as *const _, num)
     }
 
     unsafe fn from_glib_container_num_as_vec(ptr: *mut ffi::GType, num: usize) -> Vec<Self> {
-        unsafe {
-            let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
-            ffi::g_free(ptr as *mut _);
-            res
-        }
+        let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
+        ffi::g_free(ptr as *mut _);
+        res
     }
 
     unsafe fn from_glib_full_num_as_vec(ptr: *mut ffi::GType, num: usize) -> Vec<Self> {
-        unsafe { FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, num) }
+        FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, num)
     }
 }
 

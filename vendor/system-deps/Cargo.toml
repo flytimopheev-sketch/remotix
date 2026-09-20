@@ -13,12 +13,12 @@
 edition = "2018"
 rust-version = "1.78.0"
 name = "system-deps"
-version = "9.0.0"
+version = "7.0.8"
 authors = [
     "Guillaume Desmottes <guillaume.desmottes@collabora.com>",
     "Josh Triplett <josh@joshtriplett.org>",
 ]
-build = "build.rs"
+build = false
 autolib = false
 autobins = false
 autoexamples = false
@@ -37,19 +37,6 @@ keywords = [
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/gdesmott/system-deps"
 
-[features]
-binary = [
-    "system-deps-meta/binary",
-    "dep:which",
-    "toml/serde",
-]
-default = []
-gz = ["system-deps-meta/gz"]
-inno = ["system-deps-meta/inno"]
-pkg = ["system-deps-meta/pkg"]
-xz = ["system-deps-meta/xz"]
-zip = ["system-deps-meta/zip"]
-
 [lib]
 name = "system_deps"
 path = "src/lib.rs"
@@ -62,11 +49,7 @@ features = ["targets"]
 version = "0.5"
 
 [dependencies.pkg-config]
-version = "0.3.34"
-
-[dependencies.system-deps-meta]
-version = "9.0.0"
-optional = true
+version = "0.3.25"
 
 [dependencies.toml]
 version = "1"
@@ -79,23 +62,11 @@ default-features = false
 [dependencies.version-compare]
 version = "0.2"
 
-[dependencies.which]
-version = "8"
-optional = true
-
 [dev-dependencies.assert_matches]
 version = "1.5"
 
 [dev-dependencies.itertools]
 version = "0.14"
 
-[dev-dependencies.system-deps-meta]
-version = "9.0.0"
-features = ["test"]
-
-[dev-dependencies.tiny_http]
-version = "0.12"
-
-[build-dependencies.system-deps-meta]
-version = "9.0.0"
-optional = true
+[dev-dependencies.lazy_static]
+version = "1"

@@ -4,10 +4,10 @@
 //! Traits intended for implementing the [`AccessibleText`] interface.
 
 use crate::{
-    AccessibleText, AccessibleTextGranularity, AccessibleTextRange, ffi, subclass::prelude::*,
+    ffi, subclass::prelude::*, AccessibleText, AccessibleTextGranularity, AccessibleTextRange,
 };
 use glib::object::Cast;
-use glib::{GString, translate::*};
+use glib::{translate::*, GString};
 
 pub trait AccessibleTextImpl: WidgetImpl {
     #[doc(alias = "get_attributes")]
@@ -57,18 +57,6 @@ pub trait AccessibleTextImpl: WidgetImpl {
     fn selection(&self) -> Vec<AccessibleTextRange> {
         self.parent_selection()
     }
-
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    fn set_caret_position(&self, position: u32) -> bool {
-        self.parent_set_caret_position(position)
-    }
-
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    fn set_selection(&self, selection: usize, range: AccessibleTextRange) -> bool {
-        self.parent_set_selection(selection, range)
-    }
 }
 
 pub trait AccessibleTextImplExt: AccessibleTextImpl {
@@ -112,9 +100,12 @@ pub trait AccessibleTextImplExt: AccessibleTextImpl {
 
                 glib::Slice::from_glib_container_num(ranges, n_ranges.assume_init())
                     .into_iter()
-                    .flat_map(|range| match (names.next(), values.next()) {
-                        (Some(name), Some(value)) => Some((range, name, value)),
-                        _ => None,
+                    .flat_map(|range| {
+                        if let (Some(name), Some(value)) = (names.next(), values.next()) {
+                            Some((range, name, value))
+                        } else {
+                            None
+                        }
                     })
                     .collect()
             }
@@ -323,51 +314,6 @@ pub trait AccessibleTextImplExt: AccessibleTextImpl {
             }
         }
     }
-
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    fn parent_set_caret_position(&self, position: u32) -> bool {
-        unsafe {
-            let type_data = Self::type_data();
-            let parent_iface = type_data.as_ref().parent_interface::<AccessibleText>()
-                as *const ffi::GtkAccessibleTextInterface;
-
-            let func = (*parent_iface)
-                .set_caret_position
-                .expect("no parent \"set_caret_position\" implementation");
-
-            from_glib(func(
-                self.obj()
-                    .unsafe_cast_ref::<AccessibleText>()
-                    .to_glib_none()
-                    .0,
-                position,
-            ))
-        }
-    }
-
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    fn parent_set_selection(&self, selection: usize, range: AccessibleTextRange) -> bool {
-        unsafe {
-            let type_data = Self::type_data();
-            let parent_iface = type_data.as_ref().parent_interface::<AccessibleText>()
-                as *const ffi::GtkAccessibleTextInterface;
-
-            let func = (*parent_iface)
-                .set_selection
-                .expect("no parent \"set_selection\" implementation");
-
-            from_glib(func(
-                self.obj()
-                    .unsafe_cast_ref::<AccessibleText>()
-                    .to_glib_none()
-                    .0,
-                selection,
-                mut_override(range.to_glib_none().0),
-            ))
-        }
-    }
 }
 
 impl<T: AccessibleTextImpl> AccessibleTextImplExt for T {}
@@ -388,12 +334,6 @@ unsafe impl<T: AccessibleTextImpl> IsImplementable<T> for AccessibleText {
             iface.get_extents = Some(accessible_text_get_extents::<T>);
             iface.get_offset = Some(accessible_text_get_offset::<T>);
         }
-
-        #[cfg(feature = "v4_22")]
-        {
-            iface.set_caret_position = Some(accessible_text_set_caret_position::<T>);
-            iface.set_selection = Some(accessible_text_set_selection::<T>);
-        }
     }
 }
 
@@ -402,13 +342,11 @@ unsafe extern "C" fn accessible_text_get_contents<T: AccessibleTextImpl>(
     start: u32,
     end: u32,
 ) -> *mut glib::ffi::GBytes {
-    unsafe {
-        let instance = &*(accessible_text as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(accessible_text as *mut T::Instance);
+    let imp = instance.imp();
 
-        let contents = imp.contents(start, end);
-        contents.into_glib_ptr()
-    }
+    let contents = imp.contents(start, end);
+    contents.into_glib_ptr()
 }
 
 unsafe extern "C" fn accessible_text_get_contents_at<T: AccessibleTextImpl>(
@@ -418,35 +356,32 @@ unsafe extern "C" fn accessible_text_get_contents_at<T: AccessibleTextImpl>(
     start: *mut libc::c_uint,
     end: *mut libc::c_uint,
 ) -> *mut glib::ffi::GBytes {
-    unsafe {
-        let instance = &*(accessible_text as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(accessible_text as *mut T::Instance);
+    let imp = instance.imp();
 
-        match imp.contents_at(offset, AccessibleTextGranularity::from_glib(granularity)) {
-            Some((r_start, r_end, bytes)) => {
-                if !start.is_null() {
-                    *start = r_start;
-                }
-                if !end.is_null() {
-                    *end = r_end;
-                }
-
-                bytes.into_glib_ptr()
-            }
-            _ => std::ptr::null_mut(),
+    if let Some((r_start, r_end, bytes)) =
+        imp.contents_at(offset, AccessibleTextGranularity::from_glib(granularity))
+    {
+        if !start.is_null() {
+            *start = r_start;
         }
+        if !end.is_null() {
+            *end = r_end;
+        }
+
+        bytes.into_glib_ptr()
+    } else {
+        std::ptr::null_mut()
     }
 }
 
 unsafe extern "C" fn accessible_text_get_caret_position<T: AccessibleTextImpl>(
     accessible_text: *mut ffi::GtkAccessibleText,
 ) -> u32 {
-    unsafe {
-        let instance = &*(accessible_text as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(accessible_text as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.caret_position()
-    }
+    imp.caret_position()
 }
 
 unsafe extern "C" fn accessible_text_get_selection<T: AccessibleTextImpl>(
@@ -454,23 +389,21 @@ unsafe extern "C" fn accessible_text_get_selection<T: AccessibleTextImpl>(
     n_ranges: *mut libc::size_t,
     ranges: *mut *mut ffi::GtkAccessibleTextRange,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(accessible_text as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(accessible_text as *mut T::Instance);
+    let imp = instance.imp();
 
-        let r_ranges = imp.selection();
-        let n: usize = r_ranges.len();
-        *n_ranges = n;
+    let r_ranges = imp.selection();
+    let n: usize = r_ranges.len();
+    *n_ranges = n;
 
-        if n == 0 {
-            false
-        } else {
-            *ranges = r_ranges.to_glib_container().0;
+    if n == 0 {
+        false
+    } else {
+        *ranges = r_ranges.to_glib_container().0;
 
-            true
-        }
-        .into_glib()
+        true
     }
+    .into_glib()
 }
 
 unsafe extern "C" fn accessible_text_get_attributes<T: AccessibleTextImpl>(
@@ -481,38 +414,36 @@ unsafe extern "C" fn accessible_text_get_attributes<T: AccessibleTextImpl>(
     attribute_names: *mut *mut *mut libc::c_char,
     attribute_values: *mut *mut *mut libc::c_char,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(accessible_text as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(accessible_text as *mut T::Instance);
+    let imp = instance.imp();
 
-        let attrs = imp.attributes(offset);
-        let n: usize = attrs.len();
-        *n_ranges = n;
+    let attrs = imp.attributes(offset);
+    let n: usize = attrs.len();
+    *n_ranges = n;
 
-        if n == 0 {
-            *attribute_names = std::ptr::null_mut();
-            *attribute_values = std::ptr::null_mut();
+    if n == 0 {
+        *attribute_names = std::ptr::null_mut();
+        *attribute_values = std::ptr::null_mut();
 
-            false
-        } else {
-            let mut c_ranges = glib::Slice::with_capacity(attrs.len());
-            let mut c_names = glib::StrV::with_capacity(attrs.len());
-            let mut c_values = glib::StrV::with_capacity(attrs.len());
+        false
+    } else {
+        let mut c_ranges = glib::Slice::with_capacity(attrs.len());
+        let mut c_names = glib::StrV::with_capacity(attrs.len());
+        let mut c_values = glib::StrV::with_capacity(attrs.len());
 
-            for (range, name, value) in attrs {
-                c_ranges.push(range);
-                c_names.push(name);
-                c_values.push(value);
-            }
-
-            *ranges = c_ranges.to_glib_container().0;
-            *attribute_names = c_names.into_glib_ptr();
-            *attribute_values = c_values.into_glib_ptr();
-
-            true
+        for (range, name, value) in attrs {
+            c_ranges.push(range);
+            c_names.push(name);
+            c_values.push(value);
         }
-        .into_glib()
+
+        *ranges = c_ranges.to_glib_container().0;
+        *attribute_names = c_names.into_glib_ptr();
+        *attribute_values = c_values.into_glib_ptr();
+
+        true
     }
+    .into_glib()
 }
 
 unsafe extern "C" fn accessible_text_get_default_attributes<T: AccessibleTextImpl>(
@@ -520,27 +451,25 @@ unsafe extern "C" fn accessible_text_get_default_attributes<T: AccessibleTextImp
     attribute_names: *mut *mut *mut libc::c_char,
     attribute_values: *mut *mut *mut libc::c_char,
 ) {
-    unsafe {
-        let instance = &*(accessible_text as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(accessible_text as *mut T::Instance);
+    let imp = instance.imp();
 
-        let attrs = imp.default_attributes();
+    let attrs = imp.default_attributes();
 
-        if attrs.is_empty() {
-            *attribute_names = std::ptr::null_mut();
-            *attribute_values = std::ptr::null_mut();
-        } else {
-            let mut c_names = glib::StrV::with_capacity(attrs.len());
-            let mut c_values = glib::StrV::with_capacity(attrs.len());
+    if attrs.is_empty() {
+        *attribute_names = std::ptr::null_mut();
+        *attribute_values = std::ptr::null_mut();
+    } else {
+        let mut c_names = glib::StrV::with_capacity(attrs.len());
+        let mut c_values = glib::StrV::with_capacity(attrs.len());
 
-            for (name, value) in attrs {
-                c_names.push(name);
-                c_values.push(value);
-            }
-
-            *attribute_names = c_names.into_glib_ptr();
-            *attribute_values = c_values.into_glib_ptr();
+        for (name, value) in attrs {
+            c_names.push(name);
+            c_values.push(value);
         }
+
+        *attribute_names = c_names.into_glib_ptr();
+        *attribute_values = c_values.into_glib_ptr();
     }
 }
 
@@ -552,73 +481,42 @@ unsafe extern "C" fn accessible_text_get_extents<T: AccessibleTextImpl>(
     end: u32,
     extents: *mut graphene::ffi::graphene_rect_t,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(accessible_text as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(accessible_text as *mut T::Instance);
+    let imp = instance.imp();
 
-        let rect = imp.extents(start, end);
+    let rect = imp.extents(start, end);
 
-        if let Some(rect) = rect {
-            *extents = *rect.as_ptr();
+    if let Some(rect) = rect {
+        *extents = *rect.as_ptr();
 
-            true
-        } else {
-            false
-        }
-        .into_glib()
+        true
+    } else {
+        false
     }
+    .into_glib()
 }
 
 #[cfg(feature = "v4_16")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
 unsafe extern "C" fn accessible_text_get_offset<T: AccessibleTextImpl>(
     accessible_text: *mut ffi::GtkAccessibleText,
     point: *const graphene::ffi::graphene_point_t,
     offset: *mut libc::c_uint,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(accessible_text as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(accessible_text as *mut T::Instance);
+    let imp = instance.imp();
 
-        let pos = imp.offset(&from_glib_borrow(point));
+    let pos = imp.offset(&from_glib_borrow(point));
 
-        if let Some(pos) = pos {
-            if !offset.is_null() {
-                *offset = pos;
-            }
-            true
-        } else {
-            false
+    if let Some(pos) = pos {
+        if !offset.is_null() {
+            *offset = pos;
         }
-        .into_glib()
+        true
+    } else {
+        false
     }
-}
-
-#[cfg(feature = "v4_22")]
-unsafe extern "C" fn accessible_text_set_caret_position<T: AccessibleTextImpl>(
-    accessible_text: *mut ffi::GtkAccessibleText,
-    position: u32,
-) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(accessible_text as *mut T::Instance);
-        let imp = instance.imp();
-
-        imp.set_caret_position(position).into_glib()
-    }
-}
-
-#[cfg(feature = "v4_22")]
-unsafe extern "C" fn accessible_text_set_selection<T: AccessibleTextImpl>(
-    accessible_text: *mut ffi::GtkAccessibleText,
-    selection: usize,
-    range: *mut ffi::GtkAccessibleTextRange,
-) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(accessible_text as *mut T::Instance);
-        let imp = instance.imp();
-
-        imp.set_selection(selection, from_glib_none(range))
-            .into_glib()
-    }
+    .into_glib()
 }
 
 #[cfg(test)]
@@ -768,12 +666,11 @@ mod test {
             std::str::from_utf8(&text.imp().contents(0, 11).unwrap()).unwrap()
         );
 
-        assert!(
-            text.imp()
-                .default_attributes()
-                .iter()
-                .any(|(name, value)| name == "editable" && value == "true")
-        );
+        assert!(text
+            .imp()
+            .default_attributes()
+            .iter()
+            .any(|(name, value)| name == "editable" && value == "true"));
         text.buffer().select_range(
             &text.buffer().iter_at_offset(0),
             &text.buffer().iter_at_offset(10),

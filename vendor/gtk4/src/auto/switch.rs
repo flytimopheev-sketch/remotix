@@ -2,36 +2,21 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Actionable, Align, Buildable, ConstraintTarget, LayoutManager, Overflow,
-    Widget, ffi,
+    ffi, Accessible, AccessibleRole, Actionable, Align, Buildable, ConstraintTarget, LayoutManager,
+    Overflow, Widget,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkSwitch")]
     pub struct Switch(Object<ffi::GtkSwitch>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, Actionable;
-
-    match fn {
-        type_ => || ffi::gtk_switch_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkSwitch")]
-    pub struct Switch(Object<ffi::GtkSwitch>) @extends Widget, @implements Buildable, ConstraintTarget, Actionable;
 
     match fn {
         type_ => || ffi::gtk_switch_get_type(),
@@ -88,16 +73,14 @@ impl Switch {
             this: *mut ffi::GtkSwitch,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"activate".as_ptr(),
+                b"activate\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     activate_trampoline::<F> as *const (),
                 )),
@@ -122,16 +105,14 @@ impl Switch {
             state: glib::ffi::gboolean,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), from_glib(state)).into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), from_glib(state)).into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"state-set".as_ptr(),
+                b"state-set\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     state_set_trampoline::<F> as *const (),
                 )),
@@ -147,16 +128,14 @@ impl Switch {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::active".as_ptr(),
+                b"notify::active\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_active_trampoline::<F> as *const (),
                 )),
@@ -172,16 +151,14 @@ impl Switch {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::state".as_ptr(),
+                b"notify::state\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_state_trampoline::<F> as *const (),
                 )),

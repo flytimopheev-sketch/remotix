@@ -1,6 +1,5 @@
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use glib::IntoGStr;
-use std::hint::black_box;
 
 pub fn str_into_gstr(c: &mut Criterion) {
     c.bench_function("str as IntoGStr", |b| {

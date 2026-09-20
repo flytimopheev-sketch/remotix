@@ -8,7 +8,7 @@ Cairo __1.14__ is the lowest supported version for the underlying library.
 
 ## Minimum supported Rust version
 
-Currently, the minimum supported Rust version is `1.83.0`.
+Currently, the minimum supported Rust version is `1.70.0`.
 
 ## Default-on features
 
@@ -39,6 +39,10 @@ Currently, the minimum supported Rust version is `1.83.0`.
 ## Windows API features
 
  * **win32-surface** - Microsoft Windows surface support
+
+## Documentation rustdoc attributes
+
+ * **docsrs** - Used to keep system dependent items in documentation
 
 ## Using
 

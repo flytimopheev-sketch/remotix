@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{VolumeMonitor, ffi};
+use crate::{ffi, VolumeMonitor};
 
 glib::wrapper! {
     #[doc(alias = "GNativeVolumeMonitor")]

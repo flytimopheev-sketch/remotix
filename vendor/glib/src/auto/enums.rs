@@ -691,7 +691,7 @@ unsafe impl<'a> crate::value::FromValue<'a> for NormalizeMode {
 
     #[inline]
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe { from_glib(crate::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(crate::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -978,10 +978,6 @@ pub enum UnicodeBreakType {
     #[cfg_attr(docsrs, doc(cfg(feature = "v2_80")))]
     #[doc(alias = "G_UNICODE_BREAK_VIRAMA")]
     Virama,
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    #[doc(alias = "G_UNICODE_BREAK_UNAMBIGUOUS_HYPHEN")]
-    UnambiguousHyphen,
     #[doc(hidden)]
     __Unknown(i32),
 }
@@ -1045,8 +1041,6 @@ impl IntoGlib for UnicodeBreakType {
             Self::ViramaFinal => ffi::G_UNICODE_BREAK_VIRAMA_FINAL,
             #[cfg(feature = "v2_80")]
             Self::Virama => ffi::G_UNICODE_BREAK_VIRAMA,
-            #[cfg(feature = "v2_88")]
-            Self::UnambiguousHyphen => ffi::G_UNICODE_BREAK_UNAMBIGUOUS_HYPHEN,
             Self::__Unknown(value) => value,
         }
     }
@@ -1109,8 +1103,6 @@ impl FromGlib<ffi::GUnicodeBreakType> for UnicodeBreakType {
             ffi::G_UNICODE_BREAK_VIRAMA_FINAL => Self::ViramaFinal,
             #[cfg(feature = "v2_80")]
             ffi::G_UNICODE_BREAK_VIRAMA => Self::Virama,
-            #[cfg(feature = "v2_88")]
-            ffi::G_UNICODE_BREAK_UNAMBIGUOUS_HYPHEN => Self::UnambiguousHyphen,
             value => Self::__Unknown(value),
         }
     }
@@ -1143,7 +1135,7 @@ unsafe impl<'a> crate::value::FromValue<'a> for UnicodeBreakType {
 
     #[inline]
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe { from_glib(crate::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(crate::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1550,22 +1542,6 @@ pub enum UnicodeScript {
     #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
     #[doc(alias = "G_UNICODE_SCRIPT_OL_ONAL")]
     OlOnal,
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    #[doc(alias = "G_UNICODE_SCRIPT_SIDETIC")]
-    Sidetic,
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    #[doc(alias = "G_UNICODE_SCRIPT_TOLONG_SIKI")]
-    TolongSiki,
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    #[doc(alias = "G_UNICODE_SCRIPT_TAI_YO")]
-    TaiYo,
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    #[doc(alias = "G_UNICODE_SCRIPT_BERIA_ERFE")]
-    BeriaErfe,
     #[doc(hidden)]
     __Unknown(i32),
 }
@@ -1776,14 +1752,6 @@ impl IntoGlib for UnicodeScript {
             Self::KiratRai => ffi::G_UNICODE_SCRIPT_KIRAT_RAI,
             #[cfg(feature = "v2_84")]
             Self::OlOnal => ffi::G_UNICODE_SCRIPT_OL_ONAL,
-            #[cfg(feature = "v2_88")]
-            Self::Sidetic => ffi::G_UNICODE_SCRIPT_SIDETIC,
-            #[cfg(feature = "v2_88")]
-            Self::TolongSiki => ffi::G_UNICODE_SCRIPT_TOLONG_SIKI,
-            #[cfg(feature = "v2_88")]
-            Self::TaiYo => ffi::G_UNICODE_SCRIPT_TAI_YO,
-            #[cfg(feature = "v2_88")]
-            Self::BeriaErfe => ffi::G_UNICODE_SCRIPT_BERIA_ERFE,
             Self::__Unknown(value) => value,
         }
     }
@@ -1981,14 +1949,6 @@ impl FromGlib<ffi::GUnicodeScript> for UnicodeScript {
             ffi::G_UNICODE_SCRIPT_KIRAT_RAI => Self::KiratRai,
             #[cfg(feature = "v2_84")]
             ffi::G_UNICODE_SCRIPT_OL_ONAL => Self::OlOnal,
-            #[cfg(feature = "v2_88")]
-            ffi::G_UNICODE_SCRIPT_SIDETIC => Self::Sidetic,
-            #[cfg(feature = "v2_88")]
-            ffi::G_UNICODE_SCRIPT_TOLONG_SIKI => Self::TolongSiki,
-            #[cfg(feature = "v2_88")]
-            ffi::G_UNICODE_SCRIPT_TAI_YO => Self::TaiYo,
-            #[cfg(feature = "v2_88")]
-            ffi::G_UNICODE_SCRIPT_BERIA_ERFE => Self::BeriaErfe,
             value => Self::__Unknown(value),
         }
     }
@@ -2021,7 +1981,7 @@ unsafe impl<'a> crate::value::FromValue<'a> for UnicodeScript {
 
     #[inline]
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe { from_glib(crate::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(crate::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2223,7 +2183,7 @@ unsafe impl<'a> crate::value::FromValue<'a> for UnicodeType {
 
     #[inline]
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe { from_glib(crate::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(crate::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 

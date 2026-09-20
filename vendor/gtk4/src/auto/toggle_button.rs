@@ -3,36 +3,21 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Actionable, Align, Buildable, Button, ConstraintTarget, LayoutManager,
-    Overflow, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Actionable, Align, Buildable, Button, ConstraintTarget,
+    LayoutManager, Overflow, Widget,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkToggleButton")]
     pub struct ToggleButton(Object<ffi::GtkToggleButton, ffi::GtkToggleButtonClass>) @extends Button, Widget, @implements Accessible, Buildable, ConstraintTarget, Actionable;
-
-    match fn {
-        type_ => || ffi::gtk_toggle_button_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkToggleButton")]
-    pub struct ToggleButton(Object<ffi::GtkToggleButton, ffi::GtkToggleButtonClass>) @extends Button, Widget, @implements Buildable, ConstraintTarget, Actionable;
 
     match fn {
         type_ => || ffi::gtk_toggle_button_get_type(),
@@ -368,7 +353,12 @@ impl ToggleButtonBuilder {
     }
 }
 
-pub trait ToggleButtonExt: IsA<ToggleButton> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::ToggleButton>> Sealed for T {}
+}
+
+pub trait ToggleButtonExt: IsA<ToggleButton> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_toggle_button_get_active")]
     #[doc(alias = "get_active")]
     #[doc(alias = "active")]
@@ -417,16 +407,14 @@ pub trait ToggleButtonExt: IsA<ToggleButton> + 'static {
             this: *mut ffi::GtkToggleButton,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ToggleButton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ToggleButton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"toggled".as_ptr(),
+                b"toggled\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     toggled_trampoline::<Self, F> as *const (),
                 )),
@@ -442,16 +430,14 @@ pub trait ToggleButtonExt: IsA<ToggleButton> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ToggleButton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ToggleButton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::active".as_ptr(),
+                b"notify::active\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_active_trampoline::<Self, F> as *const (),
                 )),
@@ -467,16 +453,14 @@ pub trait ToggleButtonExt: IsA<ToggleButton> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ToggleButton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ToggleButton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::group".as_ptr(),
+                b"notify::group\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_group_trampoline::<Self, F> as *const (),
                 )),

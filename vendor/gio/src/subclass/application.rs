@@ -1,18 +1,13 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
-use std::{
-    ffi::OsString,
-    fmt,
-    ops::{ControlFlow, Deref},
-    ptr,
-};
+use std::{ffi::OsString, fmt, ops::Deref, ptr};
 
 use glib::{
-    Error, ExitCode, Propagation, VariantDict, prelude::*, subclass::prelude::*, translate::*,
+    prelude::*, subclass::prelude::*, translate::*, Error, ExitCode, Propagation, VariantDict,
 };
 use libc::{c_char, c_int, c_void};
 
-use crate::{ActionGroup, ActionMap, Application, DBusConnection, ffi};
+use crate::{ffi, Application, DBusConnection};
 
 pub struct ArgumentList {
     pub(crate) ptr: *mut *mut *mut c_char,
@@ -71,9 +66,7 @@ impl From<ArgumentList> for Vec<OsString> {
     }
 }
 
-pub trait ApplicationImpl:
-    ObjectImpl + ObjectSubclass<Type: IsA<Application> + IsA<ActionGroup> + IsA<ActionMap>>
-{
+pub trait ApplicationImpl: ObjectImpl + ApplicationImplExt {
     fn activate(&self) {
         self.parent_activate()
     }
@@ -90,7 +83,7 @@ pub trait ApplicationImpl:
         self.parent_command_line(command_line)
     }
 
-    fn local_command_line(&self, arguments: &mut ArgumentList) -> ControlFlow<ExitCode> {
+    fn local_command_line(&self, arguments: &mut ArgumentList) -> Option<ExitCode> {
         self.parent_local_command_line(arguments)
     }
 
@@ -114,7 +107,7 @@ pub trait ApplicationImpl:
         self.parent_startup()
     }
 
-    fn handle_local_options(&self, options: &VariantDict) -> ControlFlow<ExitCode> {
+    fn handle_local_options(&self, options: &VariantDict) -> ExitCode {
         self.parent_handle_local_options(options)
     }
 
@@ -131,7 +124,12 @@ pub trait ApplicationImpl:
     }
 }
 
-pub trait ApplicationImplExt: ApplicationImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::ApplicationImplExt> Sealed for T {}
+}
+
+pub trait ApplicationImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_activate(&self) {
         unsafe {
             let data = Self::type_data();
@@ -182,12 +180,11 @@ pub trait ApplicationImplExt: ApplicationImpl {
                 self.obj().unsafe_cast_ref::<Application>().to_glib_none().0,
                 command_line.to_glib_none().0,
             )
-            .try_into()
-            .unwrap()
+            .into()
         }
     }
 
-    fn parent_local_command_line(&self, arguments: &mut ArgumentList) -> ControlFlow<ExitCode> {
+    fn parent_local_command_line(&self, arguments: &mut ArgumentList) -> Option<ExitCode> {
         unsafe {
             let data = Self::type_data();
             let parent_class = data.as_ref().parent_class() as *mut ffi::GApplicationClass;
@@ -204,8 +201,8 @@ pub trait ApplicationImplExt: ApplicationImpl {
             arguments.refresh();
 
             match res {
-                glib::ffi::GFALSE => ControlFlow::Continue(()),
-                _ => ControlFlow::Break(exit_status.try_into().unwrap()),
+                glib::ffi::GFALSE => None,
+                _ => Some(exit_status.into()),
             }
         }
     }
@@ -270,22 +267,19 @@ pub trait ApplicationImplExt: ApplicationImpl {
         }
     }
 
-    fn parent_handle_local_options(&self, options: &VariantDict) -> ControlFlow<ExitCode> {
+    fn parent_handle_local_options(&self, options: &VariantDict) -> ExitCode {
         unsafe {
             let data = Self::type_data();
             let parent_class = data.as_ref().parent_class() as *mut ffi::GApplicationClass;
             if let Some(f) = (*parent_class).handle_local_options {
-                let ret = f(
+                f(
                     self.obj().unsafe_cast_ref::<Application>().to_glib_none().0,
                     options.to_glib_none().0,
-                );
-
-                match ret {
-                    -1 => ControlFlow::Continue(()),
-                    _ => ControlFlow::Break(ret.try_into().unwrap()),
-                }
+                )
+                .into()
             } else {
-                ControlFlow::Continue(())
+                // Continue default handling
+                ExitCode::from(-1)
             }
         }
     }
@@ -373,67 +367,57 @@ unsafe impl<T: ApplicationImpl> IsSubclassable<T> for Application {
 }
 
 unsafe extern "C" fn application_activate<T: ApplicationImpl>(ptr: *mut ffi::GApplication) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.activate()
-    }
+    imp.activate()
 }
 
 unsafe extern "C" fn application_after_emit<T: ApplicationImpl>(
     ptr: *mut ffi::GApplication,
     platform_data: *mut glib::ffi::GVariant,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.after_emit(&from_glib_borrow(platform_data))
-    }
+    imp.after_emit(&from_glib_borrow(platform_data))
 }
 unsafe extern "C" fn application_before_emit<T: ApplicationImpl>(
     ptr: *mut ffi::GApplication,
     platform_data: *mut glib::ffi::GVariant,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.before_emit(&from_glib_borrow(platform_data))
-    }
+    imp.before_emit(&from_glib_borrow(platform_data))
 }
 unsafe extern "C" fn application_command_line<T: ApplicationImpl>(
     ptr: *mut ffi::GApplication,
     command_line: *mut ffi::GApplicationCommandLine,
 ) -> i32 {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.command_line(&from_glib_borrow(command_line)).into()
-    }
+    imp.command_line(&from_glib_borrow(command_line)).into()
 }
 unsafe extern "C" fn application_local_command_line<T: ApplicationImpl>(
     ptr: *mut ffi::GApplication,
     arguments: *mut *mut *mut c_char,
     exit_status: *mut i32,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        let mut args = ArgumentList::new(arguments);
-        let res = imp.local_command_line(&mut args);
-        args.refresh();
+    let mut args = ArgumentList::new(arguments);
+    let res = imp.local_command_line(&mut args).map(i32::from);
+    args.refresh();
 
-        match res {
-            ControlFlow::Break(ret) => {
-                *exit_status = ret.into();
-                glib::ffi::GTRUE
-            }
-            ControlFlow::Continue(()) => glib::ffi::GFALSE,
+    match res {
+        Some(ret) => {
+            *exit_status = ret;
+            glib::ffi::GTRUE
         }
+        None => glib::ffi::GFALSE,
     }
 }
 unsafe extern "C" fn application_open<T: ApplicationImpl>(
@@ -442,61 +426,45 @@ unsafe extern "C" fn application_open<T: ApplicationImpl>(
     num_files: i32,
     hint: *const c_char,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        let files: Vec<crate::File> =
-            FromGlibContainer::from_glib_none_num(files, num_files as usize);
-        imp.open(files.as_slice(), &glib::GString::from_glib_borrow(hint))
-    }
+    let files: Vec<crate::File> = FromGlibContainer::from_glib_none_num(files, num_files as usize);
+    imp.open(files.as_slice(), &glib::GString::from_glib_borrow(hint))
 }
 unsafe extern "C" fn application_quit_mainloop<T: ApplicationImpl>(ptr: *mut ffi::GApplication) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.quit_mainloop()
-    }
+    imp.quit_mainloop()
 }
 unsafe extern "C" fn application_run_mainloop<T: ApplicationImpl>(ptr: *mut ffi::GApplication) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.run_mainloop()
-    }
+    imp.run_mainloop()
 }
 unsafe extern "C" fn application_shutdown<T: ApplicationImpl>(ptr: *mut ffi::GApplication) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.shutdown()
-    }
+    imp.shutdown()
 }
 unsafe extern "C" fn application_startup<T: ApplicationImpl>(ptr: *mut ffi::GApplication) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.startup()
-    }
+    imp.startup()
 }
 
 unsafe extern "C" fn application_handle_local_options<T: ApplicationImpl>(
     ptr: *mut ffi::GApplication,
     options: *mut glib::ffi::GVariantDict,
 ) -> c_int {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.handle_local_options(&from_glib_borrow(options))
-            .break_value()
-            .map(i32::from)
-            .unwrap_or(-1)
-    }
+    imp.handle_local_options(&from_glib_borrow(options)).into()
 }
 
 unsafe extern "C" fn application_dbus_register<T: ApplicationImpl>(
@@ -505,21 +473,19 @@ unsafe extern "C" fn application_dbus_register<T: ApplicationImpl>(
     object_path: *const c_char,
     error: *mut *mut glib::ffi::GError,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        match imp.dbus_register(
-            &from_glib_borrow(connection),
-            &glib::GString::from_glib_borrow(object_path),
-        ) {
-            Ok(()) => glib::ffi::GTRUE,
-            Err(e) => {
-                if !error.is_null() {
-                    *error = e.into_glib_ptr();
-                }
-                glib::ffi::GFALSE
+    match imp.dbus_register(
+        &from_glib_borrow(connection),
+        &glib::GString::from_glib_borrow(object_path),
+    ) {
+        Ok(()) => glib::ffi::GTRUE,
+        Err(e) => {
+            if !error.is_null() {
+                *error = e.into_glib_ptr();
             }
+            glib::ffi::GFALSE
         }
     }
 }
@@ -529,24 +495,20 @@ unsafe extern "C" fn application_dbus_unregister<T: ApplicationImpl>(
     connection: *mut ffi::GDBusConnection,
     object_path: *const c_char,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        imp.dbus_unregister(
-            &from_glib_borrow(connection),
-            &glib::GString::from_glib_borrow(object_path),
-        );
-    }
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    imp.dbus_unregister(
+        &from_glib_borrow(connection),
+        &glib::GString::from_glib_borrow(object_path),
+    );
 }
 
 unsafe extern "C" fn application_name_lost<T: ApplicationImpl>(
     ptr: *mut ffi::GApplication,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        imp.name_lost().into_glib()
-    }
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    imp.name_lost().into_glib()
 }
 
 #[cfg(test)]
@@ -554,7 +516,7 @@ mod tests {
     use super::*;
     use crate::prelude::*;
 
-    const EXIT_STATUS: u8 = 20;
+    const EXIT_STATUS: i32 = 20;
 
     mod imp {
         use super::*;
@@ -586,7 +548,7 @@ mod tests {
                 EXIT_STATUS.into()
             }
 
-            fn local_command_line(&self, arguments: &mut ArgumentList) -> ControlFlow<ExitCode> {
+            fn local_command_line(&self, arguments: &mut ArgumentList) -> Option<ExitCode> {
                 let mut rm = Vec::new();
 
                 for (i, line) in arguments.iter().enumerate() {
@@ -603,14 +565,14 @@ mod tests {
                     arguments.remove(*i);
                 }
 
-                ControlFlow::Continue(())
+                None
             }
         }
     }
 
     glib::wrapper! {
         pub struct SimpleApplication(ObjectSubclass<imp::SimpleApplication>)
-        @implements Application, ActionMap, ActionGroup;
+        @implements crate::Application;
     }
 
     #[test]

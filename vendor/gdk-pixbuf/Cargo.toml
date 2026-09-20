@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.92"
+edition = "2021"
+rust-version = "1.70"
 name = "gdk-pixbuf"
-version = "0.22.0"
+version = "0.20.10"
 authors = ["The gtk-rs Project Developers"]
 build = false
 exclude = ["gir-files/*"]
@@ -36,17 +36,21 @@ repository = "https://github.com/gtk-rs/gtk-rs-core"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = [
+    "--cfg",
+    "docsrs",
+]
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+    "--generate-link-to-definition",
+]
 
 [features]
 v2_40 = ["gdk-pixbuf-sys/v2_40"]
 v2_42 = [
     "v2_40",
     "gdk-pixbuf-sys/v2_42",
-]
-v2_44 = [
-    "v2_42",
-    "gdk-pixbuf-sys/v2_44",
 ]
 
 [lib]
@@ -62,14 +66,13 @@ name = "overflow"
 path = "tests/overflow.rs"
 
 [dependencies.gdk-pixbuf-sys]
-version = "0.22.0"
+version = "0.20"
 
 [dependencies.gio]
-version = "0.22.0"
+version = "0.20"
 
 [dependencies.glib]
-version = "0.22.0"
-default-features = false
+version = "0.20.3"
 
 [dependencies.libc]
 version = "0.2"

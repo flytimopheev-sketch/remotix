@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{DBusInterfaceSkeleton, DBusMethodInvocation, DBusObject, ffi};
+use crate::{ffi, DBusInterfaceSkeleton, DBusMethodInvocation, DBusObject};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -33,7 +33,12 @@ impl DBusObjectSkeleton {
     }
 }
 
-pub trait DBusObjectSkeletonExt: IsA<DBusObjectSkeleton> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::DBusObjectSkeleton>> Sealed for T {}
+}
+
+pub trait DBusObjectSkeletonExt: IsA<DBusObjectSkeleton> + sealed::Sealed + 'static {
     #[doc(alias = "g_dbus_object_skeleton_add_interface")]
     fn add_interface(&self, interface_: &impl IsA<DBusInterfaceSkeleton>) {
         unsafe {
@@ -72,7 +77,6 @@ pub trait DBusObjectSkeletonExt: IsA<DBusObjectSkeleton> + 'static {
     }
 
     #[doc(alias = "g_dbus_object_skeleton_set_object_path")]
-    #[doc(alias = "g-object-path")]
     fn set_object_path(&self, object_path: &str) {
         unsafe {
             ffi::g_dbus_object_skeleton_set_object_path(
@@ -108,21 +112,19 @@ pub trait DBusObjectSkeletonExt: IsA<DBusObjectSkeleton> + 'static {
             invocation: *mut ffi::GDBusMethodInvocation,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    DBusObjectSkeleton::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(interface),
-                    &from_glib_borrow(invocation),
-                )
-                .into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                DBusObjectSkeleton::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(interface),
+                &from_glib_borrow(invocation),
+            )
+            .into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"authorize-method".as_ptr(),
+                b"authorize-method\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     authorize_method_trampoline::<Self, F> as *const (),
                 )),
@@ -141,16 +143,14 @@ pub trait DBusObjectSkeletonExt: IsA<DBusObjectSkeleton> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(DBusObjectSkeleton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(DBusObjectSkeleton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::g-object-path".as_ptr(),
+                b"notify::g-object-path\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_g_object_path_trampoline::<Self, F> as *const (),
                 )),

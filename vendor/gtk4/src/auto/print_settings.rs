@@ -3,8 +3,8 @@
 // DO NOT EDIT
 
 use crate::{
-    NumberUpLayout, PageOrientation, PageRange, PageSet, PaperSize, PrintDuplex, PrintPages,
-    PrintQuality, Unit, ffi,
+    ffi, NumberUpLayout, PageOrientation, PageRange, PageSet, PaperSize, PrintDuplex, PrintPages,
+    PrintQuality, Unit,
 };
 use glib::translate::*;
 
@@ -89,12 +89,10 @@ impl PrintSettings {
             value: *const std::ffi::c_char,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let key: Borrowed<glib::GString> = from_glib_borrow(key);
-                let value: Borrowed<glib::GString> = from_glib_borrow(value);
-                let callback = user_data as *mut P;
-                (*callback)(key.as_str(), value.as_str())
-            }
+            let key: Borrowed<glib::GString> = from_glib_borrow(key);
+            let value: Borrowed<glib::GString> = from_glib_borrow(value);
+            let callback = user_data as *mut P;
+            (*callback)(key.as_str(), value.as_str())
         }
         let func = Some(func_func::<P> as _);
         let super_callback0: &mut P = &mut func_data;

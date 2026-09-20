@@ -3,10 +3,10 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-use crate::{FileChooser, FileChooserAction, FileFilter, NativeDialog, Window, ffi};
+use crate::{ffi, FileChooser, FileChooserAction, FileFilter, NativeDialog, Window};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -110,16 +110,14 @@ impl FileChooserNative {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::accept-label".as_ptr(),
+                b"notify::accept-label\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_accept_label_trampoline::<F> as *const (),
                 )),
@@ -135,16 +133,14 @@ impl FileChooserNative {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::cancel-label".as_ptr(),
+                b"notify::cancel-label\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_cancel_label_trampoline::<F> as *const (),
                 )),

@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Window, ffi};
+use crate::{ffi, Window};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::{boxed::Box as Box_, pin::Pin};
@@ -32,18 +32,6 @@ impl UriLauncher {
     /// This method returns an instance of [`UriLauncherBuilder`](crate::builders::UriLauncherBuilder) which can be used to create [`UriLauncher`] objects.
     pub fn builder() -> UriLauncherBuilder {
         UriLauncherBuilder::new()
-    }
-
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "gtk_uri_launcher_can_launch")]
-    pub fn can_launch(&self, parent: Option<&impl IsA<Window>>) -> bool {
-        unsafe {
-            from_glib(ffi::gtk_uri_launcher_can_launch(
-                self.to_glib_none().0,
-                parent.map(|p| p.as_ref()).to_glib_none().0,
-            ))
-        }
     }
 
     #[doc(alias = "gtk_uri_launcher_get_uri")]
@@ -76,19 +64,17 @@ impl UriLauncher {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                ffi::gtk_uri_launcher_launch_finish(_source_object as *mut _, res, &mut error);
-                let result = if error.is_null() {
-                    Ok(())
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let _ = ffi::gtk_uri_launcher_launch_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(())
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = launch_trampoline::<P>;
         unsafe {
@@ -135,16 +121,14 @@ impl UriLauncher {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::uri".as_ptr(),
+                b"notify::uri\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_uri_trampoline::<F> as *const (),
                 )),

@@ -2,7 +2,7 @@
 
 use glib::translate::*;
 
-use crate::{GLShader, ffi};
+use crate::{ffi, GLShader};
 
 impl GLShader {
     #[doc(alias = "gsk_gl_shader_get_arg_vec2")]

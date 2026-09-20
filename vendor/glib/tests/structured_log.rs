@@ -5,7 +5,7 @@
 fn structured_log() {
     use std::sync::{Arc, Mutex};
 
-    use glib::{GString, LogField, LogLevel, gstr, prelude::*};
+    use glib::{gstr, prelude::*, GString, LogField, LogLevel};
 
     let log = Arc::new(Mutex::new(Vec::new()));
     {

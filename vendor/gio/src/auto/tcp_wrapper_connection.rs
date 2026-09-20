@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{IOStream, Socket, SocketConnection, TcpConnection, ffi};
+use crate::{ffi, IOStream, Socket, SocketConnection, TcpConnection};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -32,7 +32,12 @@ impl TcpWrapperConnection {
     }
 }
 
-pub trait TcpWrapperConnectionExt: IsA<TcpWrapperConnection> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TcpWrapperConnection>> Sealed for T {}
+}
+
+pub trait TcpWrapperConnectionExt: IsA<TcpWrapperConnection> + sealed::Sealed + 'static {
     #[doc(alias = "g_tcp_wrapper_connection_get_base_io_stream")]
     #[doc(alias = "get_base_io_stream")]
     #[doc(alias = "base-io-stream")]

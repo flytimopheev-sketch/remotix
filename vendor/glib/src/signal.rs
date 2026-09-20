@@ -59,10 +59,8 @@ impl SignalHandlerId {
 impl FromGlib<c_ulong> for SignalHandlerId {
     #[inline]
     unsafe fn from_glib(val: c_ulong) -> Self {
-        unsafe {
-            debug_assert_ne!(val, 0);
-            Self(NonZeroU64::new_unchecked(val as _))
-        }
+        debug_assert_ne!(val, 0);
+        Self(NonZeroU64::new_unchecked(val as _))
     }
 }
 
@@ -72,26 +70,22 @@ pub unsafe fn connect_raw<F>(
     trampoline: gobject_ffi::GCallback,
     closure: *mut F,
 ) -> SignalHandlerId {
-    unsafe {
-        unsafe extern "C" fn destroy_closure<F>(ptr: *mut c_void, _: *mut gobject_ffi::GClosure) {
-            unsafe {
-                // destroy
-                let _ = Box::<F>::from_raw(ptr as *mut _);
-            }
-        }
-        debug_assert_eq!(mem::size_of::<*mut F>(), mem::size_of::<ffi::gpointer>());
-        debug_assert!(trampoline.is_some());
-        let handle = gobject_ffi::g_signal_connect_data(
-            receiver,
-            signal_name,
-            trampoline,
-            closure as *mut _,
-            Some(destroy_closure::<F>),
-            0,
-        );
-        debug_assert!(handle > 0);
-        from_glib(handle)
+    unsafe extern "C" fn destroy_closure<F>(ptr: *mut c_void, _: *mut gobject_ffi::GClosure) {
+        // destroy
+        let _ = Box::<F>::from_raw(ptr as *mut _);
     }
+    debug_assert_eq!(mem::size_of::<*mut F>(), mem::size_of::<ffi::gpointer>());
+    debug_assert!(trampoline.is_some());
+    let handle = gobject_ffi::g_signal_connect_data(
+        receiver,
+        signal_name,
+        trampoline,
+        closure as *mut _,
+        Some(destroy_closure::<F>),
+        0,
+    );
+    debug_assert!(handle > 0);
+    from_glib(handle)
 }
 
 #[doc(alias = "g_signal_handler_block")]
@@ -183,7 +177,11 @@ impl Propagation {
 
 impl From<bool> for Propagation {
     fn from(value: bool) -> Self {
-        if value { Self::Stop } else { Self::Proceed }
+        if value {
+            Self::Stop
+        } else {
+            Self::Proceed
+        }
     }
 }
 
@@ -210,7 +208,7 @@ impl IntoGlib for Propagation {
 impl FromGlib<ffi::gboolean> for Propagation {
     #[inline]
     unsafe fn from_glib(value: ffi::gboolean) -> Self {
-        unsafe { bool::from_glib(value).into() }
+        bool::from_glib(value).into()
     }
 }
 

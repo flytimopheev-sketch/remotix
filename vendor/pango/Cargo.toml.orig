@@ -22,11 +22,10 @@ v1_50 = ["v1_48", "pango-sys/v1_50"]
 v1_52 = ["v1_50", "pango-sys/v1_52"]
 v1_54 = ["v1_52", "pango-sys/v1_54"]
 v1_56 = ["v1_54", "pango-sys/v1_56"]
-v1_57 = ["v1_56", "pango-sys/v1_57"]
-v1_58 = ["v1_57", "pango-sys/v1_58"]
 
 [dependencies]
 pango-sys.workspace = true
+libc.workspace = true
 glib.workspace = true
 gio.workspace = true
 
@@ -35,4 +34,5 @@ gir-format-check.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]

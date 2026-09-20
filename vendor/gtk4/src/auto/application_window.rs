@@ -3,41 +3,20 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-use crate::WindowGravity;
 use crate::{
-    AccessibleRole, Align, Application, Buildable, ConstraintTarget, LayoutManager, Native,
-    Overflow, Root, ShortcutManager, ShortcutsWindow, Widget, Window, ffi,
+    ffi, Accessible, AccessibleRole, Align, Application, Buildable, ConstraintTarget,
+    LayoutManager, Native, Overflow, Root, ShortcutManager, ShortcutsWindow, Widget, Window,
 };
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-use glib::object::ObjectType as _;
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkApplicationWindow")]
     pub struct ApplicationWindow(Object<ffi::GtkApplicationWindow, ffi::GtkApplicationWindowClass>) @extends Window, Widget, @implements Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, gio::ActionGroup, gio::ActionMap;
-
-    match fn {
-        type_ => || ffi::gtk_application_window_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkApplicationWindow")]
-    pub struct ApplicationWindow(Object<ffi::GtkApplicationWindow, ffi::GtkApplicationWindowClass>) @extends Window, Widget, @implements Buildable, ConstraintTarget, Native, Root, ShortcutManager, gio::ActionGroup, gio::ActionMap;
 
     match fn {
         type_ => || ffi::gtk_application_window_get_type(),
@@ -172,14 +151,6 @@ impl ApplicationWindowBuilder {
     pub fn fullscreened(self, fullscreened: bool) -> Self {
         Self {
             builder: self.builder.property("fullscreened", fullscreened),
-        }
-    }
-
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gravity(self, gravity: WindowGravity) -> Self {
-        Self {
-            builder: self.builder.property("gravity", gravity),
         }
     }
 
@@ -460,7 +431,12 @@ impl ApplicationWindowBuilder {
     }
 }
 
-pub trait ApplicationWindowExt: IsA<ApplicationWindow> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::ApplicationWindow>> Sealed for T {}
+}
+
+pub trait ApplicationWindowExt: IsA<ApplicationWindow> + sealed::Sealed + 'static {
     #[cfg_attr(feature = "v4_18", deprecated = "Since 4.18")]
     #[allow(deprecated)]
     #[doc(alias = "gtk_application_window_get_help_overlay")]
@@ -513,43 +489,6 @@ pub trait ApplicationWindowExt: IsA<ApplicationWindow> + 'static {
         }
     }
 
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "save-state")]
-    fn connect_save_state<F: Fn(&Self, &glib::VariantDict) -> bool + 'static>(
-        &self,
-        f: F,
-    ) -> SignalHandlerId {
-        unsafe extern "C" fn save_state_trampoline<
-            P: IsA<ApplicationWindow>,
-            F: Fn(&P, &glib::VariantDict) -> bool + 'static,
-        >(
-            this: *mut ffi::GtkApplicationWindow,
-            dict: *mut glib::ffi::GVariantDict,
-            f: glib::ffi::gpointer,
-        ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    ApplicationWindow::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(dict),
-                )
-                .into_glib()
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"save-state".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    save_state_trampoline::<Self, F> as *const (),
-                )),
-                Box_::into_raw(f),
-            )
-        }
-    }
-
     #[doc(alias = "show-menubar")]
     fn connect_show_menubar_notify<F: Fn(&Self) + 'static>(&self, f: F) -> SignalHandlerId {
         unsafe extern "C" fn notify_show_menubar_trampoline<
@@ -560,16 +499,14 @@ pub trait ApplicationWindowExt: IsA<ApplicationWindow> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ApplicationWindow::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ApplicationWindow::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-menubar".as_ptr(),
+                b"notify::show-menubar\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_menubar_trampoline::<Self, F> as *const (),
                 )),

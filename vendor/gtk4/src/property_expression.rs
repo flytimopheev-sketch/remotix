@@ -2,7 +2,7 @@
 
 use glib::translate::*;
 
-use crate::{PropertyExpression, prelude::*};
+use crate::{prelude::*, PropertyExpression};
 
 define_expression!(PropertyExpression, crate::ffi::GtkPropertyExpression);
 

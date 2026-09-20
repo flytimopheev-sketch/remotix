@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.92"
+edition = "2021"
+rust-version = "1.70"
 name = "pango"
-version = "0.22.9"
+version = "0.20.12"
 authors = ["The gtk-rs Project Developers"]
 build = false
 exclude = ["gir-files/*"]
@@ -36,7 +36,15 @@ repository = "https://github.com/gtk-rs/gtk-rs-core"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = [
+    "--cfg",
+    "docsrs",
+]
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+    "--generate-link-to-definition",
+]
 
 [features]
 v1_42 = ["pango-sys/v1_42"]
@@ -68,14 +76,6 @@ v1_56 = [
     "v1_54",
     "pango-sys/v1_56",
 ]
-v1_57 = [
-    "v1_56",
-    "pango-sys/v1_57",
-]
-v1_58 = [
-    "v1_57",
-    "pango-sys/v1_58",
-]
 
 [lib]
 name = "pango"
@@ -86,14 +86,16 @@ name = "check_gir"
 path = "tests/check_gir.rs"
 
 [dependencies.gio]
-version = "0.22.0"
+version = "0.20"
 
 [dependencies.glib]
-version = "0.22.0"
-default-features = false
+version = "0.20.3"
+
+[dependencies.libc]
+version = "0.2"
 
 [dependencies.pango-sys]
-version = "0.22.0"
+version = "0.20"
 
 [dev-dependencies.gir-format-check]
 version = "^0.1"

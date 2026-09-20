@@ -5,7 +5,7 @@ use std::{cell::RefCell, rc::Rc};
 use gio::ApplicationFlags;
 use glib::{signal::SignalHandlerId, translate::*};
 
-use crate::{Application, prelude::*, rt};
+use crate::{prelude::*, rt, Application};
 
 impl Application {
     #[doc(alias = "gtk_application_new")]

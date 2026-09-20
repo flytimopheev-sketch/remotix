@@ -3,11 +3,11 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-use crate::{SelectionMode, TreeIter, TreeModel, TreePath, TreeView, ffi};
+use crate::{ffi, SelectionMode, TreeIter, TreeModel, TreePath, TreeView};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -161,13 +161,11 @@ impl TreeSelection {
             iter: *mut ffi::GtkTreeIter,
             data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let model = from_glib_borrow(model);
-                let path = from_glib_borrow(path);
-                let iter = from_glib_borrow(iter);
-                let callback = data as *mut P;
-                (*callback)(&model, &path, &iter)
-            }
+            let model = from_glib_borrow(model);
+            let path = from_glib_borrow(path);
+            let iter = from_glib_borrow(iter);
+            let callback = data as *mut P;
+            (*callback)(&model, &path, &iter)
         }
         let func = Some(func_func::<P> as _);
         let super_callback0: &mut P = &mut func_data;
@@ -209,14 +207,12 @@ impl TreeSelection {
             path_currently_selected: glib::ffi::gboolean,
             data: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let selection = from_glib_borrow(selection);
-                let model = from_glib_borrow(model);
-                let path = from_glib_borrow(path);
-                let path_currently_selected = from_glib(path_currently_selected);
-                let callback = &*(data as *mut P);
-                (*callback)(&selection, &model, &path, path_currently_selected).into_glib()
-            }
+            let selection = from_glib_borrow(selection);
+            let model = from_glib_borrow(model);
+            let path = from_glib_borrow(path);
+            let path_currently_selected = from_glib(path_currently_selected);
+            let callback = &*(data as *mut P);
+            (*callback)(&selection, &model, &path, path_currently_selected).into_glib()
         }
         let func = Some(func_func::<P> as _);
         unsafe extern "C" fn destroy_func<
@@ -224,9 +220,7 @@ impl TreeSelection {
         >(
             data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let _callback = Box_::from_raw(data as *mut P);
-            }
+            let _callback = Box_::from_raw(data as *mut P);
         }
         let destroy_call3 = Some(destroy_func::<P> as _);
         let super_callback0: Box_<P> = func_data;
@@ -292,16 +286,14 @@ impl TreeSelection {
             this: *mut ffi::GtkTreeSelection,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"changed".as_ptr(),
+                b"changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     changed_trampoline::<F> as *const (),
                 )),
@@ -317,16 +309,14 @@ impl TreeSelection {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::mode".as_ptr(),
+                b"notify::mode\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_mode_trampoline::<F> as *const (),
                 )),

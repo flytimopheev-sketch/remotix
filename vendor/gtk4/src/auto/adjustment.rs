@@ -6,7 +6,7 @@ use crate::ffi;
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -121,7 +121,12 @@ impl AdjustmentBuilder {
     }
 }
 
-pub trait AdjustmentExt: IsA<Adjustment> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Adjustment>> Sealed for T {}
+}
+
+pub trait AdjustmentExt: IsA<Adjustment> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_adjustment_clamp_page")]
     fn clamp_page(&self, lower: f64, upper: f64) {
         unsafe {
@@ -251,16 +256,14 @@ pub trait AdjustmentExt: IsA<Adjustment> + 'static {
             this: *mut ffi::GtkAdjustment,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"changed".as_ptr(),
+                b"changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     changed_trampoline::<Self, F> as *const (),
                 )),
@@ -275,16 +278,14 @@ pub trait AdjustmentExt: IsA<Adjustment> + 'static {
             this: *mut ffi::GtkAdjustment,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"value-changed".as_ptr(),
+                b"value-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     value_changed_trampoline::<Self, F> as *const (),
                 )),
@@ -300,16 +301,14 @@ pub trait AdjustmentExt: IsA<Adjustment> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::lower".as_ptr(),
+                b"notify::lower\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_lower_trampoline::<Self, F> as *const (),
                 )),
@@ -328,16 +327,14 @@ pub trait AdjustmentExt: IsA<Adjustment> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::page-increment".as_ptr(),
+                b"notify::page-increment\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_page_increment_trampoline::<Self, F> as *const (),
                 )),
@@ -356,16 +353,14 @@ pub trait AdjustmentExt: IsA<Adjustment> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::page-size".as_ptr(),
+                b"notify::page-size\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_page_size_trampoline::<Self, F> as *const (),
                 )),
@@ -384,16 +379,14 @@ pub trait AdjustmentExt: IsA<Adjustment> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::step-increment".as_ptr(),
+                b"notify::step-increment\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_step_increment_trampoline::<Self, F> as *const (),
                 )),
@@ -409,16 +402,14 @@ pub trait AdjustmentExt: IsA<Adjustment> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::upper".as_ptr(),
+                b"notify::upper\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_upper_trampoline::<Self, F> as *const (),
                 )),
@@ -434,16 +425,14 @@ pub trait AdjustmentExt: IsA<Adjustment> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Adjustment::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::value".as_ptr(),
+                b"notify::value\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_value_trampoline::<Self, F> as *const (),
                 )),

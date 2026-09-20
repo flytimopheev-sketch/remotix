@@ -1,15 +1,15 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`GLArea`].
+//! Traits intended for subclassing [`GLArea`](crate::GLArea).
 
 use gdk::GLContext;
 use glib::translate::*;
 
-use crate::{GLArea, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, GLArea};
 
 #[allow(clippy::upper_case_acronyms)]
-pub trait GLAreaImpl: WidgetImpl + ObjectSubclass<Type: IsA<GLArea>> {
+pub trait GLAreaImpl: GLAreaImplExt + WidgetImpl {
     fn create_context(&self) -> Option<GLContext> {
         self.parent_create_context()
     }
@@ -23,14 +23,23 @@ pub trait GLAreaImpl: WidgetImpl + ObjectSubclass<Type: IsA<GLArea>> {
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::GLAreaImplExt> Sealed for T {}
+}
+
 #[allow(clippy::upper_case_acronyms)]
-pub trait GLAreaImplExt: GLAreaImpl {
+pub trait GLAreaImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_create_context(&self) -> Option<GLContext> {
         unsafe {
             let data = Self::type_data();
             let parent_class = data.as_ref().parent_class() as *mut ffi::GtkGLAreaClass;
             if let Some(f) = (*parent_class).create_context {
-                return from_glib_none(f(self.obj().unsafe_cast_ref::<GLArea>().to_glib_none().0));
+                return Some(from_glib_none(f(self
+                    .obj()
+                    .unsafe_cast_ref::<GLArea>()
+                    .to_glib_none()
+                    .0)));
             };
             None
         }
@@ -81,24 +90,20 @@ unsafe impl<T: GLAreaImpl> IsSubclassable<T> for GLArea {
 unsafe extern "C" fn gl_area_create_context<T: GLAreaImpl>(
     ptr: *mut ffi::GtkGLArea,
 ) -> *mut gdk::ffi::GdkGLContext {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.create_context().into_glib_ptr()
-    }
+    imp.create_context().into_glib_ptr()
 }
 
 unsafe extern "C" fn gl_area_render<T: GLAreaImpl>(
     ptr: *mut ffi::GtkGLArea,
     context: *mut gdk::ffi::GdkGLContext,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.render(&from_glib_borrow(context)).into_glib()
-    }
+    imp.render(&from_glib_borrow(context)).into_glib()
 }
 
 unsafe extern "C" fn gl_area_resize<T: GLAreaImpl>(
@@ -106,10 +111,8 @@ unsafe extern "C" fn gl_area_resize<T: GLAreaImpl>(
     width: i32,
     height: i32,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.resize(width, height)
-    }
+    imp.resize(width, height)
 }

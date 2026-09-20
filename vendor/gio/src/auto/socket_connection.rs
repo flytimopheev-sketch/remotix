@@ -3,7 +3,7 @@
 // DO NOT EDIT
 
 use crate::{
-    AsyncResult, Cancellable, IOStream, Socket, SocketAddress, SocketFamily, SocketType, ffi,
+    ffi, AsyncResult, Cancellable, IOStream, Socket, SocketAddress, SocketFamily, SocketType,
 };
 use glib::{prelude::*, translate::*};
 use std::{boxed::Box as Box_, pin::Pin};
@@ -53,7 +53,12 @@ impl SocketConnection {
     }
 }
 
-pub trait SocketConnectionExt: IsA<SocketConnection> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::SocketConnection>> Sealed for T {}
+}
+
+pub trait SocketConnectionExt: IsA<SocketConnection> + sealed::Sealed + 'static {
     #[doc(alias = "g_socket_connection_connect")]
     fn connect(
         &self,
@@ -103,19 +108,17 @@ pub trait SocketConnectionExt: IsA<SocketConnection> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                ffi::g_socket_connection_connect_finish(_source_object as *mut _, res, &mut error);
-                let result = if error.is_null() {
-                    Ok(())
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            ffi::g_socket_connection_connect_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(())
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = connect_async_trampoline::<P>;
         unsafe {

@@ -2,17 +2,22 @@
 
 use std::{collections::HashMap, sync::OnceLock};
 
-use glib::{GString, Quark, prelude::*, subclass::prelude::*, translate::*};
+use glib::{prelude::*, subclass::prelude::*, translate::*, GString, Quark};
 
-use crate::{Action, ActionMap, ffi};
+use crate::{ffi, Action, ActionMap};
 
-pub trait ActionMapImpl: ObjectImpl + ObjectSubclass<Type: IsA<ActionMap>> {
+pub trait ActionMapImpl: ObjectImpl {
     fn lookup_action(&self, action_name: &str) -> Option<Action>;
     fn add_action(&self, action: &Action);
     fn remove_action(&self, action_name: &str);
 }
 
-pub trait ActionMapImplExt: ActionMapImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::ActionMapImplExt> Sealed for T {}
+}
+
+pub trait ActionMapImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_lookup_action(&self, name: &str) -> Option<Action> {
         unsafe {
             let type_data = Self::type_data();
@@ -65,7 +70,10 @@ pub trait ActionMapImplExt: ActionMapImpl {
 
 impl<T: ActionMapImpl> ActionMapImplExt for T {}
 
-unsafe impl<T: ActionMapImpl> IsImplementable<T> for ActionMap {
+unsafe impl<T: ActionMapImpl> IsImplementable<T> for ActionMap
+where
+    <T as ObjectSubclass>::Type: IsA<glib::Object>,
+{
     fn interface_init(iface: &mut glib::Interface<Self>) {
         let iface = iface.as_mut();
 
@@ -79,31 +87,29 @@ unsafe extern "C" fn action_map_lookup_action<T: ActionMapImpl>(
     action_map: *mut ffi::GActionMap,
     action_nameptr: *const libc::c_char,
 ) -> *mut ffi::GAction {
-    unsafe {
-        let instance = &*(action_map as *mut T::Instance);
-        let action_name = GString::from_glib_borrow(action_nameptr);
-        let imp = instance.imp();
+    let instance = &*(action_map as *mut T::Instance);
+    let action_name = GString::from_glib_borrow(action_nameptr);
+    let imp = instance.imp();
 
-        let ret = imp.lookup_action(&action_name);
-        if let Some(action) = ret {
-            let instance = imp.obj();
-            let actionptr = action.to_glib_none().0;
+    let ret = imp.lookup_action(&action_name);
+    if let Some(action) = ret {
+        let instance = imp.obj();
+        let actionptr = action.to_glib_none().0;
 
-            let action_map_quark = {
-                static QUARK: OnceLock<Quark> = OnceLock::new();
-                *QUARK.get_or_init(|| Quark::from_str("gtk-rs-subclass-action-map-lookup-action"))
-            };
+        let action_map_quark = {
+            static QUARK: OnceLock<Quark> = OnceLock::new();
+            *QUARK.get_or_init(|| Quark::from_str("gtk-rs-subclass-action-map-lookup-action"))
+        };
 
-            let mut map = instance
-                .steal_qdata::<HashMap<String, Action>>(action_map_quark)
-                .unwrap_or_default();
-            map.insert(action_name.to_string(), action);
-            instance.set_qdata(action_map_quark, map);
+        let mut map = instance
+            .steal_qdata::<HashMap<String, Action>>(action_map_quark)
+            .unwrap_or_default();
+        map.insert(action_name.to_string(), action);
+        instance.set_qdata(action_map_quark, map);
 
-            actionptr
-        } else {
-            std::ptr::null_mut()
-        }
+        actionptr
+    } else {
+        std::ptr::null_mut()
     }
 }
 
@@ -111,24 +117,20 @@ unsafe extern "C" fn action_map_add_action<T: ActionMapImpl>(
     action_map: *mut ffi::GActionMap,
     actionptr: *mut ffi::GAction,
 ) {
-    unsafe {
-        let instance = &*(action_map as *mut T::Instance);
-        let imp = instance.imp();
-        let action: Borrowed<Action> = from_glib_borrow(actionptr);
+    let instance = &*(action_map as *mut T::Instance);
+    let imp = instance.imp();
+    let action: Borrowed<Action> = from_glib_borrow(actionptr);
 
-        imp.add_action(&action);
-    }
+    imp.add_action(&action);
 }
 
 unsafe extern "C" fn action_map_remove_action<T: ActionMapImpl>(
     action_map: *mut ffi::GActionMap,
     action_nameptr: *const libc::c_char,
 ) {
-    unsafe {
-        let instance = &*(action_map as *mut T::Instance);
-        let imp = instance.imp();
-        let action_name = GString::from_glib_borrow(action_nameptr);
+    let instance = &*(action_map as *mut T::Instance);
+    let imp = instance.imp();
+    let action_name = GString::from_glib_borrow(action_nameptr);
 
-        imp.remove_action(&action_name);
-    }
+    imp.remove_action(&action_name);
 }

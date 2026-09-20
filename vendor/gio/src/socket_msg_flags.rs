@@ -1,7 +1,7 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 use crate::ffi;
-use glib::{Type, bitflags, prelude::*, translate::*};
+use glib::{bitflags, prelude::*, translate::*, Type};
 
 bitflags::bitflags! {
     #[doc(alias = "GSocketMsgFlags")]
@@ -51,7 +51,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for SocketMsgFlags {
     type Checker = glib::value::GenericValueTypeChecker<Self>;
 
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0) as i32) }
+        from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0) as i32)
     }
 }
 

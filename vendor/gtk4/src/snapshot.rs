@@ -4,9 +4,14 @@ use std::borrow::Borrow;
 
 use glib::translate::*;
 
-use crate::{Snapshot, ffi, prelude::*};
+use crate::{ffi, prelude::*, Snapshot};
 
-pub trait SnapshotExtManual: IsA<Snapshot> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Snapshot>> Sealed for T {}
+}
+
+pub trait SnapshotExtManual: sealed::Sealed + IsA<Snapshot> + 'static {
     #[doc(alias = "gtk_snapshot_append_border")]
     fn append_border(
         &self,
@@ -23,15 +28,6 @@ pub trait SnapshotExtManual: IsA<Snapshot> + 'static {
                 border_width,
                 border_color_ptr.as_ptr() as *const _,
             )
-        }
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "gtk_snapshot_set_snap")]
-    fn set_snap(&self, snap: gsk::RectSnap) {
-        unsafe {
-            ffi::gtk_snapshot_set_snap(self.as_ref().to_glib_none().0, snap.into_glib());
         }
     }
 

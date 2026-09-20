@@ -2,36 +2,21 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, Buildable, ConstraintTarget, LayoutManager, Native, Overflow,
-    PositionType, ShortcutManager, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, Buildable, ConstraintTarget, LayoutManager, Native,
+    Overflow, PositionType, ShortcutManager, Widget,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkPopover")]
     pub struct Popover(Object<ffi::GtkPopover, ffi::GtkPopoverClass>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, Native, ShortcutManager;
-
-    match fn {
-        type_ => || ffi::gtk_popover_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkPopover")]
-    pub struct Popover(Object<ffi::GtkPopover, ffi::GtkPopoverClass>) @extends Widget, @implements Buildable, ConstraintTarget, Native, ShortcutManager;
 
     match fn {
         type_ => || ffi::gtk_popover_get_type(),
@@ -331,7 +316,12 @@ impl PopoverBuilder {
     }
 }
 
-pub trait PopoverExt: IsA<Popover> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Popover>> Sealed for T {}
+}
+
+pub trait PopoverExt: IsA<Popover> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_popover_get_autohide")]
     #[doc(alias = "get_autohide")]
     #[doc(alias = "autohide")]
@@ -536,16 +526,14 @@ pub trait PopoverExt: IsA<Popover> + 'static {
             this: *mut ffi::GtkPopover,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Popover::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Popover::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"activate-default".as_ptr(),
+                b"activate-default\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     activate_default_trampoline::<Self, F> as *const (),
                 )),
@@ -564,16 +552,14 @@ pub trait PopoverExt: IsA<Popover> + 'static {
             this: *mut ffi::GtkPopover,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Popover::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Popover::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"closed".as_ptr(),
+                b"closed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     closed_trampoline::<Self, F> as *const (),
                 )),
@@ -589,16 +575,14 @@ pub trait PopoverExt: IsA<Popover> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Popover::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Popover::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::autohide".as_ptr(),
+                b"notify::autohide\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_autohide_trampoline::<Self, F> as *const (),
                 )),
@@ -617,16 +601,14 @@ pub trait PopoverExt: IsA<Popover> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Popover::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Popover::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::cascade-popdown".as_ptr(),
+                b"notify::cascade-popdown\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_cascade_popdown_trampoline::<Self, F> as *const (),
                 )),
@@ -642,16 +624,14 @@ pub trait PopoverExt: IsA<Popover> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Popover::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Popover::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::child".as_ptr(),
+                b"notify::child\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_child_trampoline::<Self, F> as *const (),
                 )),
@@ -670,16 +650,14 @@ pub trait PopoverExt: IsA<Popover> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Popover::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Popover::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::default-widget".as_ptr(),
+                b"notify::default-widget\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_default_widget_trampoline::<Self, F> as *const (),
                 )),
@@ -695,16 +673,14 @@ pub trait PopoverExt: IsA<Popover> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Popover::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Popover::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::has-arrow".as_ptr(),
+                b"notify::has-arrow\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_has_arrow_trampoline::<Self, F> as *const (),
                 )),
@@ -723,16 +699,14 @@ pub trait PopoverExt: IsA<Popover> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Popover::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Popover::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::mnemonics-visible".as_ptr(),
+                b"notify::mnemonics-visible\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_mnemonics_visible_trampoline::<Self, F> as *const (),
                 )),
@@ -748,16 +722,14 @@ pub trait PopoverExt: IsA<Popover> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Popover::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Popover::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::pointing-to".as_ptr(),
+                b"notify::pointing-to\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_pointing_to_trampoline::<Self, F> as *const (),
                 )),
@@ -773,16 +745,14 @@ pub trait PopoverExt: IsA<Popover> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Popover::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Popover::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::position".as_ptr(),
+                b"notify::position\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_position_trampoline::<Self, F> as *const (),
                 )),

@@ -5,7 +5,7 @@ use std::{
     mem, ptr,
 };
 
-use crate::{GString, ffi, translate::*};
+use crate::{ffi, translate::*, GString};
 
 // rustdoc-stripper-ignore-next
 /// Same as [`get_prgname()`].
@@ -205,8 +205,7 @@ mod tests {
     fn check_getenv(val: &str) {
         let _data = lock().lock().unwrap();
 
-        // TODO: Audit that the environment access only happens in single-threaded code.
-        unsafe { env::set_var(VAR_NAME, val) };
+        env::set_var(VAR_NAME, val);
         assert_eq!(env::var_os(VAR_NAME), Some(val.into()));
         assert_eq!(crate::getenv(VAR_NAME), Some(val.into()));
 
@@ -217,10 +216,8 @@ mod tests {
     fn check_setenv(val: &str) {
         let _data = lock().lock().unwrap();
 
-        unsafe {
-            crate::setenv(VAR_NAME, val, true).unwrap();
-            assert_eq!(env::var_os(VAR_NAME), Some(val.into()));
-        }
+        crate::setenv(VAR_NAME, val, true).unwrap();
+        assert_eq!(env::var_os(VAR_NAME), Some(val.into()));
     }
 
     #[test]
@@ -241,25 +238,19 @@ mod tests {
 
         use crate::GString;
         let uri: GString = "file:///foo/bar.txt".into();
-        match crate::filename_from_uri(&uri) {
-            Ok((filename, hostname)) => {
-                assert_eq!(filename, PathBuf::from(r"/foo/bar.txt"));
-                assert_eq!(hostname, None);
-            }
-            _ => {
-                unreachable!();
-            }
+        if let Ok((filename, hostname)) = crate::filename_from_uri(&uri) {
+            assert_eq!(filename, PathBuf::from(r"/foo/bar.txt"));
+            assert_eq!(hostname, None);
+        } else {
+            unreachable!();
         }
 
         let uri: GString = "file://host/foo/bar.txt".into();
-        match crate::filename_from_uri(&uri) {
-            Ok((filename, hostname)) => {
-                assert_eq!(filename, PathBuf::from(r"/foo/bar.txt"));
-                assert_eq!(hostname, Some(GString::from("host")));
-            }
-            _ => {
-                unreachable!();
-            }
+        if let Ok((filename, hostname)) = crate::filename_from_uri(&uri) {
+            assert_eq!(filename, PathBuf::from(r"/foo/bar.txt"));
+            assert_eq!(hostname, Some(GString::from("host")));
+        } else {
+            unreachable!();
         }
     }
 

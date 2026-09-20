@@ -1,11 +1,11 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{ToTokens, quote};
+use quote::{quote, ToTokens};
 use syn::{
-    Attribute, ExprClosure, Token,
     parse::{Parse, ParseStream},
     spanned::Spanned,
+    Attribute, ExprClosure, Token,
 };
 
 use crate::{
@@ -23,10 +23,6 @@ struct Closure {
 
 impl Parse for Closure {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if input.is_empty() {
-            return Err(syn::Error::new(Span::call_site(), "expected a closure"));
-        }
-
         let mut captures: Vec<Capture> = vec![];
         let mut upgrade_behaviour: Option<(UpgradeBehaviour, Span)> = None;
 
@@ -45,57 +41,49 @@ impl Parse for Closure {
                 break;
             };
 
-            match Capture::maybe_parse(&attrs, input)? {
-                Some(capture) => {
-                    if capture.kind == CaptureKind::Watch
-                        && captures.iter().any(|c| c.kind == CaptureKind::Watch)
-                    {
-                        return Err(syn::Error::new_spanned(
-                            &attrs[0],
-                            "only one `watch` capture is allowed per closure",
-                        ));
-                    }
-
-                    captures.push(capture);
+            if let Some(capture) = Capture::maybe_parse(&attrs, input)? {
+                if capture.kind == CaptureKind::Watch
+                    && captures.iter().any(|c| c.kind == CaptureKind::Watch)
+                {
+                    return Err(syn::Error::new_spanned(
+                        &attrs[0],
+                        "only one `watch` capture is allowed per closure",
+                    ));
                 }
-                _ => match UpgradeBehaviour::maybe_parse(&attrs, input)? {
-                    Some(behaviour) => {
-                        if upgrade_behaviour.is_some() {
-                            return Err(syn::Error::new_spanned(
-                                &attrs[0],
-                                "multiple upgrade failure attributes are not supported",
-                            ));
-                        }
 
-                        upgrade_behaviour = Some((behaviour, attrs[0].span()));
-                        break;
-                    }
-                    _ => {
-                        if let Some(ident) = attrs[0].path().get_ident() {
-                            return Err(syn::Error::new_spanned(
-                                &attrs[0],
-                                format!(
-                                    "unsupported attribute `{ident}`: only `watch`, `strong`, `weak`, `weak_allow_none`, `to_owned`, `upgrade_or`, `upgrade_or_else`, `upgrade_or_default` and `upgrade_or_panic` are supported",
-                                ),
-                            ));
-                        } else {
-                            return Err(syn::Error::new_spanned(
-                                &attrs[0],
-                                "unsupported attribute: only `strong`, `weak`, `weak_allow_none`, `to_owned`, `upgrade_or_else`, `upgrade_or_default` and `upgrade_or_panic` are supported",
-                            ));
-                        }
-                    }
-                },
+                captures.push(capture);
+            } else if let Some(behaviour) = UpgradeBehaviour::maybe_parse(&attrs, input)? {
+                if upgrade_behaviour.is_some() {
+                    return Err(syn::Error::new_spanned(
+                        &attrs[0],
+                        "multiple upgrade failure attributes are not supported",
+                    ));
+                }
+
+                upgrade_behaviour = Some((behaviour, attrs[0].span()));
+                break;
+            } else if let Some(ident) = attrs[0].path().get_ident() {
+                return Err(syn::Error::new_spanned(
+                        &attrs[0],
+                        format!(
+                            "unsupported attribute `{ident}`: only `watch`, `strong`, `weak`, `weak_allow_none`, `to_owned`, `upgrade_or`, `upgrade_or_else`, `upgrade_or_default` and `upgrade_or_panic` are supported",
+                        ),
+                ));
+            } else {
+                return Err(syn::Error::new_spanned(
+                        &attrs[0],
+                        "unsupported attribute: only `strong`, `weak`, `weak_allow_none`, `to_owned`, `upgrade_or_else`, `upgrade_or_default` and `upgrade_or_panic` are supported",
+                ));
             }
         }
 
-        if let Some((_, ref span)) = upgrade_behaviour
-            && captures.iter().all(|c| c.kind != CaptureKind::Weak)
-        {
-            return Err(syn::Error::new(
-                *span,
-                "upgrade failure attribute can only be used together with weak variable captures",
-            ));
+        if let Some((_, ref span)) = upgrade_behaviour {
+            if captures.iter().all(|c| c.kind != CaptureKind::Weak) {
+                return Err(syn::Error::new(
+                    *span,
+                    "upgrade failure attribute can only be used together with weak variable captures",
+                ));
+            }
         }
 
         let upgrade_behaviour = upgrade_behaviour.map(|x| x.0).unwrap_or_default();
@@ -231,7 +219,6 @@ impl ToTokens for Closure {
                         #(#inner_before)*
                         #(#arg_values)*
                         #crate_ident::closure::IntoClosureReturnValue::into_closure_return_value({
-                            #[allow(clippy::redundant_closure)]
                             let ____res = (#closure)(#(#arg_names),*);
                             #assert_return_type
                             ____res

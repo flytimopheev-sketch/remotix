@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{ContentFormats, ffi};
+use crate::{ffi, ContentFormats};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::{boxed::Box as Box_, pin::Pin};
@@ -59,7 +59,12 @@ impl ContentProvider {
     }
 }
 
-pub trait ContentProviderExt: IsA<ContentProvider> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::ContentProvider>> Sealed for T {}
+}
+
+pub trait ContentProviderExt: IsA<ContentProvider> + sealed::Sealed + 'static {
     #[doc(alias = "gdk_content_provider_content_changed")]
     fn content_changed(&self) {
         unsafe {
@@ -116,23 +121,21 @@ pub trait ContentProviderExt: IsA<ContentProvider> + 'static {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                ffi::gdk_content_provider_write_mime_type_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(())
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let _ = ffi::gdk_content_provider_write_mime_type_finish(
+                _source_object as *mut _,
+                res,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok(())
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = write_mime_type_async_trampoline::<P>;
         unsafe {
@@ -178,16 +181,14 @@ pub trait ContentProviderExt: IsA<ContentProvider> + 'static {
             this: *mut ffi::GdkContentProvider,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ContentProvider::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ContentProvider::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"content-changed".as_ptr(),
+                b"content-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     content_changed_trampoline::<Self, F> as *const (),
                 )),
@@ -206,16 +207,14 @@ pub trait ContentProviderExt: IsA<ContentProvider> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ContentProvider::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ContentProvider::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::formats".as_ptr(),
+                b"notify::formats\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_formats_trampoline::<Self, F> as *const (),
                 )),
@@ -234,16 +233,14 @@ pub trait ContentProviderExt: IsA<ContentProvider> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ContentProvider::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ContentProvider::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::storable-formats".as_ptr(),
+                b"notify::storable-formats\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_storable_formats_trampoline::<Self, F> as *const (),
                 )),

@@ -1,8 +1,8 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
-use glib::{Object, Type, Value, translate::*, value::FromValue};
+use glib::{translate::*, value::FromValue, Object, Type, Value};
 
-use crate::{Expression, ffi, prelude::*};
+use crate::{ffi, prelude::*, Expression};
 
 #[doc(hidden)]
 impl AsRef<Expression> for Expression {
@@ -80,7 +80,11 @@ impl Expression {
                 this.map(|t| t.as_ref()).to_glib_none().0,
                 value.to_glib_none_mut().0,
             );
-            if from_glib(ret) { Some(value) } else { None }
+            if from_glib(ret) {
+                Some(value)
+            } else {
+                None
+            }
         }
     }
 
@@ -155,16 +159,6 @@ impl Expression {
     {
         crate::ClosureExpression::with_callback([self], f)
     }
-
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    // rustdoc-stripper-ignore-next
-    /// Create a [`TryExpression`](crate::TryExpression) with self as the first
-    /// parameter and `fallback` as the second parameter. This is useful in long
-    /// chains of [`Expression`](crate::Expression)s.
-    pub fn chain_try(&self, fallback: impl AsRef<Expression>) -> crate::TryExpression {
-        crate::TryExpression::new([self, fallback.as_ref()])
-    }
 }
 
 impl std::fmt::Debug for Expression {
@@ -185,10 +179,8 @@ unsafe impl<'a> glib::value::FromValue<'a> for Expression {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe {
-            skip_assert_initialized!();
-            from_glib_full(crate::ffi::gtk_value_dup_expression(value.to_glib_none().0))
-        }
+        skip_assert_initialized!();
+        from_glib_full(crate::ffi::gtk_value_dup_expression(value.to_glib_none().0))
     }
 }
 
@@ -349,7 +341,7 @@ macro_rules! define_expression {
         #[doc(hidden)]
         impl IntoGlibPtr<*mut crate::ffi::GtkExpression> for $rust_type {
             #[inline]
-            fn into_glib_ptr(self) -> *mut crate::ffi::GtkExpression {
+            unsafe fn into_glib_ptr(self) -> *mut crate::ffi::GtkExpression {
                 let s = std::mem::ManuallyDrop::new(self);
                 s.to_glib_none().0
             }
@@ -358,7 +350,7 @@ macro_rules! define_expression {
         #[doc(hidden)]
         impl IntoGlibPtr<*const crate::ffi::GtkExpression> for $rust_type {
             #[inline]
-            fn into_glib_ptr(self) -> *const crate::ffi::GtkExpression {
+            unsafe fn into_glib_ptr(self) -> *const crate::ffi::GtkExpression {
                 let s = std::mem::ManuallyDrop::new(self);
                 s.to_glib_none().0
             }
@@ -368,7 +360,7 @@ macro_rules! define_expression {
         impl FromGlibPtrFull<*mut crate::ffi::GtkExpression> for $rust_type {
             #[inline]
             unsafe fn from_glib_full(ptr: *mut crate::ffi::GtkExpression) -> Self {
-                unsafe { from_glib_full(ptr as *mut $ffi_type) }
+                from_glib_full(ptr as *mut $ffi_type)
             }
         }
 
@@ -383,10 +375,8 @@ macro_rules! define_expression {
 
             #[inline]
             unsafe fn from_value(value: &'a glib::Value) -> Self {
-                unsafe {
-                    skip_assert_initialized!();
-                    from_glib_full(crate::ffi::gtk_value_dup_expression(value.to_glib_none().0))
-                }
+                skip_assert_initialized!();
+                from_glib_full(crate::ffi::gtk_value_dup_expression(value.to_glib_none().0))
             }
         }
 

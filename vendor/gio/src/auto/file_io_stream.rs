@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{AsyncResult, Cancellable, FileInfo, IOStream, Seekable, ffi};
+use crate::{ffi, AsyncResult, Cancellable, FileInfo, IOStream, Seekable};
 use glib::{prelude::*, translate::*};
 use std::{boxed::Box as Box_, pin::Pin};
 
@@ -19,7 +19,12 @@ impl FileIOStream {
     pub const NONE: Option<&'static FileIOStream> = None;
 }
 
-pub trait FileIOStreamExt: IsA<FileIOStream> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::FileIOStream>> Sealed for T {}
+}
+
+pub trait FileIOStreamExt: IsA<FileIOStream> + sealed::Sealed + 'static {
     #[doc(alias = "g_file_io_stream_get_etag")]
     #[doc(alias = "get_etag")]
     fn etag(&self) -> Option<glib::GString> {
@@ -79,23 +84,18 @@ pub trait FileIOStreamExt: IsA<FileIOStream> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::g_file_io_stream_query_info_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret =
+                ffi::g_file_io_stream_query_info_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = query_info_async_trampoline::<P>;
         unsafe {

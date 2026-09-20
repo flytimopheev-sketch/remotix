@@ -1,6 +1,6 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
-use crate::{InterfaceInfo, TypeInfo, TypeValueTable, gobject_ffi, prelude::*, translate::*};
+use crate::{gobject_ffi, prelude::*, translate::*, InterfaceInfo, TypeInfo, TypeValueTable};
 
 crate::wrapper! {
     #[doc(alias = "GTypePlugin")]
@@ -15,7 +15,12 @@ impl TypePlugin {
     pub const NONE: Option<&'static TypePlugin> = None;
 }
 
-pub trait TypePluginExt: IsA<TypePlugin> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TypePlugin>> Sealed for T {}
+}
+
+pub trait TypePluginExt: IsA<TypePlugin> + sealed::Sealed + 'static {
     #[doc(alias = "g_type_plugin_complete_interface_info")]
     fn complete_interface_info(
         &self,

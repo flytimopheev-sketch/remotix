@@ -224,7 +224,7 @@ pub trait Uninitialized {
 /// Returns an uninitialized value.
 #[inline]
 pub unsafe fn uninitialized<T: Uninitialized>() -> T {
-    unsafe { T::uninitialized() }
+    T::uninitialized()
 }
 
 // rustdoc-stripper-ignore-next
@@ -339,7 +339,11 @@ impl IntoGlib for bool {
 
     #[inline]
     fn into_glib(self) -> ffi::gboolean {
-        if self { ffi::GTRUE } else { ffi::GFALSE }
+        if self {
+            ffi::GTRUE
+        } else {
+            ffi::GFALSE
+        }
     }
 }
 
@@ -712,12 +716,12 @@ pub trait IntoGlibPtr<P: Ptr> {
     // rustdoc-stripper-ignore-next
     /// Transfer: full.
     #[allow(clippy::wrong_self_convention)]
-    fn into_glib_ptr(self) -> P;
+    unsafe fn into_glib_ptr(self) -> P;
 }
 
 impl<P: Ptr, T: IntoGlibPtr<P>> IntoGlibPtr<P> for Option<T> {
     #[inline]
-    fn into_glib_ptr(self) -> P {
+    unsafe fn into_glib_ptr(self) -> P {
         self.map_or(Ptr::from::<()>(ptr::null_mut()), |s| {
             IntoGlibPtr::into_glib_ptr(s)
         })
@@ -1415,7 +1419,7 @@ pub trait FromGlib<G: Copy>: Sized {
 /// Translate a simple type.
 #[inline]
 pub unsafe fn from_glib<G: Copy, T: FromGlib<G>>(val: G) -> T {
-    unsafe { FromGlib::from_glib(val) }
+    FromGlib::from_glib(val)
 }
 
 impl FromGlib<ffi::gboolean> for bool {
@@ -1445,7 +1449,7 @@ pub trait TryFromGlib<G: Copy>: Sized {
 pub unsafe fn try_from_glib<G: Copy, T: TryFromGlib<G>>(
     val: G,
 ) -> Result<T, <T as TryFromGlib<G>>::Error> {
-    unsafe { TryFromGlib::try_from_glib(val) }
+    TryFromGlib::try_from_glib(val)
 }
 
 // rustdoc-stripper-ignore-next
@@ -1464,7 +1468,7 @@ impl std::error::Error for GlibNoneError {}
 impl<G: Copy, T: TryFromGlib<G, Error = GlibNoneError>> FromGlib<G> for Option<T> {
     #[inline]
     unsafe fn from_glib(val: G) -> Self {
-        unsafe { T::try_from_glib(val).ok() }
+        T::try_from_glib(val).ok()
     }
 }
 
@@ -1525,12 +1529,10 @@ impl<G: Copy, I: Error, T: TryFromGlib<G, Error = GlibNoneOrInvalidError<I>>> Fr
 {
     #[inline]
     unsafe fn from_glib(val: G) -> Self {
-        unsafe {
-            match T::try_from_glib(val) {
-                Ok(value) => Ok(Some(value)),
-                Err(GlibNoneOrInvalidError::None) => Ok(None),
-                Err(GlibNoneOrInvalidError::Invalid(err)) => Err(err),
-            }
+        match T::try_from_glib(val) {
+            Ok(value) => Ok(Some(value)),
+            Err(GlibNoneOrInvalidError::None) => Ok(None),
+            Err(GlibNoneOrInvalidError::Invalid(err)) => Err(err),
         }
     }
 }
@@ -1625,7 +1627,7 @@ pub trait FromGlibPtrBorrow<P: Ptr>: Sized {
 /// See [`FromGlibPtrNone`](trait.FromGlibPtrNone.html).
 #[inline]
 pub unsafe fn from_glib_none<P: Ptr, T: FromGlibPtrNone<P>>(ptr: P) -> T {
-    unsafe { FromGlibPtrNone::from_glib_none(ptr) }
+    FromGlibPtrNone::from_glib_none(ptr)
 }
 
 // rustdoc-stripper-ignore-next
@@ -1634,7 +1636,7 @@ pub unsafe fn from_glib_none<P: Ptr, T: FromGlibPtrNone<P>>(ptr: P) -> T {
 /// See [`FromGlibPtrFull`](trait.FromGlibPtrFull.html).
 #[inline]
 pub unsafe fn from_glib_full<P: Ptr, T: FromGlibPtrFull<P>>(ptr: P) -> T {
-    unsafe { FromGlibPtrFull::from_glib_full(ptr) }
+    FromGlibPtrFull::from_glib_full(ptr)
 }
 
 // rustdoc-stripper-ignore-next
@@ -1643,18 +1645,16 @@ pub unsafe fn from_glib_full<P: Ptr, T: FromGlibPtrFull<P>>(ptr: P) -> T {
 /// See [`FromGlibPtrBorrow`](trait.FromGlibPtrBorrow.html).
 #[inline]
 pub unsafe fn from_glib_borrow<P: Ptr, T: FromGlibPtrBorrow<P>>(ptr: P) -> Borrowed<T> {
-    unsafe { FromGlibPtrBorrow::from_glib_borrow(ptr) }
+    FromGlibPtrBorrow::from_glib_borrow(ptr)
 }
 
 impl<P: Ptr, T: FromGlibPtrNone<P>> FromGlibPtrNone<P> for Option<T> {
     #[inline]
     unsafe fn from_glib_none(ptr: P) -> Option<T> {
-        unsafe {
-            if ptr.is_null() {
-                None
-            } else {
-                Some(from_glib_none(ptr))
-            }
+        if ptr.is_null() {
+            None
+        } else {
+            Some(from_glib_none(ptr))
         }
     }
 }
@@ -1662,13 +1662,11 @@ impl<P: Ptr, T: FromGlibPtrNone<P>> FromGlibPtrNone<P> for Option<T> {
 impl<P: Ptr, T: FromGlibPtrBorrow<P>> FromGlibPtrBorrow<P> for Option<T> {
     #[inline]
     unsafe fn from_glib_borrow(ptr: P) -> Borrowed<Option<T>> {
-        unsafe {
-            if ptr.is_null() {
-                Borrowed::new(None)
-            } else {
-                let val = T::from_glib_borrow(ptr);
-                Borrowed::new(Some(val.into_inner()))
-            }
+        if ptr.is_null() {
+            Borrowed::new(None)
+        } else {
+            let val = T::from_glib_borrow(ptr);
+            Borrowed::new(Some(val.into_inner()))
         }
     }
 }
@@ -1676,12 +1674,10 @@ impl<P: Ptr, T: FromGlibPtrBorrow<P>> FromGlibPtrBorrow<P> for Option<T> {
 impl<P: Ptr, T: FromGlibPtrFull<P>> FromGlibPtrFull<P> for Option<T> {
     #[inline]
     unsafe fn from_glib_full(ptr: P) -> Option<T> {
-        unsafe {
-            if ptr.is_null() {
-                None
-            } else {
-                Some(from_glib_full(ptr))
-            }
+        if ptr.is_null() {
+            None
+        } else {
+            Some(from_glib_full(ptr))
         }
     }
 }
@@ -1689,10 +1685,8 @@ impl<P: Ptr, T: FromGlibPtrFull<P>> FromGlibPtrFull<P> for Option<T> {
 impl FromGlibPtrNone<*const c_char> for String {
     #[inline]
     unsafe fn from_glib_none(ptr: *const c_char) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            Self::from_utf8_lossy(CStr::from_ptr(ptr).to_bytes()).into_owned()
-        }
+        debug_assert!(!ptr.is_null());
+        Self::from_utf8_lossy(CStr::from_ptr(ptr).to_bytes()).into_owned()
     }
 }
 
@@ -1700,11 +1694,9 @@ impl FromGlibPtrNone<*const c_char> for String {
 impl FromGlibPtrFull<*const c_char> for String {
     #[inline]
     unsafe fn from_glib_full(ptr: *const c_char) -> Self {
-        unsafe {
-            let res = from_glib_none(ptr);
-            ffi::g_free(ptr as *mut _);
-            res
-        }
+        let res = from_glib_none(ptr);
+        ffi::g_free(ptr as *mut _);
+        res
     }
 }
 
@@ -1712,10 +1704,8 @@ impl FromGlibPtrFull<*const c_char> for String {
 impl FromGlibPtrNone<*mut c_char> for String {
     #[inline]
     unsafe fn from_glib_none(ptr: *mut c_char) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            Self::from_utf8_lossy(CStr::from_ptr(ptr).to_bytes()).into_owned()
-        }
+        debug_assert!(!ptr.is_null());
+        Self::from_utf8_lossy(CStr::from_ptr(ptr).to_bytes()).into_owned()
     }
 }
 
@@ -1723,234 +1713,202 @@ impl FromGlibPtrNone<*mut c_char> for String {
 impl FromGlibPtrFull<*mut c_char> for String {
     #[inline]
     unsafe fn from_glib_full(ptr: *mut c_char) -> Self {
-        unsafe {
-            let res = from_glib_none(ptr);
-            ffi::g_free(ptr as *mut _);
-            res
-        }
+        let res = from_glib_none(ptr);
+        ffi::g_free(ptr as *mut _);
+        res
     }
 }
 
 #[cfg(not(windows))]
 pub(crate) unsafe fn c_to_path_buf(ptr: *const c_char) -> PathBuf {
-    unsafe {
-        debug_assert!(!ptr.is_null());
+    debug_assert!(!ptr.is_null());
 
-        // GLib paths on UNIX are always in the local encoding, which can be
-        // UTF-8 or anything else really, but is always a NUL-terminated string
-        // and must not contain any other NUL bytes
-        OsString::from_vec(CStr::from_ptr(ptr).to_bytes().to_vec()).into()
-    }
+    // GLib paths on UNIX are always in the local encoding, which can be
+    // UTF-8 or anything else really, but is always a NUL-terminated string
+    // and must not contain any other NUL bytes
+    OsString::from_vec(CStr::from_ptr(ptr).to_bytes().to_vec()).into()
 }
 
 #[cfg(windows)]
 pub(crate) unsafe fn c_to_path_buf(ptr: *const c_char) -> PathBuf {
     debug_assert!(!ptr.is_null());
 
-    unsafe {
-        // GLib paths on Windows are always UTF-8, as such we can convert to a String
-        // first and then go to a PathBuf from there. Unless there is a bug
-        // in the C library, the conversion from UTF-8 can never fail so we can
-        // safely panic here if that ever happens
-        String::from_utf8(CStr::from_ptr(ptr).to_bytes().into())
-            .expect("Invalid, non-UTF8 path")
-            .into()
-    }
+    // GLib paths on Windows are always UTF-8, as such we can convert to a String
+    // first and then go to a PathBuf from there. Unless there is a bug
+    // in the C library, the conversion from UTF-8 can never fail so we can
+    // safely panic here if that ever happens
+    String::from_utf8(CStr::from_ptr(ptr).to_bytes().into())
+        .expect("Invalid, non-UTF8 path")
+        .into()
 }
 
 #[cfg(not(windows))]
 pub(crate) unsafe fn c_to_os_string(ptr: *const c_char) -> OsString {
-    unsafe {
-        debug_assert!(!ptr.is_null());
+    debug_assert!(!ptr.is_null());
 
-        // GLib OS string (environment strings) on UNIX are always in the local encoding,
-        // which can be UTF-8 or anything else really, but is always a NUL-terminated string
-        // and must not contain any other NUL bytes
-        OsString::from_vec(CStr::from_ptr(ptr).to_bytes().to_vec())
-    }
+    // GLib OS string (environment strings) on UNIX are always in the local encoding,
+    // which can be UTF-8 or anything else really, but is always a NUL-terminated string
+    // and must not contain any other NUL bytes
+    OsString::from_vec(CStr::from_ptr(ptr).to_bytes().to_vec())
 }
 
 #[cfg(windows)]
 pub(crate) unsafe fn c_to_os_string(ptr: *const c_char) -> OsString {
     debug_assert!(!ptr.is_null());
 
-    unsafe {
-        // GLib OS string (environment strings) on Windows are always UTF-8,
-        // as such we can convert to a String
-        // first and then go to a OsString from there. Unless there is a bug
-        // in the C library, the conversion from UTF-8 can never fail so we can
-        // safely panic here if that ever happens
-        String::from_utf8(CStr::from_ptr(ptr).to_bytes().into())
-            .expect("Invalid, non-UTF8 path")
-            .into()
-    }
+    // GLib OS string (environment strings) on Windows are always UTF-8,
+    // as such we can convert to a String
+    // first and then go to a OsString from there. Unless there is a bug
+    // in the C library, the conversion from UTF-8 can never fail so we can
+    // safely panic here if that ever happens
+    String::from_utf8(CStr::from_ptr(ptr).to_bytes().into())
+        .expect("Invalid, non-UTF8 path")
+        .into()
 }
 
 impl FromGlibPtrNone<*const c_char> for PathBuf {
     #[inline]
     unsafe fn from_glib_none(ptr: *const c_char) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            c_to_path_buf(ptr)
-        }
+        debug_assert!(!ptr.is_null());
+        c_to_path_buf(ptr)
     }
 }
 
 impl FromGlibPtrFull<*const c_char> for PathBuf {
     #[inline]
     unsafe fn from_glib_full(ptr: *const c_char) -> Self {
-        unsafe {
-            let res = from_glib_none(ptr);
-            ffi::g_free(ptr as *mut _);
-            res
-        }
+        let res = from_glib_none(ptr);
+        ffi::g_free(ptr as *mut _);
+        res
     }
 }
 
 impl FromGlibPtrNone<*mut c_char> for PathBuf {
     #[inline]
     unsafe fn from_glib_none(ptr: *mut c_char) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            c_to_path_buf(ptr)
-        }
+        debug_assert!(!ptr.is_null());
+        c_to_path_buf(ptr)
     }
 }
 
 impl FromGlibPtrFull<*mut c_char> for PathBuf {
     #[inline]
     unsafe fn from_glib_full(ptr: *mut c_char) -> Self {
-        unsafe {
-            let res = from_glib_none(ptr);
-            ffi::g_free(ptr as *mut _);
-            res
-        }
+        let res = from_glib_none(ptr);
+        ffi::g_free(ptr as *mut _);
+        res
     }
 }
 
 #[cfg(not(windows))]
 pub(crate) unsafe fn c_to_path_buf_num(ptr: *const c_char, num: usize) -> PathBuf {
-    unsafe {
-        debug_assert!(!ptr.is_null());
-        let slice = std::slice::from_raw_parts(ptr as *const u8, num);
-        OsString::from_vec(slice.to_vec()).into()
-    }
+    debug_assert!(!ptr.is_null());
+    let slice = std::slice::from_raw_parts(ptr as *const u8, num);
+    OsString::from_vec(slice.to_vec()).into()
 }
 
 #[cfg(windows)]
 pub(crate) unsafe fn c_to_path_buf_num(ptr: *const c_char, num: usize) -> PathBuf {
-    unsafe {
-        debug_assert!(!ptr.is_null());
-        let slice = std::slice::from_raw_parts(ptr as *const u8, num);
-        String::from_utf8(slice.into())
-            .expect("Invalid, non-UTF8 path")
-            .into()
-    }
+    debug_assert!(!ptr.is_null());
+    let slice = std::slice::from_raw_parts(ptr as *const u8, num);
+    String::from_utf8(slice.into())
+        .expect("Invalid, non-UTF8 path")
+        .into()
 }
 
 #[doc(hidden)]
 impl FromGlibContainer<*const c_char, *const i8> for PathBuf {
     unsafe fn from_glib_none_num(ptr: *const i8, num: usize) -> Self {
-        unsafe { c_to_path_buf_num(ptr as *const _, num) }
+        c_to_path_buf_num(ptr as *const _, num)
     }
 
     unsafe fn from_glib_container_num(ptr: *const i8, num: usize) -> Self {
-        unsafe { c_to_path_buf_num(ptr as *const _, num) }
+        c_to_path_buf_num(ptr as *const _, num)
     }
 
     unsafe fn from_glib_full_num(ptr: *const i8, num: usize) -> Self {
-        unsafe {
-            let res = c_to_path_buf_num(ptr as *const _, num);
-            ffi::g_free(ptr as *mut _);
-            res
-        }
+        let res = c_to_path_buf_num(ptr as *const _, num);
+        ffi::g_free(ptr as *mut _);
+        res
     }
 }
 
 #[doc(hidden)]
 impl FromGlibContainer<*const c_char, *mut i8> for PathBuf {
     unsafe fn from_glib_none_num(ptr: *mut i8, num: usize) -> Self {
-        unsafe { FromGlibContainer::from_glib_none_num(ptr as *const i8, num) }
+        FromGlibContainer::from_glib_none_num(ptr as *const i8, num)
     }
 
     unsafe fn from_glib_container_num(ptr: *mut i8, num: usize) -> Self {
-        unsafe { FromGlibContainer::from_glib_container_num(ptr as *const i8, num) }
+        FromGlibContainer::from_glib_container_num(ptr as *const i8, num)
     }
 
     unsafe fn from_glib_full_num(ptr: *mut i8, num: usize) -> Self {
-        unsafe { FromGlibContainer::from_glib_full_num(ptr as *const i8, num) }
+        FromGlibContainer::from_glib_full_num(ptr as *const i8, num)
     }
 }
 
 #[doc(hidden)]
 impl FromGlibContainer<*const c_char, *const u8> for PathBuf {
     unsafe fn from_glib_none_num(ptr: *const u8, num: usize) -> Self {
-        unsafe { FromGlibContainer::from_glib_none_num(ptr as *const i8, num) }
+        FromGlibContainer::from_glib_none_num(ptr as *const i8, num)
     }
 
     unsafe fn from_glib_container_num(ptr: *const u8, num: usize) -> Self {
-        unsafe { FromGlibContainer::from_glib_container_num(ptr as *const i8, num) }
+        FromGlibContainer::from_glib_container_num(ptr as *const i8, num)
     }
 
     unsafe fn from_glib_full_num(ptr: *const u8, num: usize) -> Self {
-        unsafe { FromGlibContainer::from_glib_full_num(ptr as *const i8, num) }
+        FromGlibContainer::from_glib_full_num(ptr as *const i8, num)
     }
 }
 
 #[doc(hidden)]
 impl FromGlibContainer<*const c_char, *mut u8> for PathBuf {
     unsafe fn from_glib_none_num(ptr: *mut u8, num: usize) -> Self {
-        unsafe { FromGlibContainer::from_glib_none_num(ptr as *const i8, num) }
+        FromGlibContainer::from_glib_none_num(ptr as *const i8, num)
     }
 
     unsafe fn from_glib_container_num(ptr: *mut u8, num: usize) -> Self {
-        unsafe { FromGlibContainer::from_glib_container_num(ptr as *const i8, num) }
+        FromGlibContainer::from_glib_container_num(ptr as *const i8, num)
     }
 
     unsafe fn from_glib_full_num(ptr: *mut u8, num: usize) -> Self {
-        unsafe { FromGlibContainer::from_glib_full_num(ptr as *const i8, num) }
+        FromGlibContainer::from_glib_full_num(ptr as *const i8, num)
     }
 }
 
 impl FromGlibPtrNone<*const c_char> for OsString {
     #[inline]
     unsafe fn from_glib_none(ptr: *const c_char) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            c_to_os_string(ptr)
-        }
+        debug_assert!(!ptr.is_null());
+        c_to_os_string(ptr)
     }
 }
 
 impl FromGlibPtrFull<*const c_char> for OsString {
     #[inline]
     unsafe fn from_glib_full(ptr: *const c_char) -> Self {
-        unsafe {
-            let res = from_glib_none(ptr);
-            ffi::g_free(ptr as *mut _);
-            res
-        }
+        let res = from_glib_none(ptr);
+        ffi::g_free(ptr as *mut _);
+        res
     }
 }
 
 impl FromGlibPtrNone<*mut c_char> for OsString {
     #[inline]
     unsafe fn from_glib_none(ptr: *mut c_char) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            c_to_os_string(ptr)
-        }
+        debug_assert!(!ptr.is_null());
+        c_to_os_string(ptr)
     }
 }
 
 impl FromGlibPtrFull<*mut c_char> for OsString {
     #[inline]
     unsafe fn from_glib_full(ptr: *mut c_char) -> Self {
-        unsafe {
-            let res = from_glib_none(ptr);
-            ffi::g_free(ptr as *mut _);
-            res
-        }
+        let res = from_glib_none(ptr);
+        ffi::g_free(ptr as *mut _);
+        res
     }
 }
 
@@ -1985,17 +1943,15 @@ pub trait FromGlibPtrContainer<P: Ptr, PP: Ptr>: FromGlibContainer<P, PP> + Size
 }
 
 pub unsafe fn c_ptr_array_len<P: Ptr>(mut ptr: *const P) -> usize {
-    unsafe {
-        let mut len = 0;
+    let mut len = 0;
 
-        if !ptr.is_null() {
-            while !(*ptr).is_null() {
-                len += 1;
-                ptr = ptr.offset(1);
-            }
+    if !ptr.is_null() {
+        while !(*ptr).is_null() {
+            len += 1;
+            ptr = ptr.offset(1);
         }
-        len
     }
+    len
 }
 
 pub trait FromGlibContainerAsVec<T, P: Ptr>
@@ -2018,19 +1974,17 @@ where
 
 impl FromGlibContainerAsVec<bool, *const ffi::gboolean> for bool {
     unsafe fn from_glib_none_num_as_vec(ptr: *const ffi::gboolean, num: usize) -> Vec<Self> {
-        unsafe {
-            if num == 0 || ptr.is_null() {
-                return Vec::new();
-            }
-
-            let mut res = Vec::<Self>::with_capacity(num);
-            let res_ptr = res.as_mut_ptr();
-            for i in 0..num {
-                *res_ptr.add(i) = from_glib(ptr::read(ptr.add(i)));
-            }
-            res.set_len(num);
-            res
+        if num == 0 || ptr.is_null() {
+            return Vec::new();
         }
+
+        let mut res = Vec::<Self>::with_capacity(num);
+        let res_ptr = res.as_mut_ptr();
+        for i in 0..num {
+            *res_ptr.add(i) = from_glib(ptr::read(ptr.add(i)));
+        }
+        res.set_len(num);
+        res
     }
 
     unsafe fn from_glib_container_num_as_vec(_: *const ffi::gboolean, _: usize) -> Vec<Self> {
@@ -2046,19 +2000,17 @@ impl FromGlibContainerAsVec<bool, *const ffi::gboolean> for bool {
 
 impl FromGlibContainerAsVec<bool, *mut ffi::gboolean> for bool {
     unsafe fn from_glib_none_num_as_vec(ptr: *mut ffi::gboolean, num: usize) -> Vec<Self> {
-        unsafe { FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr as *const _, num) }
+        FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr as *const _, num)
     }
 
     unsafe fn from_glib_container_num_as_vec(ptr: *mut ffi::gboolean, num: usize) -> Vec<Self> {
-        unsafe {
-            let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
-            ffi::g_free(ptr as *mut _);
-            res
-        }
+        let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
+        ffi::g_free(ptr as *mut _);
+        res
     }
 
     unsafe fn from_glib_full_num_as_vec(ptr: *mut ffi::gboolean, num: usize) -> Vec<Self> {
-        unsafe { FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, num) }
+        FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, num)
     }
 }
 
@@ -2070,17 +2022,15 @@ macro_rules! impl_from_glib_container_as_vec_fundamental {
 
         impl FromGlibContainerAsVec<$name, *const $name> for $name {
             unsafe fn from_glib_none_num_as_vec(ptr: *const $name, num: usize) -> Vec<Self> {
-                unsafe {
-                    if num == 0 || ptr.is_null() {
-                        return Vec::new();
-                    }
-
-                    let mut res = Vec::with_capacity(num);
-                    let res_ptr = res.as_mut_ptr();
-                    std::ptr::copy_nonoverlapping(ptr, res_ptr, num);
-                    res.set_len(num);
-                    res
+                if num == 0 || ptr.is_null() {
+                    return Vec::new();
                 }
+
+                let mut res = Vec::with_capacity(num);
+                let res_ptr = res.as_mut_ptr();
+                std::ptr::copy_nonoverlapping(ptr, res_ptr, num);
+                res.set_len(num);
+                res
             }
 
             unsafe fn from_glib_container_num_as_vec(_: *const $name, _: usize) -> Vec<Self> {
@@ -2096,19 +2046,17 @@ macro_rules! impl_from_glib_container_as_vec_fundamental {
 
         impl FromGlibContainerAsVec<$name, *mut $name> for $name {
             unsafe fn from_glib_none_num_as_vec(ptr: *mut $name, num: usize) -> Vec<Self> {
-                unsafe { FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr as *const _, num) }
+                FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr as *const _, num)
             }
 
             unsafe fn from_glib_container_num_as_vec(ptr: *mut $name, num: usize) -> Vec<Self> {
-                unsafe {
-                    let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
-                    ffi::g_free(ptr as *mut _);
-                    res
-                }
+                let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
+                ffi::g_free(ptr as *mut _);
+                res
             }
 
             unsafe fn from_glib_full_num_as_vec(ptr: *mut $name, num: usize) -> Vec<Self> {
-                unsafe { FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, num) }
+                FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, num)
             }
         }
     };
@@ -2129,22 +2077,20 @@ macro_rules! impl_from_glib_container_as_vec_string {
     ($name:ty, $ffi_name:ty) => {
         impl FromGlibContainerAsVec<$ffi_name, *const $ffi_name> for $name {
             unsafe fn from_glib_none_num_as_vec(ptr: *const $ffi_name, num: usize) -> Vec<Self> {
-                unsafe {
-                    if num == 0 || ptr.is_null() {
-                        return Vec::new();
-                    }
-
-                    let mut res = Vec::<Self>::with_capacity(num);
-                    let res_ptr = res.as_mut_ptr();
-                    for i in 0..num {
-                        std::ptr::write(
-                            res_ptr.add(i),
-                            from_glib_none(ptr::read(ptr.add(i)) as $ffi_name),
-                        );
-                    }
-                    res.set_len(num);
-                    res
+                if num == 0 || ptr.is_null() {
+                    return Vec::new();
                 }
+
+                let mut res = Vec::<Self>::with_capacity(num);
+                let res_ptr = res.as_mut_ptr();
+                for i in 0..num {
+                    std::ptr::write(
+                        res_ptr.add(i),
+                        from_glib_none(ptr::read(ptr.add(i)) as $ffi_name),
+                    );
+                }
+                res.set_len(num);
+                res
             }
 
             unsafe fn from_glib_container_num_as_vec(_: *const $ffi_name, _: usize) -> Vec<Self> {
@@ -2160,82 +2106,60 @@ macro_rules! impl_from_glib_container_as_vec_string {
 
         impl FromGlibContainerAsVec<$ffi_name, *mut $ffi_name> for $name {
             unsafe fn from_glib_none_num_as_vec(ptr: *mut $ffi_name, num: usize) -> Vec<Self> {
-                unsafe { FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr as *const _, num) }
+                FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr as *const _, num)
             }
 
             unsafe fn from_glib_container_num_as_vec(ptr: *mut $ffi_name, num: usize) -> Vec<Self> {
-                unsafe {
-                    let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
-                    ffi::g_free(ptr as *mut _);
-                    res
-                }
+                let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
+                ffi::g_free(ptr as *mut _);
+                res
             }
 
             unsafe fn from_glib_full_num_as_vec(ptr: *mut $ffi_name, num: usize) -> Vec<Self> {
-                unsafe {
-                    if num == 0 || ptr.is_null() {
-                        ffi::g_free(ptr as *mut _);
-                        return Vec::new();
-                    }
-
-                    let mut res = Vec::<Self>::with_capacity(num);
-                    let res_ptr = res.as_mut_ptr();
-                    for i in 0..num {
-                        std::ptr::write(
-                            res_ptr.add(i),
-                            from_glib_full(ptr::read(ptr.add(i)) as $ffi_name),
-                        );
-                    }
-                    res.set_len(num);
+                if num == 0 || ptr.is_null() {
                     ffi::g_free(ptr as *mut _);
-                    res
+                    return Vec::new();
                 }
+
+                let mut res = Vec::<Self>::with_capacity(num);
+                let res_ptr = res.as_mut_ptr();
+                for i in 0..num {
+                    std::ptr::write(
+                        res_ptr.add(i),
+                        from_glib_full(ptr::read(ptr.add(i)) as $ffi_name),
+                    );
+                }
+                res.set_len(num);
+                ffi::g_free(ptr as *mut _);
+                res
             }
         }
 
         impl FromGlibPtrArrayContainerAsVec<$ffi_name, *mut $ffi_name> for $name {
             unsafe fn from_glib_none_as_vec(ptr: *mut $ffi_name) -> Vec<Self> {
-                unsafe {
-                    FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, c_ptr_array_len(ptr))
-                }
+                FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, c_ptr_array_len(ptr))
             }
 
             unsafe fn from_glib_container_as_vec(ptr: *mut $ffi_name) -> Vec<Self> {
-                unsafe {
-                    FromGlibContainerAsVec::from_glib_container_num_as_vec(
-                        ptr,
-                        c_ptr_array_len(ptr),
-                    )
-                }
+                FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, c_ptr_array_len(ptr))
             }
 
             unsafe fn from_glib_full_as_vec(ptr: *mut $ffi_name) -> Vec<Self> {
-                unsafe {
-                    FromGlibContainerAsVec::from_glib_full_num_as_vec(ptr, c_ptr_array_len(ptr))
-                }
+                FromGlibContainerAsVec::from_glib_full_num_as_vec(ptr, c_ptr_array_len(ptr))
             }
         }
 
         impl FromGlibPtrArrayContainerAsVec<$ffi_name, *const $ffi_name> for $name {
             unsafe fn from_glib_none_as_vec(ptr: *const $ffi_name) -> Vec<Self> {
-                unsafe {
-                    FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, c_ptr_array_len(ptr))
-                }
+                FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, c_ptr_array_len(ptr))
             }
 
             unsafe fn from_glib_container_as_vec(ptr: *const $ffi_name) -> Vec<Self> {
-                unsafe {
-                    FromGlibContainerAsVec::from_glib_container_num_as_vec(
-                        ptr,
-                        c_ptr_array_len(ptr),
-                    )
-                }
+                FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, c_ptr_array_len(ptr))
             }
 
             unsafe fn from_glib_full_as_vec(ptr: *const $ffi_name) -> Vec<Self> {
-                unsafe {
-                    FromGlibContainerAsVec::from_glib_full_num_as_vec(ptr, c_ptr_array_len(ptr))
-                }
+                FromGlibContainerAsVec::from_glib_full_num_as_vec(ptr, c_ptr_array_len(ptr))
             }
         }
     };
@@ -2252,15 +2176,15 @@ impl_from_glib_container_as_vec_string!(OsString, *mut c_char);
 
 impl<P, PP: Ptr, T: FromGlibContainerAsVec<P, PP>> FromGlibContainer<P, PP> for Vec<T> {
     unsafe fn from_glib_none_num(ptr: PP, num: usize) -> Vec<T> {
-        unsafe { FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num) }
+        FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num)
     }
 
     unsafe fn from_glib_container_num(ptr: PP, num: usize) -> Vec<T> {
-        unsafe { FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, num) }
+        FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, num)
     }
 
     unsafe fn from_glib_full_num(ptr: PP, num: usize) -> Vec<T> {
-        unsafe { FromGlibContainerAsVec::from_glib_full_num_as_vec(ptr, num) }
+        FromGlibContainerAsVec::from_glib_full_num_as_vec(ptr, num)
     }
 }
 
@@ -2268,15 +2192,15 @@ impl<P: Ptr, PP: Ptr, T: FromGlibPtrArrayContainerAsVec<P, PP>> FromGlibPtrConta
     for Vec<T>
 {
     unsafe fn from_glib_none(ptr: PP) -> Vec<T> {
-        unsafe { FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(ptr) }
+        FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(ptr)
     }
 
     unsafe fn from_glib_container(ptr: PP) -> Vec<T> {
-        unsafe { FromGlibPtrArrayContainerAsVec::from_glib_container_as_vec(ptr) }
+        FromGlibPtrArrayContainerAsVec::from_glib_container_as_vec(ptr)
     }
 
     unsafe fn from_glib_full(ptr: PP) -> Vec<T> {
-        unsafe { FromGlibPtrArrayContainerAsVec::from_glib_full_as_vec(ptr) }
+        FromGlibPtrArrayContainerAsVec::from_glib_full_as_vec(ptr)
     }
 }
 
@@ -2287,55 +2211,49 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_num_as_vec(mut ptr: *mut ffi::GSList, num: usize) -> Vec<T> {
-        unsafe {
-            if num == 0 || ptr.is_null() {
-                return Vec::new();
-            }
-            let mut res = Vec::with_capacity(num);
-            for _ in 0..num {
-                if ptr.is_null() {
-                    break;
-                }
-
-                let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
-                if !item_ptr.is_null() {
-                    res.push(from_glib_none(item_ptr));
-                }
-                ptr = (*ptr).next;
-            }
-            res
+        if num == 0 || ptr.is_null() {
+            return Vec::new();
         }
+        let mut res = Vec::with_capacity(num);
+        for _ in 0..num {
+            if ptr.is_null() {
+                break;
+            }
+
+            let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
+            if !item_ptr.is_null() {
+                res.push(from_glib_none(item_ptr));
+            }
+            ptr = (*ptr).next;
+        }
+        res
     }
 
     unsafe fn from_glib_container_num_as_vec(ptr: *mut ffi::GSList, num: usize) -> Vec<T> {
-        unsafe {
-            let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
-            ffi::g_slist_free(ptr);
-            res
-        }
+        let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
+        ffi::g_slist_free(ptr);
+        res
     }
 
     unsafe fn from_glib_full_num_as_vec(mut ptr: *mut ffi::GSList, num: usize) -> Vec<T> {
-        unsafe {
-            if num == 0 || ptr.is_null() {
-                return Vec::new();
-            }
-            let orig_ptr = ptr;
-            let mut res = Vec::with_capacity(num);
-            for _ in 0..num {
-                if ptr.is_null() {
-                    break;
-                }
-
-                let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
-                if !item_ptr.is_null() {
-                    res.push(from_glib_full(item_ptr));
-                }
-                ptr = (*ptr).next;
-            }
-            ffi::g_slist_free(orig_ptr);
-            res
+        if num == 0 || ptr.is_null() {
+            return Vec::new();
         }
+        let orig_ptr = ptr;
+        let mut res = Vec::with_capacity(num);
+        for _ in 0..num {
+            if ptr.is_null() {
+                break;
+            }
+
+            let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
+            if !item_ptr.is_null() {
+                res.push(from_glib_full(item_ptr));
+            }
+            ptr = (*ptr).next;
+        }
+        ffi::g_slist_free(orig_ptr);
+        res
     }
 }
 
@@ -2346,41 +2264,35 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_as_vec(mut ptr: *mut ffi::GSList) -> Vec<T> {
-        unsafe {
-            let mut res = Vec::new();
-            while !ptr.is_null() {
-                let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
-                if !item_ptr.is_null() {
-                    res.push(from_glib_none(item_ptr));
-                }
-                ptr = (*ptr).next;
+        let mut res = Vec::new();
+        while !ptr.is_null() {
+            let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
+            if !item_ptr.is_null() {
+                res.push(from_glib_none(item_ptr));
             }
-            res
+            ptr = (*ptr).next;
         }
+        res
     }
 
     unsafe fn from_glib_container_as_vec(ptr: *mut ffi::GSList) -> Vec<T> {
-        unsafe {
-            let res = FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(ptr);
-            ffi::g_slist_free(ptr);
-            res
-        }
+        let res = FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(ptr);
+        ffi::g_slist_free(ptr);
+        res
     }
 
     unsafe fn from_glib_full_as_vec(mut ptr: *mut ffi::GSList) -> Vec<T> {
-        unsafe {
-            let orig_ptr = ptr;
-            let mut res = Vec::new();
-            while !ptr.is_null() {
-                let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
-                if !item_ptr.is_null() {
-                    res.push(from_glib_full(item_ptr));
-                }
-                ptr = (*ptr).next;
+        let orig_ptr = ptr;
+        let mut res = Vec::new();
+        while !ptr.is_null() {
+            let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
+            if !item_ptr.is_null() {
+                res.push(from_glib_full(item_ptr));
             }
-            ffi::g_slist_free(orig_ptr);
-            res
+            ptr = (*ptr).next;
         }
+        ffi::g_slist_free(orig_ptr);
+        res
     }
 }
 
@@ -2391,55 +2303,49 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_num_as_vec(mut ptr: *mut ffi::GList, num: usize) -> Vec<T> {
-        unsafe {
-            if num == 0 || ptr.is_null() {
-                return Vec::new();
-            }
-            let mut res = Vec::with_capacity(num);
-            for _ in 0..num {
-                if ptr.is_null() {
-                    break;
-                }
-
-                let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
-                if !item_ptr.is_null() {
-                    res.push(from_glib_none(item_ptr));
-                }
-                ptr = (*ptr).next;
-            }
-            res
+        if num == 0 || ptr.is_null() {
+            return Vec::new();
         }
+        let mut res = Vec::with_capacity(num);
+        for _ in 0..num {
+            if ptr.is_null() {
+                break;
+            }
+
+            let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
+            if !item_ptr.is_null() {
+                res.push(from_glib_none(item_ptr));
+            }
+            ptr = (*ptr).next;
+        }
+        res
     }
 
     unsafe fn from_glib_container_num_as_vec(ptr: *mut ffi::GList, num: usize) -> Vec<T> {
-        unsafe {
-            let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
-            ffi::g_list_free(ptr);
-            res
-        }
+        let res = FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
+        ffi::g_list_free(ptr);
+        res
     }
 
     unsafe fn from_glib_full_num_as_vec(mut ptr: *mut ffi::GList, num: usize) -> Vec<T> {
-        unsafe {
-            if num == 0 || ptr.is_null() {
-                return Vec::new();
-            }
-            let orig_ptr = ptr;
-            let mut res = Vec::with_capacity(num);
-            for _ in 0..num {
-                if ptr.is_null() {
-                    break;
-                }
-
-                let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
-                if !item_ptr.is_null() {
-                    res.push(from_glib_full(item_ptr));
-                }
-                ptr = (*ptr).next;
-            }
-            ffi::g_list_free(orig_ptr);
-            res
+        if num == 0 || ptr.is_null() {
+            return Vec::new();
         }
+        let orig_ptr = ptr;
+        let mut res = Vec::with_capacity(num);
+        for _ in 0..num {
+            if ptr.is_null() {
+                break;
+            }
+
+            let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
+            if !item_ptr.is_null() {
+                res.push(from_glib_full(item_ptr));
+            }
+            ptr = (*ptr).next;
+        }
+        ffi::g_list_free(orig_ptr);
+        res
     }
 }
 
@@ -2450,41 +2356,35 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_as_vec(mut ptr: *mut ffi::GList) -> Vec<T> {
-        unsafe {
-            let mut res = Vec::new();
-            while !ptr.is_null() {
-                let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
-                if !item_ptr.is_null() {
-                    res.push(from_glib_none(item_ptr));
-                }
-                ptr = (*ptr).next;
+        let mut res = Vec::new();
+        while !ptr.is_null() {
+            let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
+            if !item_ptr.is_null() {
+                res.push(from_glib_none(item_ptr));
             }
-            res
+            ptr = (*ptr).next;
         }
+        res
     }
 
     unsafe fn from_glib_container_as_vec(ptr: *mut ffi::GList) -> Vec<T> {
-        unsafe {
-            let res = FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(ptr);
-            ffi::g_list_free(ptr);
-            res
-        }
+        let res = FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(ptr);
+        ffi::g_list_free(ptr);
+        res
     }
 
     unsafe fn from_glib_full_as_vec(mut ptr: *mut ffi::GList) -> Vec<T> {
-        unsafe {
-            let orig_ptr = ptr;
-            let mut res = Vec::new();
-            while !ptr.is_null() {
-                let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
-                if !item_ptr.is_null() {
-                    res.push(from_glib_full(item_ptr));
-                }
-                ptr = (*ptr).next;
+        let orig_ptr = ptr;
+        let mut res = Vec::new();
+        while !ptr.is_null() {
+            let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from((*ptr).data);
+            if !item_ptr.is_null() {
+                res.push(from_glib_full(item_ptr));
             }
-            ffi::g_list_free(orig_ptr);
-            res
+            ptr = (*ptr).next;
         }
+        ffi::g_list_free(orig_ptr);
+        res
     }
 }
 
@@ -2495,7 +2395,7 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_num_as_vec(ptr: *const ffi::GList, num: usize) -> Vec<T> {
-        unsafe { FromGlibContainerAsVec::from_glib_none_num_as_vec(mut_override(ptr), num) }
+        FromGlibContainerAsVec::from_glib_none_num_as_vec(mut_override(ptr), num)
     }
 
     unsafe fn from_glib_container_num_as_vec(_: *const ffi::GList, _: usize) -> Vec<T> {
@@ -2516,7 +2416,7 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_as_vec(ptr: *const ffi::GList) -> Vec<T> {
-        unsafe { FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(mut_override(ptr)) }
+        FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(mut_override(ptr))
     }
 
     unsafe fn from_glib_container_as_vec(_: *const ffi::GList) -> Vec<T> {
@@ -2537,7 +2437,7 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_num_as_vec(ptr: *const ffi::GSList, num: usize) -> Vec<T> {
-        unsafe { FromGlibContainerAsVec::from_glib_none_num_as_vec(mut_override(ptr), num) }
+        FromGlibContainerAsVec::from_glib_none_num_as_vec(mut_override(ptr), num)
     }
 
     unsafe fn from_glib_container_num_as_vec(_: *const ffi::GSList, _: usize) -> Vec<T> {
@@ -2558,7 +2458,7 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_as_vec(ptr: *const ffi::GSList) -> Vec<T> {
-        unsafe { FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(mut_override(ptr)) }
+        FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(mut_override(ptr))
     }
 
     unsafe fn from_glib_container_as_vec(_: *const ffi::GSList) -> Vec<T> {
@@ -2575,55 +2475,49 @@ where
 #[allow(clippy::implicit_hasher)]
 impl FromGlibContainer<*const c_char, *mut ffi::GHashTable> for HashMap<String, String> {
     unsafe fn from_glib_none_num(ptr: *mut ffi::GHashTable, _: usize) -> Self {
-        unsafe { FromGlibPtrContainer::from_glib_none(ptr) }
+        FromGlibPtrContainer::from_glib_none(ptr)
     }
 
     unsafe fn from_glib_container_num(ptr: *mut ffi::GHashTable, _: usize) -> Self {
-        unsafe { FromGlibPtrContainer::from_glib_full(ptr) }
+        FromGlibPtrContainer::from_glib_full(ptr)
     }
 
     unsafe fn from_glib_full_num(ptr: *mut ffi::GHashTable, _: usize) -> Self {
-        unsafe { FromGlibPtrContainer::from_glib_full(ptr) }
+        FromGlibPtrContainer::from_glib_full(ptr)
     }
 }
 
 #[allow(clippy::implicit_hasher)]
 impl FromGlibPtrContainer<*const c_char, *mut ffi::GHashTable> for HashMap<String, String> {
     unsafe fn from_glib_none(ptr: *mut ffi::GHashTable) -> Self {
-        unsafe {
-            unsafe extern "C" fn read_string_hash_table(
-                key: ffi::gpointer,
-                value: ffi::gpointer,
-                hash_map: ffi::gpointer,
-            ) {
-                unsafe {
-                    let key: String = from_glib_none(key as *const c_char);
-                    let value: String = from_glib_none(value as *const c_char);
-                    let hash_map: &mut HashMap<String, String> =
-                        &mut *(hash_map as *mut HashMap<String, String>);
-                    hash_map.insert(key, value);
-                }
-            }
-            let mut map = HashMap::with_capacity(ffi::g_hash_table_size(ptr) as usize);
-            ffi::g_hash_table_foreach(
-                ptr,
-                Some(read_string_hash_table),
-                &mut map as *mut HashMap<String, String> as *mut _,
-            );
-            map
+        unsafe extern "C" fn read_string_hash_table(
+            key: ffi::gpointer,
+            value: ffi::gpointer,
+            hash_map: ffi::gpointer,
+        ) {
+            let key: String = from_glib_none(key as *const c_char);
+            let value: String = from_glib_none(value as *const c_char);
+            let hash_map: &mut HashMap<String, String> =
+                &mut *(hash_map as *mut HashMap<String, String>);
+            hash_map.insert(key, value);
         }
+        let mut map = HashMap::with_capacity(ffi::g_hash_table_size(ptr) as usize);
+        ffi::g_hash_table_foreach(
+            ptr,
+            Some(read_string_hash_table),
+            &mut map as *mut HashMap<String, String> as *mut _,
+        );
+        map
     }
 
     unsafe fn from_glib_container(ptr: *mut ffi::GHashTable) -> Self {
-        unsafe { FromGlibPtrContainer::from_glib_full(ptr) }
+        FromGlibPtrContainer::from_glib_full(ptr)
     }
 
     unsafe fn from_glib_full(ptr: *mut ffi::GHashTable) -> Self {
-        unsafe {
-            let map = FromGlibPtrContainer::from_glib_none(ptr);
-            ffi::g_hash_table_unref(ptr);
-            map
-        }
+        let map = FromGlibPtrContainer::from_glib_none(ptr);
+        ffi::g_hash_table_unref(ptr);
+        map
     }
 }
 
@@ -2634,54 +2528,48 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_num_as_vec(ptr: *mut ffi::GPtrArray, num: usize) -> Vec<T> {
-        unsafe {
-            if num == 0 || ptr.is_null() {
-                return Vec::new();
-            }
-            let pdata = (*ptr).pdata;
-            debug_assert!((*ptr).len as usize >= num);
-            let mut res = Vec::with_capacity(num);
-            for i in 0..num {
-                let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from(ptr::read(pdata.add(i)));
-                if !item_ptr.is_null() {
-                    res.push(from_glib_none(item_ptr));
-                }
-            }
-            res
+        if num == 0 || ptr.is_null() {
+            return Vec::new();
         }
+        let pdata = (*ptr).pdata;
+        debug_assert!((*ptr).len as usize >= num);
+        let mut res = Vec::with_capacity(num);
+        for i in 0..num {
+            let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from(ptr::read(pdata.add(i)));
+            if !item_ptr.is_null() {
+                res.push(from_glib_none(item_ptr));
+            }
+        }
+        res
     }
 
     unsafe fn from_glib_container_num_as_vec(ptr: *mut ffi::GPtrArray, num: usize) -> Vec<T> {
-        unsafe {
-            let res = FromGlibContainer::from_glib_none_num(ptr, num);
-            if !ptr.is_null() {
-                ffi::g_ptr_array_unref(ptr);
-            }
-            res
+        let res = FromGlibContainer::from_glib_none_num(ptr, num);
+        if !ptr.is_null() {
+            ffi::g_ptr_array_unref(ptr);
         }
+        res
     }
 
     unsafe fn from_glib_full_num_as_vec(ptr: *mut ffi::GPtrArray, num: usize) -> Vec<T> {
-        unsafe {
-            if ptr.is_null() {
-                return Vec::new();
-            }
-            if num == 0 {
-                ffi::g_ptr_array_unref(ptr);
-                return Vec::new();
-            }
-            let pdata = (*ptr).pdata;
-            debug_assert!((*ptr).len as usize >= num);
-            let mut res = Vec::with_capacity(num);
-            for i in 0..num {
-                let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from(ptr::read(pdata.add(i)));
-                if !item_ptr.is_null() {
-                    res.push(from_glib_none(item_ptr));
-                }
-            }
-            ffi::g_ptr_array_unref(ptr);
-            res
+        if ptr.is_null() {
+            return Vec::new();
         }
+        if num == 0 {
+            ffi::g_ptr_array_unref(ptr);
+            return Vec::new();
+        }
+        let pdata = (*ptr).pdata;
+        debug_assert!((*ptr).len as usize >= num);
+        let mut res = Vec::with_capacity(num);
+        for i in 0..num {
+            let item_ptr: <T as GlibPtrDefault>::GlibType = Ptr::from(ptr::read(pdata.add(i)));
+            if !item_ptr.is_null() {
+                res.push(from_glib_none(item_ptr));
+            }
+        }
+        ffi::g_ptr_array_unref(ptr);
+        res
     }
 }
 
@@ -2692,24 +2580,18 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_as_vec(ptr: *mut ffi::GPtrArray) -> Vec<T> {
-        unsafe {
-            let num = (*ptr).len as usize;
-            FromGlibContainer::from_glib_none_num(ptr, num)
-        }
+        let num = (*ptr).len as usize;
+        FromGlibContainer::from_glib_none_num(ptr, num)
     }
 
     unsafe fn from_glib_container_as_vec(ptr: *mut ffi::GPtrArray) -> Vec<T> {
-        unsafe {
-            let num = (*ptr).len as usize;
-            FromGlibContainer::from_glib_container_num(ptr, num)
-        }
+        let num = (*ptr).len as usize;
+        FromGlibContainer::from_glib_container_num(ptr, num)
     }
 
     unsafe fn from_glib_full_as_vec(ptr: *mut ffi::GPtrArray) -> Vec<T> {
-        unsafe {
-            let num = (*ptr).len as usize;
-            FromGlibContainer::from_glib_full_num(ptr, num)
-        }
+        let num = (*ptr).len as usize;
+        FromGlibContainer::from_glib_full_num(ptr, num)
     }
 }
 
@@ -2720,7 +2602,7 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_num_as_vec(ptr: *const ffi::GPtrArray, num: usize) -> Vec<T> {
-        unsafe { FromGlibContainerAsVec::from_glib_none_num_as_vec(mut_override(ptr), num) }
+        FromGlibContainerAsVec::from_glib_none_num_as_vec(mut_override(ptr), num)
     }
 
     unsafe fn from_glib_container_num_as_vec(_: *const ffi::GPtrArray, _: usize) -> Vec<T> {
@@ -2741,7 +2623,7 @@ where
         + FromGlibPtrFull<<T as GlibPtrDefault>::GlibType>,
 {
     unsafe fn from_glib_none_as_vec(ptr: *const ffi::GPtrArray) -> Vec<T> {
-        unsafe { FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(mut_override(ptr)) }
+        FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(mut_override(ptr))
     }
 
     unsafe fn from_glib_container_as_vec(_: *const ffi::GPtrArray) -> Vec<T> {
@@ -3071,16 +2953,12 @@ mod tests {
 
         assert_eq!(unsafe { SpecialU32::try_from_glib(0) }, Ok(SpecialU32(0)));
         assert_eq!(unsafe { SpecialU32::try_from_glib(42) }, Ok(SpecialU32(42)));
-        assert!(
-            unsafe { SpecialU32::try_from_glib(SpecialU32::GLIB_NONE) }
-                .unwrap_err()
-                .is_none()
-        );
-        assert!(
-            unsafe { SpecialU32::try_from_glib(-42) }
-                .unwrap_err()
-                .is_invalid()
-        );
+        assert!(unsafe { SpecialU32::try_from_glib(SpecialU32::GLIB_NONE) }
+            .unwrap_err()
+            .is_none());
+        assert!(unsafe { SpecialU32::try_from_glib(-42) }
+            .unwrap_err()
+            .is_invalid());
 
         assert_eq!(
             unsafe { Result::<Option<SpecialU32>, _>::from_glib(0) },

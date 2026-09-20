@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Emblem, Icon, ffi};
+use crate::{ffi, Emblem, Icon};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -28,7 +28,12 @@ impl EmblemedIcon {
     }
 }
 
-pub trait EmblemedIconExt: IsA<EmblemedIcon> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::EmblemedIcon>> Sealed for T {}
+}
+
+pub trait EmblemedIconExt: IsA<EmblemedIcon> + sealed::Sealed + 'static {
     #[doc(alias = "g_emblemed_icon_add_emblem")]
     fn add_emblem(&self, emblem: &Emblem) {
         unsafe {

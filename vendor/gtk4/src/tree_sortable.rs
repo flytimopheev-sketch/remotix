@@ -4,7 +4,7 @@ use std::{fmt, mem};
 
 use glib::translate::*;
 
-use crate::{Ordering, SortType, TreeIter, TreeModel, TreeSortable, ffi, prelude::*};
+use crate::{ffi, prelude::*, Ordering, SortType, TreeIter, TreeModel, TreeSortable};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
@@ -59,12 +59,17 @@ impl fmt::Display for SortColumn {
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TreeSortable>> Sealed for T {}
+}
+
 // rustdoc-stripper-ignore-next
 /// Trait containing manually implemented methods of
 /// [`TreeSortable`](crate::TreeSortable).
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait TreeSortableExtManual: IsA<TreeSortable> + 'static {
+pub trait TreeSortableExtManual: sealed::Sealed + IsA<TreeSortable> + 'static {
     #[doc(alias = "gtk_tree_sortable_set_default_sort_func")]
     fn set_default_sort_func<F>(&self, sort_func: F)
     where
@@ -144,23 +149,19 @@ unsafe extern "C" fn trampoline<T, F: Fn(&T, &TreeIter, &TreeIter) -> Ordering>(
 where
     T: IsA<TreeSortable>,
 {
-    unsafe {
-        let f: &F = &*(f as *const F);
-        f(
-            &TreeModel::from_glib_none(this).unsafe_cast(),
-            &from_glib_borrow(iter),
-            &from_glib_borrow(iter2),
-        )
-        .into_glib()
-    }
+    let f: &F = &*(f as *const F);
+    f(
+        &TreeModel::from_glib_none(this).unsafe_cast(),
+        &from_glib_borrow(iter),
+        &from_glib_borrow(iter2),
+    )
+    .into_glib()
 }
 
 unsafe extern "C" fn destroy_closure<T, F: Fn(&T, &TreeIter, &TreeIter) -> Ordering>(
     ptr: glib::ffi::gpointer,
 ) {
-    unsafe {
-        let _ = Box::<F>::from_raw(ptr as *mut _);
-    }
+    let _ = Box::<F>::from_raw(ptr as *mut _);
 }
 
 fn into_raw<F, T>(func: F) -> glib::ffi::gpointer

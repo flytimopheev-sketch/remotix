@@ -2,11 +2,11 @@
 
 use std::ptr;
 
-use glib::{Error, SeekType, prelude::*, subclass::prelude::*, translate::*};
+use glib::{prelude::*, subclass::prelude::*, translate::*, Error, SeekType};
 
-use crate::{Cancellable, Seekable, ffi};
+use crate::{ffi, Cancellable, Seekable};
 
-pub trait SeekableImpl: Send + ObjectImpl + ObjectSubclass<Type: IsA<Seekable>> {
+pub trait SeekableImpl: ObjectImpl + Send {
     fn tell(&self) -> i64;
     fn can_seek(&self) -> bool;
     fn seek(
@@ -19,7 +19,12 @@ pub trait SeekableImpl: Send + ObjectImpl + ObjectSubclass<Type: IsA<Seekable>> 
     fn truncate(&self, offset: i64, cancellable: Option<&Cancellable>) -> Result<(), Error>;
 }
 
-pub trait SeekableImplExt: SeekableImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::SeekableImplExt> Sealed for T {}
+}
+
+pub trait SeekableImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_tell(&self) -> i64 {
         unsafe {
             let type_data = Self::type_data();
@@ -135,23 +140,19 @@ unsafe impl<T: SeekableImpl> IsImplementable<T> for Seekable {
 }
 
 unsafe extern "C" fn seekable_tell<T: SeekableImpl>(seekable: *mut ffi::GSeekable) -> i64 {
-    unsafe {
-        let instance = &*(seekable as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(seekable as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.tell()
-    }
+    imp.tell()
 }
 
 unsafe extern "C" fn seekable_can_seek<T: SeekableImpl>(
     seekable: *mut ffi::GSeekable,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(seekable as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(seekable as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.can_seek().into_glib()
-    }
+    imp.can_seek().into_glib()
 }
 
 unsafe extern "C" fn seekable_seek<T: SeekableImpl>(
@@ -161,24 +162,22 @@ unsafe extern "C" fn seekable_seek<T: SeekableImpl>(
     cancellable: *mut ffi::GCancellable,
     err: *mut *mut glib::ffi::GError,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(seekable as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(seekable as *mut T::Instance);
+    let imp = instance.imp();
 
-        match imp.seek(
-            offset,
-            from_glib(type_),
-            Option::<Cancellable>::from_glib_borrow(cancellable)
-                .as_ref()
-                .as_ref(),
-        ) {
-            Ok(()) => glib::ffi::GTRUE,
-            Err(e) => {
-                if !err.is_null() {
-                    *err = e.into_glib_ptr();
-                }
-                glib::ffi::GFALSE
+    match imp.seek(
+        offset,
+        from_glib(type_),
+        Option::<Cancellable>::from_glib_borrow(cancellable)
+            .as_ref()
+            .as_ref(),
+    ) {
+        Ok(()) => glib::ffi::GTRUE,
+        Err(e) => {
+            if !err.is_null() {
+                *err = e.into_glib_ptr();
             }
+            glib::ffi::GFALSE
         }
     }
 }
@@ -186,12 +185,10 @@ unsafe extern "C" fn seekable_seek<T: SeekableImpl>(
 unsafe extern "C" fn seekable_can_truncate<T: SeekableImpl>(
     seekable: *mut ffi::GSeekable,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(seekable as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(seekable as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.can_truncate().into_glib()
-    }
+    imp.can_truncate().into_glib()
 }
 
 unsafe extern "C" fn seekable_truncate<T: SeekableImpl>(
@@ -200,23 +197,21 @@ unsafe extern "C" fn seekable_truncate<T: SeekableImpl>(
     cancellable: *mut ffi::GCancellable,
     err: *mut *mut glib::ffi::GError,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(seekable as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(seekable as *mut T::Instance);
+    let imp = instance.imp();
 
-        match imp.truncate(
-            offset,
-            Option::<Cancellable>::from_glib_borrow(cancellable)
-                .as_ref()
-                .as_ref(),
-        ) {
-            Ok(()) => glib::ffi::GTRUE,
-            Err(e) => {
-                if !err.is_null() {
-                    *err = e.into_glib_ptr();
-                }
-                glib::ffi::GFALSE
+    match imp.truncate(
+        offset,
+        Option::<Cancellable>::from_glib_borrow(cancellable)
+            .as_ref()
+            .as_ref(),
+    ) {
+        Ok(()) => glib::ffi::GTRUE,
+        Err(e) => {
+            if !err.is_null() {
+                *err = e.into_glib_ptr();
             }
+            glib::ffi::GFALSE
         }
     }
 }

@@ -12,22 +12,28 @@ Source1:        %{name}-vendor-%{version}.tar.gz
 BuildRequires:  gcc
 BuildRequires:  cargo
 BuildRequires:  rust
+BuildRequires:  pkg-config
 BuildRequires:  gtk4-devel
 BuildRequires:  libssh2-devel
 BuildRequires:  openssl-devel
 BuildRequires:  sqlite-devel
+# Примечание: VTE для GTK4 в сборке не нужен — терминал подгружает
+# libvte-2.91-gtk4.so.0 динамически (libloading) и работает без него.
 # Примечание: freerdp-devel больше не нужен — RDP через IronRDP (чистый Rust,
 # все зависимости вендорятся в vendor/). Системный openssl используется только
 # для libssh2; rustls (ring) для RDP-канала — полностью офлайн.
 
 Requires:       gtk4
-Requires:       libssh2
+# VTE для GTK4 опционален: с ним SSH-терминал получает полную эмуляцию
+# (ANSI, vim/htop), без него используется встроенный упрощённый терминал.
+Recommends:     vte291-gtk4
 
 %description
 Единый интерфейс для подключения к удалённым рабочим столам и серверам
 по протоколам RDP, VNC и SSH, аналог Remmina/RustDesk. Работает полностью
 офлайн, без облака и телеметрии. Учётные данные хранятся зашифрованными
-(Argon2id + AES-256-GCM).
+(Argon2id + AES-256-GCM). SSH-терминал использует VTE для GTK4, если он
+установлен в системе, иначе — встроенный упрощённый терминал.
 
 %prep
 rm -rf %{_builddir}/%{name}-%{version}

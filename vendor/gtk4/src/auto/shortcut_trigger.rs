@@ -26,14 +26,6 @@ impl ShortcutTrigger {
             ))
         }
     }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "gtk_shortcut_trigger_create_for_menu")]
-    pub fn create_for_menu() -> ShortcutTrigger {
-        assert_initialized_main_thread!();
-        unsafe { from_glib_full(ffi::gtk_shortcut_trigger_create_for_menu()) }
-    }
 }
 
 impl std::fmt::Display for ShortcutTrigger {
@@ -43,7 +35,12 @@ impl std::fmt::Display for ShortcutTrigger {
     }
 }
 
-pub trait ShortcutTriggerExt: IsA<ShortcutTrigger> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::ShortcutTrigger>> Sealed for T {}
+}
+
+pub trait ShortcutTriggerExt: IsA<ShortcutTrigger> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_shortcut_trigger_to_label")]
     fn to_label(&self, display: &impl IsA<gdk::Display>) -> glib::GString {
         unsafe {

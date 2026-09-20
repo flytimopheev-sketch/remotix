@@ -2,14 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-use crate::RestoreReason;
-use crate::{ApplicationInhibitFlags, Window, ffi};
+use crate::{ffi, ApplicationInhibitFlags, Window};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -51,34 +48,15 @@ impl ApplicationBuilder {
         }
     }
 
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    pub fn autosave_interval(self, autosave_interval: u32) -> Self {
-        Self {
-            builder: self
-                .builder
-                .property("autosave-interval", autosave_interval),
-        }
-    }
-
     pub fn menubar(self, menubar: &impl IsA<gio::MenuModel>) -> Self {
         Self {
             builder: self.builder.property("menubar", menubar.clone().upcast()),
         }
     }
 
-    #[cfg_attr(feature = "v4_22", deprecated = "Since 4.22")]
     pub fn register_session(self, register_session: bool) -> Self {
         Self {
             builder: self.builder.property("register-session", register_session),
-        }
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    pub fn support_save(self, support_save: bool) -> Self {
-        Self {
-            builder: self.builder.property("support-save", support_save),
         }
     }
 
@@ -132,7 +110,12 @@ impl ApplicationBuilder {
     }
 }
 
-pub trait GtkApplicationExt: IsA<Application> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Application>> Sealed for T {}
+}
+
+pub trait GtkApplicationExt: IsA<Application> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_application_add_window")]
     fn add_window(&self, window: &impl IsA<Window>) {
         unsafe {
@@ -140,15 +123,6 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
                 self.as_ref().to_glib_none().0,
                 window.as_ref().to_glib_none().0,
             );
-        }
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "gtk_application_forget")]
-    fn forget(&self) {
-        unsafe {
-            ffi::gtk_application_forget(self.as_ref().to_glib_none().0);
         }
     }
 
@@ -263,15 +237,6 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
         }
     }
 
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "gtk_application_save")]
-    fn save(&self) {
-        unsafe {
-            ffi::gtk_application_save(self.as_ref().to_glib_none().0);
-        }
-    }
-
     #[doc(alias = "gtk_application_set_accels_for_action")]
     fn set_accels_for_action(&self, detailed_action_name: &str, accels: &[&str]) {
         unsafe {
@@ -301,27 +266,11 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
         }
     }
 
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "autosave-interval")]
-    fn autosave_interval(&self) -> u32 {
-        ObjectExt::property(self.as_ref(), "autosave-interval")
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "autosave-interval")]
-    fn set_autosave_interval(&self, autosave_interval: u32) {
-        ObjectExt::set_property(self.as_ref(), "autosave-interval", autosave_interval)
-    }
-
-    #[cfg_attr(feature = "v4_22", deprecated = "Since 4.22")]
     #[doc(alias = "register-session")]
     fn is_register_session(&self) -> bool {
         ObjectExt::property(self.as_ref(), "register-session")
     }
 
-    #[cfg_attr(feature = "v4_22", deprecated = "Since 4.22")]
     #[doc(alias = "register-session")]
     fn set_register_session(&self, register_session: bool) {
         ObjectExt::set_property(self.as_ref(), "register-session", register_session)
@@ -332,152 +281,22 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
         ObjectExt::property(self.as_ref(), "screensaver-active")
     }
 
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "support-save")]
-    fn supports_save(&self) -> bool {
-        ObjectExt::property(self.as_ref(), "support-save")
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "support-save")]
-    fn set_support_save(&self, support_save: bool) {
-        ObjectExt::set_property(self.as_ref(), "support-save", support_save)
-    }
-
     #[doc(alias = "query-end")]
     fn connect_query_end<F: Fn(&Self) + 'static>(&self, f: F) -> SignalHandlerId {
         unsafe extern "C" fn query_end_trampoline<P: IsA<Application>, F: Fn(&P) + 'static>(
             this: *mut ffi::GtkApplication,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"query-end".as_ptr(),
+                b"query-end\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     query_end_trampoline::<Self, F> as *const (),
-                )),
-                Box_::into_raw(f),
-            )
-        }
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "restore-state")]
-    fn connect_restore_state<F: Fn(&Self, RestoreReason, &glib::Variant) -> bool + 'static>(
-        &self,
-        f: F,
-    ) -> SignalHandlerId {
-        unsafe extern "C" fn restore_state_trampoline<
-            P: IsA<Application>,
-            F: Fn(&P, RestoreReason, &glib::Variant) -> bool + 'static,
-        >(
-            this: *mut ffi::GtkApplication,
-            reason: ffi::GtkRestoreReason,
-            state: *mut glib::ffi::GVariant,
-            f: glib::ffi::gpointer,
-        ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Application::from_glib_borrow(this).unsafe_cast_ref(),
-                    from_glib(reason),
-                    &from_glib_borrow(state),
-                )
-                .into_glib()
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"restore-state".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    restore_state_trampoline::<Self, F> as *const (),
-                )),
-                Box_::into_raw(f),
-            )
-        }
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "restore-window")]
-    fn connect_restore_window<F: Fn(&Self, RestoreReason, &glib::Variant) + 'static>(
-        &self,
-        f: F,
-    ) -> SignalHandlerId {
-        unsafe extern "C" fn restore_window_trampoline<
-            P: IsA<Application>,
-            F: Fn(&P, RestoreReason, &glib::Variant) + 'static,
-        >(
-            this: *mut ffi::GtkApplication,
-            reason: ffi::GtkRestoreReason,
-            state: *mut glib::ffi::GVariant,
-            f: glib::ffi::gpointer,
-        ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Application::from_glib_borrow(this).unsafe_cast_ref(),
-                    from_glib(reason),
-                    &from_glib_borrow(state),
-                )
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"restore-window".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    restore_window_trampoline::<Self, F> as *const (),
-                )),
-                Box_::into_raw(f),
-            )
-        }
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "save-state")]
-    fn connect_save_state<F: Fn(&Self, &glib::VariantDict) -> bool + 'static>(
-        &self,
-        f: F,
-    ) -> SignalHandlerId {
-        unsafe extern "C" fn save_state_trampoline<
-            P: IsA<Application>,
-            F: Fn(&P, &glib::VariantDict) -> bool + 'static,
-        >(
-            this: *mut ffi::GtkApplication,
-            dict: *mut glib::ffi::GVariantDict,
-            f: glib::ffi::gpointer,
-        ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Application::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(dict),
-                )
-                .into_glib()
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"save-state".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    save_state_trampoline::<Self, F> as *const (),
                 )),
                 Box_::into_raw(f),
             )
@@ -494,19 +313,17 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
             window: *mut ffi::GtkWindow,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Application::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(window),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Application::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(window),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"window-added".as_ptr(),
+                b"window-added\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     window_added_trampoline::<Self, F> as *const (),
                 )),
@@ -525,19 +342,17 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
             window: *mut ffi::GtkWindow,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Application::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(window),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Application::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(window),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"window-removed".as_ptr(),
+                b"window-removed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     window_removed_trampoline::<Self, F> as *const (),
                 )),
@@ -556,48 +371,16 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::active-window".as_ptr(),
+                b"notify::active-window\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_active_window_trampoline::<Self, F> as *const (),
-                )),
-                Box_::into_raw(f),
-            )
-        }
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "autosave-interval")]
-    fn connect_autosave_interval_notify<F: Fn(&Self) + 'static>(&self, f: F) -> SignalHandlerId {
-        unsafe extern "C" fn notify_autosave_interval_trampoline<
-            P: IsA<Application>,
-            F: Fn(&P) + 'static,
-        >(
-            this: *mut ffi::GtkApplication,
-            _param_spec: glib::ffi::gpointer,
-            f: glib::ffi::gpointer,
-        ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"notify::autosave-interval".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    notify_autosave_interval_trampoline::<Self, F> as *const (),
                 )),
                 Box_::into_raw(f),
             )
@@ -611,16 +394,14 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::menubar".as_ptr(),
+                b"notify::menubar\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_menubar_trampoline::<Self, F> as *const (),
                 )),
@@ -629,7 +410,6 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
         }
     }
 
-    #[cfg_attr(feature = "v4_22", deprecated = "Since 4.22")]
     #[doc(alias = "register-session")]
     fn connect_register_session_notify<F: Fn(&Self) + 'static>(&self, f: F) -> SignalHandlerId {
         unsafe extern "C" fn notify_register_session_trampoline<
@@ -640,16 +420,14 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::register-session".as_ptr(),
+                b"notify::register-session\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_register_session_trampoline::<Self, F> as *const (),
                 )),
@@ -668,48 +446,16 @@ pub trait GtkApplicationExt: IsA<Application> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Application::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::screensaver-active".as_ptr(),
+                b"notify::screensaver-active\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_screensaver_active_trampoline::<Self, F> as *const (),
-                )),
-                Box_::into_raw(f),
-            )
-        }
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "support-save")]
-    fn connect_support_save_notify<F: Fn(&Self) + 'static>(&self, f: F) -> SignalHandlerId {
-        unsafe extern "C" fn notify_support_save_trampoline<
-            P: IsA<Application>,
-            F: Fn(&P) + 'static,
-        >(
-            this: *mut ffi::GtkApplication,
-            _param_spec: glib::ffi::gpointer,
-            f: glib::ffi::gpointer,
-        ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Application::from_glib_borrow(this).unsafe_cast_ref())
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"notify::support-save".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    notify_support_save_trampoline::<Self, F> as *const (),
                 )),
                 Box_::into_raw(f),
             )

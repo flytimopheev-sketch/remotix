@@ -11,7 +11,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::{BoolError, Type, ffi, gobject_ffi, prelude::*, translate::*};
+use crate::{ffi, gobject_ffi, prelude::*, translate::*, BoolError, Type};
 
 // rustdoc-stripper-ignore-next
 /// Describes `Variant` types.
@@ -186,7 +186,7 @@ impl<'a> From<VariantType> for Cow<'a, VariantTy> {
 #[doc(hidden)]
 impl IntoGlibPtr<*mut ffi::GVariantType> for VariantType {
     #[inline]
-    fn into_glib_ptr(self) -> *mut ffi::GVariantType {
+    unsafe fn into_glib_ptr(self) -> *mut ffi::GVariantType {
         std::mem::ManuallyDrop::new(self).to_glib_none().0
     }
 }
@@ -235,7 +235,7 @@ impl<'a> ToGlibPtrMut<'a, *mut ffi::GVariantType> for VariantType {
 impl FromGlibPtrNone<*const ffi::GVariantType> for VariantType {
     #[inline]
     unsafe fn from_glib_none(ptr: *const ffi::GVariantType) -> VariantType {
-        unsafe { VariantTy::from_ptr(ptr).to_owned() }
+        VariantTy::from_ptr(ptr).to_owned()
     }
 }
 
@@ -243,11 +243,9 @@ impl FromGlibPtrNone<*const ffi::GVariantType> for VariantType {
 impl FromGlibPtrFull<*const ffi::GVariantType> for VariantType {
     #[inline]
     unsafe fn from_glib_full(ptr: *const ffi::GVariantType) -> VariantType {
-        unsafe {
-            // Don't assume ownership of a const pointer.
-            // A transfer: full annotation on a `const GVariantType*` is likely a bug.
-            VariantTy::from_ptr(ptr).to_owned()
-        }
+        // Don't assume ownership of a const pointer.
+        // A transfer: full annotation on a `const GVariantType*` is likely a bug.
+        VariantTy::from_ptr(ptr).to_owned()
     }
 }
 
@@ -255,13 +253,11 @@ impl FromGlibPtrFull<*const ffi::GVariantType> for VariantType {
 impl FromGlibPtrFull<*mut ffi::GVariantType> for VariantType {
     #[inline]
     unsafe fn from_glib_full(ptr: *mut ffi::GVariantType) -> VariantType {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            let len: usize = ffi::g_variant_type_get_string_length(ptr) as _;
-            VariantType {
-                ptr: ptr::NonNull::new_unchecked(ptr),
-                len,
-            }
+        debug_assert!(!ptr.is_null());
+        let len: usize = ffi::g_variant_type_get_string_length(ptr) as _;
+        VariantType {
+            ptr: ptr::NonNull::new_unchecked(ptr),
+            len,
         }
     }
 }
@@ -471,7 +467,7 @@ impl VariantTy {
     /// The caller is responsible for passing in only a valid variant type string.
     #[inline]
     pub const unsafe fn from_str_unchecked(type_string: &str) -> &VariantTy {
-        unsafe { std::mem::transmute::<&str, &VariantTy>(type_string) }
+        std::mem::transmute::<&str, &VariantTy>(type_string)
     }
 
     // rustdoc-stripper-ignore-next
@@ -481,12 +477,10 @@ impl VariantTy {
     #[allow(clippy::cast_slice_from_raw_parts)]
     #[inline]
     pub unsafe fn from_ptr<'a>(ptr: *const ffi::GVariantType) -> &'a VariantTy {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            let len: usize = ffi::g_variant_type_get_string_length(ptr) as _;
-            debug_assert!(len > 0);
-            &*(slice::from_raw_parts(ptr as *const u8, len) as *const [u8] as *const VariantTy)
-        }
+        debug_assert!(!ptr.is_null());
+        let len: usize = ffi::g_variant_type_get_string_length(ptr) as _;
+        debug_assert!(len > 0);
+        &*(slice::from_raw_parts(ptr as *const u8, len) as *const [u8] as *const VariantTy)
     }
 
     // rustdoc-stripper-ignore-next
@@ -748,11 +742,9 @@ unsafe impl<'a> crate::value::FromValue<'a> for &'a VariantTy {
     type Checker = crate::value::GenericValueTypeOrNoneChecker<Self>;
 
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe {
-            let ptr = gobject_ffi::g_value_get_boxed(value.to_glib_none().0);
-            debug_assert!(!ptr.is_null());
-            VariantTy::from_ptr(ptr as *const ffi::GVariantType)
-        }
+        let ptr = gobject_ffi::g_value_get_boxed(value.to_glib_none().0);
+        debug_assert!(!ptr.is_null());
+        VariantTy::from_ptr(ptr as *const ffi::GVariantType)
     }
 }
 
@@ -821,11 +813,9 @@ unsafe impl<'a> crate::value::FromValue<'a> for VariantType {
     type Checker = crate::value::GenericValueTypeOrNoneChecker<Self>;
 
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe {
-            let ptr = gobject_ffi::g_value_get_boxed(value.to_glib_none().0);
-            debug_assert!(!ptr.is_null());
-            from_glib_none(ptr as *const ffi::GVariantType)
-        }
+        let ptr = gobject_ffi::g_value_get_boxed(value.to_glib_none().0);
+        debug_assert!(!ptr.is_null());
+        from_glib_none(ptr as *const ffi::GVariantType)
     }
 }
 
@@ -984,12 +974,10 @@ mod tests {
     use super::*;
 
     unsafe fn equal<T, U>(ptr1: *const T, ptr2: *const U) -> bool {
-        unsafe {
-            from_glib(ffi::g_variant_type_equal(
-                ptr1 as *const _,
-                ptr2 as *const _,
-            ))
-        }
+        from_glib(ffi::g_variant_type_equal(
+            ptr1 as *const _,
+            ptr2 as *const _,
+        ))
     }
 
     #[test]

@@ -2,9 +2,9 @@
 
 use std::{marker::PhantomData, mem, ptr};
 
-use glib::{GStr, translate::*};
+use glib::{translate::*, GStr};
 
-use crate::{Script, ffi};
+use crate::{ffi, Script};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScriptIter<'text> {
@@ -144,11 +144,9 @@ where
 impl FromGlibPtrFull<*mut ffi::PangoScriptIter> for ScriptIter<'_> {
     #[inline]
     unsafe fn from_glib_full(ptr: *mut ffi::PangoScriptIter) -> Self {
-        unsafe {
-            Self {
-                ptr: ptr::NonNull::new_unchecked(ptr),
-                text: PhantomData,
-            }
+        Self {
+            ptr: ptr::NonNull::new_unchecked(ptr),
+            text: PhantomData,
         }
     }
 }

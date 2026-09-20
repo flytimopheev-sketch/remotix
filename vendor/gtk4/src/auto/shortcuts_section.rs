@@ -3,38 +3,23 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 use crate::ShortcutsGroup;
 use crate::{
-    AccessibleRole, Align, BaselinePosition, Box, Buildable, ConstraintTarget, LayoutManager,
-    Orientable, Orientation, Overflow, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, BaselinePosition, Box, Buildable, ConstraintTarget,
+    LayoutManager, Orientable, Orientation, Overflow, Widget,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkShortcutsSection")]
     pub struct ShortcutsSection(Object<ffi::GtkShortcutsSection, ffi::GtkShortcutsSectionClass>) @extends Box, Widget, @implements Accessible, Buildable, ConstraintTarget, Orientable;
-
-    match fn {
-        type_ => || ffi::gtk_shortcuts_section_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkShortcutsSection")]
-    pub struct ShortcutsSection(Object<ffi::GtkShortcutsSection, ffi::GtkShortcutsSectionClass>) @extends Box, Widget, @implements Buildable, ConstraintTarget, Orientable;
 
     match fn {
         type_ => || ffi::gtk_shortcuts_section_get_type(),
@@ -115,16 +100,14 @@ impl ShortcutsSection {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::max-height".as_ptr(),
+                b"notify::max-height\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_max_height_trampoline::<F> as *const (),
                 )),
@@ -141,16 +124,14 @@ impl ShortcutsSection {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::section-name".as_ptr(),
+                b"notify::section-name\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_section_name_trampoline::<F> as *const (),
                 )),
@@ -167,16 +148,14 @@ impl ShortcutsSection {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::title".as_ptr(),
+                b"notify::title\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_title_trampoline::<F> as *const (),
                 )),
@@ -193,16 +172,14 @@ impl ShortcutsSection {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::view-name".as_ptr(),
+                b"notify::view-name\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_view_name_trampoline::<F> as *const (),
                 )),

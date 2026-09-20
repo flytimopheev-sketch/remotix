@@ -89,9 +89,6 @@ pub use self::dbus_object::DBusObject;
 mod dbus_object_manager;
 pub use self::dbus_object_manager::DBusObjectManager;
 
-mod dbus_object_manager_client;
-pub use self::dbus_object_manager_client::DBusObjectManagerClient;
-
 mod dbus_object_manager_server;
 pub use self::dbus_object_manager_server::DBusObjectManagerServer;
 
@@ -129,6 +126,13 @@ mod debug_controller_dbus;
 #[cfg(feature = "v2_72")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v2_72")))]
 pub use self::debug_controller_dbus::DebugControllerDBus;
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
+#[cfg_attr(docsrs, doc(cfg(all(not(windows), not(target_os = "macos")))))]
+mod desktop_app_info;
+#[cfg(all(not(windows), not(target_os = "macos")))]
+#[cfg_attr(docsrs, doc(cfg(all(not(windows), not(target_os = "macos")))))]
+pub use self::desktop_app_info::DesktopAppInfo;
 
 mod drive;
 pub use self::drive::Drive;
@@ -183,20 +187,6 @@ pub use self::filter_output_stream::FilterOutputStream;
 
 mod io_stream;
 pub use self::io_stream::IOStream;
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-mod ip_tos_message;
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-pub use self::ip_tos_message::IPTosMessage;
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-mod ipv6_tclass_message;
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-pub use self::ipv6_tclass_message::IPv6TclassMessage;
 
 mod icon;
 pub use self::icon::Icon;
@@ -439,6 +429,34 @@ pub use self::unix_fd_list::UnixFDList;
 
 #[cfg(unix)]
 #[cfg_attr(docsrs, doc(cfg(unix)))]
+mod unix_fd_message;
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+pub use self::unix_fd_message::UnixFDMessage;
+
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+mod unix_input_stream;
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+pub use self::unix_input_stream::UnixInputStream;
+
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+mod unix_mount_monitor;
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+pub use self::unix_mount_monitor::UnixMountMonitor;
+
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+mod unix_output_stream;
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+pub use self::unix_output_stream::UnixOutputStream;
+
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
 mod unix_socket_address;
 #[cfg(unix)]
 #[cfg_attr(docsrs, doc(cfg(unix)))]
@@ -498,6 +516,20 @@ pub use self::settings_schema_source::SettingsSchemaSource;
 mod srv_target;
 pub use self::srv_target::SrvTarget;
 
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+mod unix_mount_entry;
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+pub use self::unix_mount_entry::UnixMountEntry;
+
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+mod unix_mount_point;
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+pub use self::unix_mount_point::UnixMountPoint;
+
 mod enums;
 pub use self::enums::BusType;
 pub use self::enums::ConverterResult;
@@ -509,9 +541,6 @@ pub use self::enums::DBusMessageType;
 pub use self::enums::DataStreamByteOrder;
 pub use self::enums::DataStreamNewlineType;
 pub use self::enums::DriveStartStopType;
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-pub use self::enums::EcnCodePoint;
 pub use self::enums::EmblemOrigin;
 pub use self::enums::FileAttributeStatus;
 pub use self::enums::FileAttributeType;
@@ -519,6 +548,7 @@ pub use self::enums::FileMonitorEvent;
 pub use self::enums::FileType;
 pub use self::enums::FilesystemPreviewType;
 pub use self::enums::IOErrorEnum;
+pub use self::enums::IOModuleScopeFlags;
 #[cfg(feature = "v2_64")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v2_64")))]
 pub use self::enums::MemoryMonitorWarningLevel;
@@ -538,12 +568,14 @@ pub use self::enums::SocketListenerEvent;
 pub use self::enums::SocketProtocol;
 pub use self::enums::SocketType;
 pub use self::enums::TlsAuthenticationMode;
+pub use self::enums::TlsCertificateRequestFlags;
 #[cfg(feature = "v2_66")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v2_66")))]
 pub use self::enums::TlsChannelBindingError;
 #[cfg(feature = "v2_66")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v2_66")))]
 pub use self::enums::TlsChannelBindingType;
+pub use self::enums::TlsDatabaseLookupFlags;
 pub use self::enums::TlsError;
 pub use self::enums::TlsInteractionResult;
 #[cfg(feature = "v2_70")]
@@ -582,7 +614,6 @@ pub use self::flags::FileCreateFlags;
 pub use self::flags::FileMeasureFlags;
 pub use self::flags::FileMonitorFlags;
 pub use self::flags::FileQueryInfoFlags;
-pub use self::flags::IOModuleScopeFlags;
 pub use self::flags::IOStreamSpliceFlags;
 pub use self::flags::MountMountFlags;
 pub use self::flags::MountUnmountFlags;
@@ -596,8 +627,6 @@ pub use self::flags::SettingsBindFlags;
 pub use self::flags::SubprocessFlags;
 pub use self::flags::TestDBusFlags;
 pub use self::flags::TlsCertificateFlags;
-pub use self::flags::TlsCertificateRequestFlags;
-pub use self::flags::TlsDatabaseLookupFlags;
 pub use self::flags::TlsDatabaseVerifyFlags;
 pub use self::flags::TlsPasswordFlags;
 
@@ -630,8 +659,8 @@ pub use self::constants::FILE_ATTRIBUTE_FILESYSTEM_READONLY;
 pub use self::constants::FILE_ATTRIBUTE_FILESYSTEM_REMOTE;
 pub use self::constants::FILE_ATTRIBUTE_FILESYSTEM_SIZE;
 pub use self::constants::FILE_ATTRIBUTE_FILESYSTEM_TYPE;
-pub use self::constants::FILE_ATTRIBUTE_FILESYSTEM_USE_PREVIEW;
 pub use self::constants::FILE_ATTRIBUTE_FILESYSTEM_USED;
+pub use self::constants::FILE_ATTRIBUTE_FILESYSTEM_USE_PREVIEW;
 pub use self::constants::FILE_ATTRIBUTE_GVFS_BACKEND;
 pub use self::constants::FILE_ATTRIBUTE_ID_FILE;
 pub use self::constants::FILE_ATTRIBUTE_ID_FILESYSTEM;
@@ -673,6 +702,19 @@ pub use self::constants::FILE_ATTRIBUTE_STANDARD_SYMBOLIC_ICON;
 pub use self::constants::FILE_ATTRIBUTE_STANDARD_SYMLINK_TARGET;
 pub use self::constants::FILE_ATTRIBUTE_STANDARD_TARGET_URI;
 pub use self::constants::FILE_ATTRIBUTE_STANDARD_TYPE;
+pub use self::constants::FILE_ATTRIBUTE_THUMBNAILING_FAILED;
+#[cfg(feature = "v2_76")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v2_76")))]
+pub use self::constants::FILE_ATTRIBUTE_THUMBNAILING_FAILED_LARGE;
+#[cfg(feature = "v2_76")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v2_76")))]
+pub use self::constants::FILE_ATTRIBUTE_THUMBNAILING_FAILED_NORMAL;
+#[cfg(feature = "v2_76")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v2_76")))]
+pub use self::constants::FILE_ATTRIBUTE_THUMBNAILING_FAILED_XLARGE;
+#[cfg(feature = "v2_76")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v2_76")))]
+pub use self::constants::FILE_ATTRIBUTE_THUMBNAILING_FAILED_XXLARGE;
 pub use self::constants::FILE_ATTRIBUTE_THUMBNAIL_IS_VALID;
 #[cfg(feature = "v2_76")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v2_76")))]
@@ -699,19 +741,6 @@ pub use self::constants::FILE_ATTRIBUTE_THUMBNAIL_PATH_XLARGE;
 #[cfg(feature = "v2_76")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v2_76")))]
 pub use self::constants::FILE_ATTRIBUTE_THUMBNAIL_PATH_XXLARGE;
-pub use self::constants::FILE_ATTRIBUTE_THUMBNAILING_FAILED;
-#[cfg(feature = "v2_76")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_76")))]
-pub use self::constants::FILE_ATTRIBUTE_THUMBNAILING_FAILED_LARGE;
-#[cfg(feature = "v2_76")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_76")))]
-pub use self::constants::FILE_ATTRIBUTE_THUMBNAILING_FAILED_NORMAL;
-#[cfg(feature = "v2_76")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_76")))]
-pub use self::constants::FILE_ATTRIBUTE_THUMBNAILING_FAILED_XLARGE;
-#[cfg(feature = "v2_76")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_76")))]
-pub use self::constants::FILE_ATTRIBUTE_THUMBNAILING_FAILED_XXLARGE;
 pub use self::constants::FILE_ATTRIBUTE_TIME_ACCESS;
 #[cfg(feature = "v2_74")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v2_74")))]
@@ -735,8 +764,8 @@ pub use self::constants::FILE_ATTRIBUTE_TIME_MODIFIED_USEC;
 pub use self::constants::FILE_ATTRIBUTE_TRASH_DELETION_DATE;
 pub use self::constants::FILE_ATTRIBUTE_TRASH_ITEM_COUNT;
 pub use self::constants::FILE_ATTRIBUTE_TRASH_ORIG_PATH;
-pub use self::constants::FILE_ATTRIBUTE_UNIX_BLOCK_SIZE;
 pub use self::constants::FILE_ATTRIBUTE_UNIX_BLOCKS;
+pub use self::constants::FILE_ATTRIBUTE_UNIX_BLOCK_SIZE;
 pub use self::constants::FILE_ATTRIBUTE_UNIX_DEVICE;
 pub use self::constants::FILE_ATTRIBUTE_UNIX_GID;
 pub use self::constants::FILE_ATTRIBUTE_UNIX_INODE;
@@ -799,7 +828,6 @@ pub(crate) mod traits {
     pub use super::dbus_interface_skeleton::DBusInterfaceSkeletonExt;
     pub use super::dbus_object::DBusObjectExt;
     pub use super::dbus_object_manager::DBusObjectManagerExt;
-    pub use super::dbus_object_manager_client::DBusObjectManagerClientExt;
     pub use super::dbus_object_manager_server::DBusObjectManagerServerExt;
     pub use super::dbus_object_proxy::DBusObjectProxyExt;
     pub use super::dbus_object_skeleton::DBusObjectSkeletonExt;
@@ -892,6 +920,15 @@ pub(crate) mod traits {
     #[cfg(unix)]
     #[cfg_attr(docsrs, doc(cfg(unix)))]
     pub use super::unix_fd_list::UnixFDListExt;
+    #[cfg(unix)]
+    #[cfg_attr(docsrs, doc(cfg(unix)))]
+    pub use super::unix_fd_message::UnixFDMessageExt;
+    #[cfg(unix)]
+    #[cfg_attr(docsrs, doc(cfg(unix)))]
+    pub use super::unix_input_stream::UnixInputStreamExt;
+    #[cfg(unix)]
+    #[cfg_attr(docsrs, doc(cfg(unix)))]
+    pub use super::unix_output_stream::UnixOutputStreamExt;
     #[cfg(unix)]
     #[cfg_attr(docsrs, doc(cfg(unix)))]
     pub use super::unix_socket_address::UnixSocketAddressExt;

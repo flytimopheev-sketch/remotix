@@ -5,14 +5,14 @@
 
 #[cfg(feature = "v4_10")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::{Accessible, AccessibleRange};
+use crate::AccessibleRange;
 use crate::{
-    AccessibleRole, Adjustment, Align, Buildable, ConstraintTarget, LayoutManager, Orientable,
-    Orientation, Overflow, ScaleButton, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Adjustment, Align, Buildable, ConstraintTarget, LayoutManager,
+    Orientable, Orientation, Overflow, ScaleButton, Widget,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -28,10 +28,10 @@ glib::wrapper! {
     }
 }
 
-#[cfg(not(feature = "v4_10"))]
+#[cfg(not(any(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkVolumeButton")]
-    pub struct VolumeButton(Object<ffi::GtkVolumeButton>) @extends ScaleButton, Widget, @implements Buildable, ConstraintTarget, Orientable;
+    pub struct VolumeButton(Object<ffi::GtkVolumeButton>) @extends ScaleButton, Widget, @implements Accessible, Buildable, ConstraintTarget, Orientable;
 
     match fn {
         type_ => || ffi::gtk_volume_button_get_type(),
@@ -75,16 +75,14 @@ impl VolumeButton {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::use-symbolic".as_ptr(),
+                b"notify::use-symbolic\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_use_symbolic_trampoline::<F> as *const (),
                 )),

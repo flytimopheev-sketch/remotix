@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{SocketConnection, SocketListener, SocketService, ffi};
+use crate::{ffi, SocketConnection, SocketListener, SocketService};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -24,7 +24,12 @@ impl ThreadedSocketService {
     pub const NONE: Option<&'static ThreadedSocketService> = None;
 }
 
-pub trait ThreadedSocketServiceExt: IsA<ThreadedSocketService> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::ThreadedSocketService>> Sealed for T {}
+}
+
+pub trait ThreadedSocketServiceExt: IsA<ThreadedSocketService> + sealed::Sealed + 'static {
     #[doc(alias = "max-threads")]
     fn max_threads(&self) -> i32 {
         ObjectExt::property(self.as_ref(), "max-threads")
@@ -44,23 +49,21 @@ pub trait ThreadedSocketServiceExt: IsA<ThreadedSocketService> + 'static {
             source_object: *mut glib::gobject_ffi::GObject,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    ThreadedSocketService::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(connection),
-                    Option::<glib::Object>::from_glib_borrow(source_object)
-                        .as_ref()
-                        .as_ref(),
-                )
-                .into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                ThreadedSocketService::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(connection),
+                Option::<glib::Object>::from_glib_borrow(source_object)
+                    .as_ref()
+                    .as_ref(),
+            )
+            .into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"run".as_ptr(),
+                b"run\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     run_trampoline::<Self, F> as *const (),
                 )),

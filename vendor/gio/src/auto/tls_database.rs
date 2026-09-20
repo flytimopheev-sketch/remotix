@@ -3,8 +3,8 @@
 // DO NOT EDIT
 
 use crate::{
-    AsyncResult, Cancellable, SocketConnectable, TlsCertificate, TlsCertificateFlags,
-    TlsDatabaseLookupFlags, TlsDatabaseVerifyFlags, TlsInteraction, ffi,
+    ffi, AsyncResult, Cancellable, SocketConnectable, TlsCertificate, TlsCertificateFlags,
+    TlsDatabaseLookupFlags, TlsDatabaseVerifyFlags, TlsInteraction,
 };
 use glib::{prelude::*, translate::*};
 use std::{boxed::Box as Box_, pin::Pin};
@@ -22,7 +22,12 @@ impl TlsDatabase {
     pub const NONE: Option<&'static TlsDatabase> = None;
 }
 
-pub trait TlsDatabaseExt: IsA<TlsDatabase> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TlsDatabase>> Sealed for T {}
+}
+
+pub trait TlsDatabaseExt: IsA<TlsDatabase> + sealed::Sealed + 'static {
     #[doc(alias = "g_tls_database_create_certificate_handle")]
     fn create_certificate_handle(
         &self,
@@ -92,23 +97,21 @@ pub trait TlsDatabaseExt: IsA<TlsDatabase> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::g_tls_database_lookup_certificate_for_handle_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::g_tls_database_lookup_certificate_for_handle_finish(
+                _source_object as *mut _,
+                res,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = lookup_certificate_for_handle_async_trampoline::<P>;
         unsafe {
@@ -203,23 +206,21 @@ pub trait TlsDatabaseExt: IsA<TlsDatabase> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::g_tls_database_lookup_certificate_issuer_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::g_tls_database_lookup_certificate_issuer_finish(
+                _source_object as *mut _,
+                res,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = lookup_certificate_issuer_async_trampoline::<P>;
         unsafe {
@@ -316,23 +317,21 @@ pub trait TlsDatabaseExt: IsA<TlsDatabase> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::g_tls_database_lookup_certificates_issued_by_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(FromGlibPtrContainer::from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::g_tls_database_lookup_certificates_issued_by_finish(
+                _source_object as *mut _,
+                res,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok(FromGlibPtrContainer::from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = lookup_certificates_issued_by_async_trampoline::<P>;
         unsafe {
@@ -434,23 +433,18 @@ pub trait TlsDatabaseExt: IsA<TlsDatabase> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::g_tls_database_verify_chain_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(from_glib(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret =
+                ffi::g_tls_database_verify_chain_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = verify_chain_async_trampoline::<P>;
         unsafe {

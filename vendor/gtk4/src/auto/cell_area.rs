@@ -4,14 +4,13 @@
 #![allow(deprecated)]
 
 use crate::{
-    Buildable, CellAreaContext, CellEditable, CellLayout, CellRenderer, CellRendererState,
+    ffi, Buildable, CellAreaContext, CellEditable, CellLayout, CellRenderer, CellRendererState,
     DirectionType, Orientation, SizeRequestMode, Snapshot, TreeIter, TreeModel, TreePath, Widget,
-    ffi,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -29,7 +28,12 @@ impl CellArea {
     pub const NONE: Option<&'static CellArea> = None;
 }
 
-pub trait CellAreaExt: IsA<CellArea> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::CellArea>> Sealed for T {}
+}
+
+pub trait CellAreaExt: IsA<CellArea> + sealed::Sealed + 'static {
     #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
     #[allow(deprecated)]
     #[doc(alias = "gtk_cell_area_activate")]
@@ -233,11 +237,9 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
             renderer: *mut ffi::GtkCellRenderer,
             data: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let renderer = from_glib_borrow(renderer);
-                let callback = data as *mut P;
-                (*callback)(&renderer).into_glib()
-            }
+            let renderer = from_glib_borrow(renderer);
+            let callback = data as *mut P;
+            (*callback)(&renderer).into_glib()
         }
         let callback = Some(callback_func::<P> as _);
         let super_callback0: &mut P = &mut callback_data;
@@ -250,8 +252,6 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
         }
     }
 
-    #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
-    #[allow(deprecated)]
     #[doc(alias = "gtk_cell_area_foreach_alloc")]
     fn foreach_alloc<P: FnMut(&CellRenderer, &gdk::Rectangle, &gdk::Rectangle) -> bool>(
         &self,
@@ -270,13 +270,11 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
             cell_background: *const gdk::ffi::GdkRectangle,
             data: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let renderer = from_glib_borrow(renderer);
-                let cell_area = from_glib_borrow(cell_area);
-                let cell_background = from_glib_borrow(cell_background);
-                let callback = data as *mut P;
-                (*callback)(&renderer, &cell_area, &cell_background).into_glib()
-            }
+            let renderer = from_glib_borrow(renderer);
+            let cell_area = from_glib_borrow(cell_area);
+            let cell_background = from_glib_borrow(cell_background);
+            let callback = data as *mut P;
+            (*callback)(&renderer, &cell_area, &cell_background).into_glib()
         }
         let callback = Some(callback_func::<P> as _);
         let super_callback0: &mut P = &mut callback_data;
@@ -345,8 +343,6 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
         }
     }
 
-    #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
-    #[allow(deprecated)]
     #[doc(alias = "gtk_cell_area_get_current_path_string")]
     #[doc(alias = "get_current_path_string")]
     fn current_path_string(&self) -> glib::GString {
@@ -518,8 +514,6 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
         }
     }
 
-    #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
-    #[allow(deprecated)]
     #[doc(alias = "gtk_cell_area_get_request_mode")]
     #[doc(alias = "get_request_mode")]
     fn request_mode(&self) -> SizeRequestMode {
@@ -712,23 +706,21 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
             path: *mut std::ffi::c_char,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                let path = from_glib_full(crate::ffi::gtk_tree_path_new_from_string(path));
-                f(
-                    CellArea::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(renderer),
-                    &from_glib_borrow(editable),
-                    &from_glib_borrow(cell_area),
-                    path,
-                )
-            }
+            let f: &F = &*(f as *const F);
+            let path = from_glib_full(crate::ffi::gtk_tree_path_new_from_string(path));
+            f(
+                CellArea::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(renderer),
+                &from_glib_borrow(editable),
+                &from_glib_borrow(cell_area),
+                path,
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"add-editable".as_ptr(),
+                b"add-editable\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     add_editable_trampoline::<Self, F> as *const (),
                 )),
@@ -753,22 +745,20 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
             is_expanded: glib::ffi::gboolean,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    CellArea::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(model),
-                    &from_glib_borrow(iter),
-                    from_glib(is_expander),
-                    from_glib(is_expanded),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                CellArea::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(model),
+                &from_glib_borrow(iter),
+                from_glib(is_expander),
+                from_glib(is_expanded),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"apply-attributes".as_ptr(),
+                b"apply-attributes\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     apply_attributes_trampoline::<Self, F> as *const (),
                 )),
@@ -791,21 +781,19 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
             path: *mut std::ffi::c_char,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                let path = from_glib_full(crate::ffi::gtk_tree_path_new_from_string(path));
-                f(
-                    CellArea::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(renderer),
-                    path,
-                )
-            }
+            let f: &F = &*(f as *const F);
+            let path = from_glib_full(crate::ffi::gtk_tree_path_new_from_string(path));
+            f(
+                CellArea::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(renderer),
+                path,
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"focus-changed".as_ptr(),
+                b"focus-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     focus_changed_trampoline::<Self, F> as *const (),
                 )),
@@ -828,20 +816,18 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
             editable: *mut ffi::GtkCellEditable,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    CellArea::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(renderer),
-                    &from_glib_borrow(editable),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                CellArea::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(renderer),
+                &from_glib_borrow(editable),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"remove-editable".as_ptr(),
+                b"remove-editable\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     remove_editable_trampoline::<Self, F> as *const (),
                 )),
@@ -860,16 +846,14 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(CellArea::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(CellArea::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::edit-widget".as_ptr(),
+                b"notify::edit-widget\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_edit_widget_trampoline::<Self, F> as *const (),
                 )),
@@ -888,16 +872,14 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(CellArea::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(CellArea::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::edited-cell".as_ptr(),
+                b"notify::edited-cell\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_edited_cell_trampoline::<Self, F> as *const (),
                 )),
@@ -913,16 +895,14 @@ pub trait CellAreaExt: IsA<CellArea> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(CellArea::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(CellArea::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::focus-cell".as_ptr(),
+                b"notify::focus-cell\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_focus_cell_trampoline::<Self, F> as *const (),
                 )),

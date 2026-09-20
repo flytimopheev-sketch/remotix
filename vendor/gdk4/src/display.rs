@@ -2,7 +2,7 @@
 
 use glib::translate::*;
 
-use crate::{Display, Key, KeymapKey, ModifierType, ffi, prelude::*};
+use crate::{ffi, prelude::*, Display, Key, KeymapKey, ModifierType};
 
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub enum Backend {
@@ -50,10 +50,15 @@ impl Backend {
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Display>> Sealed for T {}
+}
+
 // rustdoc-stripper-ignore-next
 /// Trait containing manually implemented methods of
 /// [`Display`](crate::Display).
-pub trait DisplayExtManual: IsA<Display> + 'static {
+pub trait DisplayExtManual: sealed::Sealed + IsA<Display> + 'static {
     #[doc(alias = "gdk_display_translate_key")]
     fn translate_key(
         &self,
@@ -103,7 +108,11 @@ pub trait DisplayExtManual: IsA<Display> + 'static {
                     name.as_ptr(),
                     value.to_glib_none_mut().0,
                 );
-                if from_glib(ret) { Some(value) } else { None }
+                if from_glib(ret) {
+                    Some(value)
+                } else {
+                    None
+                }
             })
         }
     }

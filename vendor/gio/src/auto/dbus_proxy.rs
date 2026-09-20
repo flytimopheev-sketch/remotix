@@ -6,12 +6,12 @@
 #[cfg_attr(docsrs, doc(cfg(unix)))]
 use crate::UnixFDList;
 use crate::{
-    AsyncInitable, AsyncResult, BusType, Cancellable, DBusCallFlags, DBusConnection, DBusInterface,
-    DBusInterfaceInfo, DBusProxyFlags, Initable, ffi,
+    ffi, AsyncInitable, AsyncResult, BusType, Cancellable, DBusCallFlags, DBusConnection,
+    DBusInterface, DBusInterfaceInfo, DBusProxyFlags, Initable,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::{boxed::Box as Box_, pin::Pin};
@@ -117,19 +117,17 @@ impl DBusProxy {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::g_dbus_proxy_new_finish(res, &mut error);
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::g_dbus_proxy_new_finish(res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = new_trampoline::<P>;
         unsafe {
@@ -210,19 +208,17 @@ impl DBusProxy {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::g_dbus_proxy_new_for_bus_finish(res, &mut error);
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::g_dbus_proxy_new_for_bus_finish(res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = for_bus_trampoline::<P>;
         unsafe {
@@ -275,7 +271,12 @@ impl DBusProxy {
 unsafe impl Send for DBusProxy {}
 unsafe impl Sync for DBusProxy {}
 
-pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::DBusProxy>> Sealed for T {}
+}
+
+pub trait DBusProxyExt: IsA<DBusProxy> + sealed::Sealed + 'static {
     #[doc(alias = "g_dbus_proxy_call")]
     fn call<P: FnOnce(Result<glib::Variant, glib::Error>) + 'static>(
         &self,
@@ -305,19 +306,17 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::g_dbus_proxy_call_finish(_source_object as *mut _, res, &mut error);
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::g_dbus_proxy_call_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = call_trampoline::<P>;
         unsafe {
@@ -423,25 +422,23 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let mut out_fd_list = std::ptr::null_mut();
-                let ret = ffi::g_dbus_proxy_call_with_unix_fd_list_finish(
-                    _source_object as *mut _,
-                    &mut out_fd_list,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok((from_glib_full(ret), from_glib_full(out_fd_list)))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let mut out_fd_list = std::ptr::null_mut();
+            let ret = ffi::g_dbus_proxy_call_with_unix_fd_list_finish(
+                _source_object as *mut _,
+                &mut out_fd_list,
+                res,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok((from_glib_full(ret), from_glib_full(out_fd_list)))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = call_with_unix_fd_list_trampoline::<P>;
         unsafe {
@@ -553,7 +550,6 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
 
     #[doc(alias = "g_dbus_proxy_get_connection")]
     #[doc(alias = "get_connection")]
-    #[doc(alias = "g-connection")]
     fn connection(&self) -> DBusConnection {
         unsafe {
             from_glib_none(ffi::g_dbus_proxy_get_connection(
@@ -564,21 +560,18 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
 
     #[doc(alias = "g_dbus_proxy_get_default_timeout")]
     #[doc(alias = "get_default_timeout")]
-    #[doc(alias = "g-default-timeout")]
     fn default_timeout(&self) -> i32 {
         unsafe { ffi::g_dbus_proxy_get_default_timeout(self.as_ref().to_glib_none().0) }
     }
 
     #[doc(alias = "g_dbus_proxy_get_flags")]
     #[doc(alias = "get_flags")]
-    #[doc(alias = "g-flags")]
     fn flags(&self) -> DBusProxyFlags {
         unsafe { from_glib(ffi::g_dbus_proxy_get_flags(self.as_ref().to_glib_none().0)) }
     }
 
     #[doc(alias = "g_dbus_proxy_get_interface_info")]
     #[doc(alias = "get_interface_info")]
-    #[doc(alias = "g-interface-info")]
     fn interface_info(&self) -> Option<DBusInterfaceInfo> {
         unsafe {
             from_glib_none(ffi::g_dbus_proxy_get_interface_info(
@@ -589,7 +582,6 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
 
     #[doc(alias = "g_dbus_proxy_get_interface_name")]
     #[doc(alias = "get_interface_name")]
-    #[doc(alias = "g-interface-name")]
     fn interface_name(&self) -> glib::GString {
         unsafe {
             from_glib_none(ffi::g_dbus_proxy_get_interface_name(
@@ -600,14 +592,12 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
 
     #[doc(alias = "g_dbus_proxy_get_name")]
     #[doc(alias = "get_name")]
-    #[doc(alias = "g-name")]
     fn name(&self) -> Option<glib::GString> {
         unsafe { from_glib_none(ffi::g_dbus_proxy_get_name(self.as_ref().to_glib_none().0)) }
     }
 
     #[doc(alias = "g_dbus_proxy_get_name_owner")]
     #[doc(alias = "get_name_owner")]
-    #[doc(alias = "g-name-owner")]
     fn name_owner(&self) -> Option<glib::GString> {
         unsafe {
             from_glib_full(ffi::g_dbus_proxy_get_name_owner(
@@ -618,7 +608,6 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
 
     #[doc(alias = "g_dbus_proxy_get_object_path")]
     #[doc(alias = "get_object_path")]
-    #[doc(alias = "g-object-path")]
     fn object_path(&self) -> glib::GString {
         unsafe {
             from_glib_none(ffi::g_dbus_proxy_get_object_path(
@@ -639,7 +628,6 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
     }
 
     #[doc(alias = "g_dbus_proxy_set_default_timeout")]
-    #[doc(alias = "g-default-timeout")]
     fn set_default_timeout(&self, timeout_msec: i32) {
         unsafe {
             ffi::g_dbus_proxy_set_default_timeout(self.as_ref().to_glib_none().0, timeout_msec);
@@ -647,7 +635,6 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
     }
 
     #[doc(alias = "g_dbus_proxy_set_interface_info")]
-    #[doc(alias = "g-interface-info")]
     fn set_interface_info(&self, info: Option<&DBusInterfaceInfo>) {
         unsafe {
             ffi::g_dbus_proxy_set_interface_info(
@@ -655,6 +642,56 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
                 info.to_glib_none().0,
             );
         }
+    }
+
+    #[doc(alias = "g-connection")]
+    fn g_connection(&self) -> Option<DBusConnection> {
+        ObjectExt::property(self.as_ref(), "g-connection")
+    }
+
+    #[doc(alias = "g-default-timeout")]
+    fn g_default_timeout(&self) -> i32 {
+        ObjectExt::property(self.as_ref(), "g-default-timeout")
+    }
+
+    #[doc(alias = "g-default-timeout")]
+    fn set_g_default_timeout(&self, g_default_timeout: i32) {
+        ObjectExt::set_property(self.as_ref(), "g-default-timeout", g_default_timeout)
+    }
+
+    #[doc(alias = "g-flags")]
+    fn g_flags(&self) -> DBusProxyFlags {
+        ObjectExt::property(self.as_ref(), "g-flags")
+    }
+
+    #[doc(alias = "g-interface-info")]
+    fn g_interface_info(&self) -> Option<DBusInterfaceInfo> {
+        ObjectExt::property(self.as_ref(), "g-interface-info")
+    }
+
+    #[doc(alias = "g-interface-info")]
+    fn set_g_interface_info(&self, g_interface_info: Option<&DBusInterfaceInfo>) {
+        ObjectExt::set_property(self.as_ref(), "g-interface-info", g_interface_info)
+    }
+
+    #[doc(alias = "g-interface-name")]
+    fn g_interface_name(&self) -> Option<glib::GString> {
+        ObjectExt::property(self.as_ref(), "g-interface-name")
+    }
+
+    #[doc(alias = "g-name")]
+    fn g_name(&self) -> Option<glib::GString> {
+        ObjectExt::property(self.as_ref(), "g-name")
+    }
+
+    #[doc(alias = "g-name-owner")]
+    fn g_name_owner(&self) -> Option<glib::GString> {
+        ObjectExt::property(self.as_ref(), "g-name-owner")
+    }
+
+    #[doc(alias = "g-object-path")]
+    fn g_object_path(&self) -> Option<glib::GString> {
+        ObjectExt::property(self.as_ref(), "g-object-path")
     }
 
     #[doc(alias = "g-default-timeout")]
@@ -670,16 +707,14 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(DBusProxy::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(DBusProxy::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::g-default-timeout".as_ptr(),
+                b"notify::g-default-timeout\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_g_default_timeout_trampoline::<Self, F> as *const (),
                 )),
@@ -701,16 +736,14 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(DBusProxy::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(DBusProxy::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::g-interface-info".as_ptr(),
+                b"notify::g-interface-info\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_g_interface_info_trampoline::<Self, F> as *const (),
                 )),
@@ -732,16 +765,14 @@ pub trait DBusProxyExt: IsA<DBusProxy> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(DBusProxy::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(DBusProxy::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::g-name-owner".as_ptr(),
+                b"notify::g-name-owner\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_g_name_owner_trampoline::<Self, F> as *const (),
                 )),

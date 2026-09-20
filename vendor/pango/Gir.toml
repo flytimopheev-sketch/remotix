@@ -20,7 +20,6 @@ generate = [
     "Pango.CoverageLevel",
     "Pango.Direction",
     "Pango.EllipsizeMode",
-    "Pango.FontColor",
     "Pango.FontFace",
     "Pango.FontMask",
     "Pango.FontMetrics",
@@ -36,7 +35,6 @@ generate = [
     "Pango.LayoutRun",
     "Pango.LayoutSerializeFlags",
     "Pango.Overline",
-    "Pango.RenderComponent",
     "Pango.Renderer",
     "Pango.RenderPart",
     "Pango.Script",
@@ -47,7 +45,6 @@ generate = [
     "Pango.TextTransform",
     "Pango.Underline",
     "Pango.Weight",
-    "Pango.Width",
     "Pango.WrapMode",
 ]
 
@@ -98,13 +95,11 @@ status = "generate"
     ignore = true
     [[object.function]]
     name = "itemize"
-    manual = true
         [[object.function.parameter]]
         name = "cached_iter"
         const = true
     [[object.function]]
     name = "itemize_with_base_dir"
-    manual = true
         [[object.function.parameter]]
         name = "cached_iter"
         const = true
@@ -205,9 +200,6 @@ status = "generate"
     [[object.member]]
     name = "font_scale"
     version = "1.50"
-    [[object.member]]
-    name = "width"
-    version = "1.58"
 
 [[object]]
 name = "Pango.Color"

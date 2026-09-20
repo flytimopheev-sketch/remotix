@@ -3,9 +3,9 @@
 use std::{boxed::Box as Box_, mem::transmute};
 
 use gdk::Key;
-use glib::{SignalHandlerId, signal::connect_raw, translate::*};
+use glib::{signal::connect_raw, translate::*, SignalHandlerId};
 
-use crate::{EventControllerKey, ffi, prelude::*};
+use crate::{ffi, prelude::*, EventControllerKey};
 
 impl EventControllerKey {
     pub fn connect_key_pressed<
@@ -23,22 +23,20 @@ impl EventControllerKey {
             state: gdk::ffi::GdkModifierType,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    &from_glib_borrow(this),
-                    from_glib(keyval),
-                    keycode,
-                    from_glib(state),
-                )
-                .into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                &from_glib_borrow(this),
+                from_glib(keyval),
+                keycode,
+                from_glib(state),
+            )
+            .into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"key-pressed".as_ptr() as *const _,
+                b"key-pressed\0".as_ptr() as *const _,
                 Some(transmute::<*const (), unsafe extern "C" fn()>(
                     key_pressed_trampoline::<F> as *const (),
                 )),
@@ -62,21 +60,19 @@ impl EventControllerKey {
             state: gdk::ffi::GdkModifierType,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    &from_glib_borrow(this),
-                    from_glib(keyval),
-                    keycode,
-                    from_glib(state),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                &from_glib_borrow(this),
+                from_glib(keyval),
+                keycode,
+                from_glib(state),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"key-released".as_ptr() as *const _,
+                b"key-released\0".as_ptr() as *const _,
                 Some(transmute::<*const (), unsafe extern "C" fn()>(
                     key_released_trampoline::<F> as *const (),
                 )),

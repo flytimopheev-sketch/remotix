@@ -1,6 +1,6 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
-use glib::{Variant, VariantTy, VariantType, prelude::*};
+use glib::{prelude::*, Variant, VariantTy, VariantType};
 
 use crate::{ActionMap, SimpleAction};
 

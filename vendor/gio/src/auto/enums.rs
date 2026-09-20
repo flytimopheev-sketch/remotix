@@ -78,7 +78,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for BusType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -178,7 +178,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for ConverterResult {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -298,7 +298,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for CredentialsType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -466,17 +466,17 @@ impl DBusError {
     }
 
     //#[doc(alias = "g_dbus_error_register_error_domain")]
-    //pub fn register_error_domain(error_domain_quark_name: &str, entries: /*Ignored*/&[DBusErrorEntry]) -> usize {
+    //pub fn register_error_domain(error_domain_quark_name: &str, quark_volatile: usize, entries: /*Ignored*/&[DBusErrorEntry]) {
     //    unsafe { TODO: call ffi:g_dbus_error_register_error_domain() }
     //}
 
     //#[doc(alias = "g_dbus_error_set_dbus_error")]
-    //pub fn set_dbus_error(dbus_error_name: &str, dbus_error_message: &str, format: Option<&str>, : /*Unknown conversion*//*Unimplemented*/Basic: VarArgs) -> Option<glib::Error> {
+    //pub fn set_dbus_error(error: &mut glib::Error, dbus_error_name: &str, dbus_error_message: &str, format: Option<&str>, : /*Unknown conversion*//*Unimplemented*/Basic: VarArgs) {
     //    unsafe { TODO: call ffi:g_dbus_error_set_dbus_error() }
     //}
 
     //#[doc(alias = "g_dbus_error_set_dbus_error_valist")]
-    //pub fn set_dbus_error_valist(dbus_error_name: &str, dbus_error_message: &str, format: Option<&str>, var_args: /*Unknown conversion*//*Unimplemented*/Unsupported) -> Option<glib::Error> {
+    //pub fn set_dbus_error_valist(error: &mut glib::Error, dbus_error_name: &str, dbus_error_message: &str, format: Option<&str>, var_args: /*Unknown conversion*//*Unimplemented*/Unsupported) {
     //    unsafe { TODO: call ffi:g_dbus_error_set_dbus_error_valist() }
     //}
 
@@ -667,7 +667,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for DBusError {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -759,7 +759,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for DBusMessageByteOrder {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -883,7 +883,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for DBusMessageHeaderField {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -987,7 +987,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for DBusMessageType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1083,7 +1083,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for DataStreamByteOrder {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1183,7 +1183,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for DataStreamNewlineType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1287,7 +1287,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for DriveStartStopType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1310,124 +1310,6 @@ impl ToValue for DriveStartStopType {
 impl From<DriveStartStopType> for glib::Value {
     #[inline]
     fn from(v: DriveStartStopType) -> Self {
-        ToValue::to_value(&v)
-    }
-}
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
-#[non_exhaustive]
-#[doc(alias = "GEcnCodePoint")]
-pub enum EcnCodePoint {
-    #[doc(alias = "G_ECN_NO_ECN")]
-    NoEcn,
-    #[doc(alias = "G_ECN_ECT_1")]
-    Ect1,
-    #[doc(alias = "G_ECN_ECT_0")]
-    Ect0,
-    #[doc(alias = "G_ECN_ECT_CE")]
-    EctCe,
-    #[doc(hidden)]
-    __Unknown(i32),
-}
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-#[doc(hidden)]
-impl IntoGlib for EcnCodePoint {
-    type GlibType = ffi::GEcnCodePoint;
-
-    #[inline]
-    fn into_glib(self) -> ffi::GEcnCodePoint {
-        match self {
-            Self::NoEcn => ffi::G_ECN_NO_ECN,
-            Self::Ect1 => ffi::G_ECN_ECT_1,
-            Self::Ect0 => ffi::G_ECN_ECT_0,
-            Self::EctCe => ffi::G_ECN_ECT_CE,
-            Self::__Unknown(value) => value,
-        }
-    }
-}
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-#[doc(hidden)]
-impl FromGlib<ffi::GEcnCodePoint> for EcnCodePoint {
-    #[inline]
-    unsafe fn from_glib(value: ffi::GEcnCodePoint) -> Self {
-        match value {
-            ffi::G_ECN_NO_ECN => Self::NoEcn,
-            ffi::G_ECN_ECT_1 => Self::Ect1,
-            ffi::G_ECN_ECT_0 => Self::Ect0,
-            ffi::G_ECN_ECT_CE => Self::EctCe,
-            value => Self::__Unknown(value),
-        }
-    }
-}
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-impl StaticType for EcnCodePoint {
-    #[inline]
-    #[doc(alias = "g_ecn_code_point_get_type")]
-    fn static_type() -> glib::Type {
-        unsafe { from_glib(ffi::g_ecn_code_point_get_type()) }
-    }
-}
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-impl glib::HasParamSpec for EcnCodePoint {
-    type ParamSpec = glib::ParamSpecEnum;
-    type SetValue = Self;
-    type BuilderFn = fn(&str, Self) -> glib::ParamSpecEnumBuilder<Self>;
-
-    fn param_spec_builder() -> Self::BuilderFn {
-        Self::ParamSpec::builder_with_default
-    }
-}
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-impl glib::value::ValueType for EcnCodePoint {
-    type Type = Self;
-}
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-unsafe impl<'a> glib::value::FromValue<'a> for EcnCodePoint {
-    type Checker = glib::value::GenericValueTypeChecker<Self>;
-
-    #[inline]
-    unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
-    }
-}
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-impl ToValue for EcnCodePoint {
-    #[inline]
-    fn to_value(&self) -> glib::Value {
-        let mut value = glib::Value::for_value_type::<Self>();
-        unsafe {
-            glib::gobject_ffi::g_value_set_enum(value.to_glib_none_mut().0, self.into_glib());
-        }
-        value
-    }
-
-    #[inline]
-    fn value_type(&self) -> glib::Type {
-        Self::static_type()
-    }
-}
-
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-impl From<EcnCodePoint> for glib::Value {
-    #[inline]
-    fn from(v: EcnCodePoint) -> Self {
         ToValue::to_value(&v)
     }
 }
@@ -1505,7 +1387,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for EmblemOrigin {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1601,7 +1483,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for FileAttributeStatus {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1725,7 +1607,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for FileAttributeType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1853,7 +1735,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for FileMonitorEvent {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1965,7 +1847,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for FileType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2061,7 +1943,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for FilesystemPreviewType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2368,7 +2250,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for IOErrorEnum {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2391,6 +2273,98 @@ impl ToValue for IOErrorEnum {
 impl From<IOErrorEnum> for glib::Value {
     #[inline]
     fn from(v: IOErrorEnum) -> Self {
+        ToValue::to_value(&v)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
+#[non_exhaustive]
+#[doc(alias = "GIOModuleScopeFlags")]
+pub enum IOModuleScopeFlags {
+    #[doc(alias = "G_IO_MODULE_SCOPE_NONE")]
+    None,
+    #[doc(alias = "G_IO_MODULE_SCOPE_BLOCK_DUPLICATES")]
+    BlockDuplicates,
+    #[doc(hidden)]
+    __Unknown(i32),
+}
+
+#[doc(hidden)]
+impl IntoGlib for IOModuleScopeFlags {
+    type GlibType = ffi::GIOModuleScopeFlags;
+
+    #[inline]
+    fn into_glib(self) -> ffi::GIOModuleScopeFlags {
+        match self {
+            Self::None => ffi::G_IO_MODULE_SCOPE_NONE,
+            Self::BlockDuplicates => ffi::G_IO_MODULE_SCOPE_BLOCK_DUPLICATES,
+            Self::__Unknown(value) => value,
+        }
+    }
+}
+
+#[doc(hidden)]
+impl FromGlib<ffi::GIOModuleScopeFlags> for IOModuleScopeFlags {
+    #[inline]
+    unsafe fn from_glib(value: ffi::GIOModuleScopeFlags) -> Self {
+        match value {
+            ffi::G_IO_MODULE_SCOPE_NONE => Self::None,
+            ffi::G_IO_MODULE_SCOPE_BLOCK_DUPLICATES => Self::BlockDuplicates,
+            value => Self::__Unknown(value),
+        }
+    }
+}
+
+impl StaticType for IOModuleScopeFlags {
+    #[inline]
+    #[doc(alias = "g_io_module_scope_flags_get_type")]
+    fn static_type() -> glib::Type {
+        unsafe { from_glib(ffi::g_io_module_scope_flags_get_type()) }
+    }
+}
+
+impl glib::HasParamSpec for IOModuleScopeFlags {
+    type ParamSpec = glib::ParamSpecEnum;
+    type SetValue = Self;
+    type BuilderFn = fn(&str, Self) -> glib::ParamSpecEnumBuilder<Self>;
+
+    fn param_spec_builder() -> Self::BuilderFn {
+        Self::ParamSpec::builder_with_default
+    }
+}
+
+impl glib::value::ValueType for IOModuleScopeFlags {
+    type Type = Self;
+}
+
+unsafe impl<'a> glib::value::FromValue<'a> for IOModuleScopeFlags {
+    type Checker = glib::value::GenericValueTypeChecker<Self>;
+
+    #[inline]
+    unsafe fn from_value(value: &'a glib::Value) -> Self {
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
+    }
+}
+
+impl ToValue for IOModuleScopeFlags {
+    #[inline]
+    fn to_value(&self) -> glib::Value {
+        let mut value = glib::Value::for_value_type::<Self>();
+        unsafe {
+            glib::gobject_ffi::g_value_set_enum(value.to_glib_none_mut().0, self.into_glib());
+        }
+        value
+    }
+
+    #[inline]
+    fn value_type(&self) -> glib::Type {
+        Self::static_type()
+    }
+}
+
+impl From<IOModuleScopeFlags> for glib::Value {
+    #[inline]
+    fn from(v: IOModuleScopeFlags) -> Self {
         ToValue::to_value(&v)
     }
 }
@@ -2478,7 +2452,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for MemoryMonitorWarningLevel {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2578,7 +2552,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for MountOperationResult {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2678,7 +2652,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for NetworkConnectivity {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2778,7 +2752,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for NotificationPriority {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2874,7 +2848,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for PasswordSave {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2984,7 +2958,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for PollableReturn {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3104,7 +3078,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for ResolverError {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3208,7 +3182,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for ResolverRecordType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3320,7 +3294,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for ResourceError {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3440,7 +3414,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for SocketClientEvent {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3540,7 +3514,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for SocketFamily {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3640,7 +3614,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for SocketListenerEvent {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3744,7 +3718,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for SocketProtocol {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3844,7 +3818,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for SocketType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3940,7 +3914,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TlsAuthenticationMode {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3963,6 +3937,94 @@ impl ToValue for TlsAuthenticationMode {
 impl From<TlsAuthenticationMode> for glib::Value {
     #[inline]
     fn from(v: TlsAuthenticationMode) -> Self {
+        ToValue::to_value(&v)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
+#[non_exhaustive]
+#[doc(alias = "GTlsCertificateRequestFlags")]
+pub enum TlsCertificateRequestFlags {
+    #[doc(alias = "G_TLS_CERTIFICATE_REQUEST_NONE")]
+    None,
+    #[doc(hidden)]
+    __Unknown(i32),
+}
+
+#[doc(hidden)]
+impl IntoGlib for TlsCertificateRequestFlags {
+    type GlibType = ffi::GTlsCertificateRequestFlags;
+
+    #[inline]
+    fn into_glib(self) -> ffi::GTlsCertificateRequestFlags {
+        match self {
+            Self::None => ffi::G_TLS_CERTIFICATE_REQUEST_NONE,
+            Self::__Unknown(value) => value,
+        }
+    }
+}
+
+#[doc(hidden)]
+impl FromGlib<ffi::GTlsCertificateRequestFlags> for TlsCertificateRequestFlags {
+    #[inline]
+    unsafe fn from_glib(value: ffi::GTlsCertificateRequestFlags) -> Self {
+        match value {
+            ffi::G_TLS_CERTIFICATE_REQUEST_NONE => Self::None,
+            value => Self::__Unknown(value),
+        }
+    }
+}
+
+impl StaticType for TlsCertificateRequestFlags {
+    #[inline]
+    #[doc(alias = "g_tls_certificate_request_flags_get_type")]
+    fn static_type() -> glib::Type {
+        unsafe { from_glib(ffi::g_tls_certificate_request_flags_get_type()) }
+    }
+}
+
+impl glib::HasParamSpec for TlsCertificateRequestFlags {
+    type ParamSpec = glib::ParamSpecEnum;
+    type SetValue = Self;
+    type BuilderFn = fn(&str, Self) -> glib::ParamSpecEnumBuilder<Self>;
+
+    fn param_spec_builder() -> Self::BuilderFn {
+        Self::ParamSpec::builder_with_default
+    }
+}
+
+impl glib::value::ValueType for TlsCertificateRequestFlags {
+    type Type = Self;
+}
+
+unsafe impl<'a> glib::value::FromValue<'a> for TlsCertificateRequestFlags {
+    type Checker = glib::value::GenericValueTypeChecker<Self>;
+
+    #[inline]
+    unsafe fn from_value(value: &'a glib::Value) -> Self {
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
+    }
+}
+
+impl ToValue for TlsCertificateRequestFlags {
+    #[inline]
+    fn to_value(&self) -> glib::Value {
+        let mut value = glib::Value::for_value_type::<Self>();
+        unsafe {
+            glib::gobject_ffi::g_value_set_enum(value.to_glib_none_mut().0, self.into_glib());
+        }
+        value
+    }
+
+    #[inline]
+    fn value_type(&self) -> glib::Type {
+        Self::static_type()
+    }
+}
+
+impl From<TlsCertificateRequestFlags> for glib::Value {
+    #[inline]
+    fn from(v: TlsCertificateRequestFlags) -> Self {
         ToValue::to_value(&v)
     }
 }
@@ -4080,7 +4142,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TlsChannelBindingError {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -4198,7 +4260,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TlsChannelBindingType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -4225,6 +4287,98 @@ impl ToValue for TlsChannelBindingType {
 impl From<TlsChannelBindingType> for glib::Value {
     #[inline]
     fn from(v: TlsChannelBindingType) -> Self {
+        ToValue::to_value(&v)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
+#[non_exhaustive]
+#[doc(alias = "GTlsDatabaseLookupFlags")]
+pub enum TlsDatabaseLookupFlags {
+    #[doc(alias = "G_TLS_DATABASE_LOOKUP_NONE")]
+    None,
+    #[doc(alias = "G_TLS_DATABASE_LOOKUP_KEYPAIR")]
+    Keypair,
+    #[doc(hidden)]
+    __Unknown(i32),
+}
+
+#[doc(hidden)]
+impl IntoGlib for TlsDatabaseLookupFlags {
+    type GlibType = ffi::GTlsDatabaseLookupFlags;
+
+    #[inline]
+    fn into_glib(self) -> ffi::GTlsDatabaseLookupFlags {
+        match self {
+            Self::None => ffi::G_TLS_DATABASE_LOOKUP_NONE,
+            Self::Keypair => ffi::G_TLS_DATABASE_LOOKUP_KEYPAIR,
+            Self::__Unknown(value) => value,
+        }
+    }
+}
+
+#[doc(hidden)]
+impl FromGlib<ffi::GTlsDatabaseLookupFlags> for TlsDatabaseLookupFlags {
+    #[inline]
+    unsafe fn from_glib(value: ffi::GTlsDatabaseLookupFlags) -> Self {
+        match value {
+            ffi::G_TLS_DATABASE_LOOKUP_NONE => Self::None,
+            ffi::G_TLS_DATABASE_LOOKUP_KEYPAIR => Self::Keypair,
+            value => Self::__Unknown(value),
+        }
+    }
+}
+
+impl StaticType for TlsDatabaseLookupFlags {
+    #[inline]
+    #[doc(alias = "g_tls_database_lookup_flags_get_type")]
+    fn static_type() -> glib::Type {
+        unsafe { from_glib(ffi::g_tls_database_lookup_flags_get_type()) }
+    }
+}
+
+impl glib::HasParamSpec for TlsDatabaseLookupFlags {
+    type ParamSpec = glib::ParamSpecEnum;
+    type SetValue = Self;
+    type BuilderFn = fn(&str, Self) -> glib::ParamSpecEnumBuilder<Self>;
+
+    fn param_spec_builder() -> Self::BuilderFn {
+        Self::ParamSpec::builder_with_default
+    }
+}
+
+impl glib::value::ValueType for TlsDatabaseLookupFlags {
+    type Type = Self;
+}
+
+unsafe impl<'a> glib::value::FromValue<'a> for TlsDatabaseLookupFlags {
+    type Checker = glib::value::GenericValueTypeChecker<Self>;
+
+    #[inline]
+    unsafe fn from_value(value: &'a glib::Value) -> Self {
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
+    }
+}
+
+impl ToValue for TlsDatabaseLookupFlags {
+    #[inline]
+    fn to_value(&self) -> glib::Value {
+        let mut value = glib::Value::for_value_type::<Self>();
+        unsafe {
+            glib::gobject_ffi::g_value_set_enum(value.to_glib_none_mut().0, self.into_glib());
+        }
+        value
+    }
+
+    #[inline]
+    fn value_type(&self) -> glib::Type {
+        Self::static_type()
+    }
+}
+
+impl From<TlsDatabaseLookupFlags> for glib::Value {
+    #[inline]
+    fn from(v: TlsDatabaseLookupFlags) -> Self {
         ToValue::to_value(&v)
     }
 }
@@ -4346,7 +4500,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TlsError {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -4442,7 +4596,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TlsInteractionResult {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -4572,7 +4726,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TlsProtocolVersion {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -4679,7 +4833,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TlsRehandshakeMode {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -4793,7 +4947,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for UnixSocketAddressType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -4891,7 +5045,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for ZlibCompressorFormat {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 

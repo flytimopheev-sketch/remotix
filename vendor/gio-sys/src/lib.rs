@@ -18,18 +18,18 @@ mod manual;
 
 pub use manual::*;
 
-#[allow(unused_imports)]
-use libc::{FILE, intptr_t, off_t, size_t, ssize_t, time_t, uintptr_t};
 #[cfg(unix)]
 #[allow(unused_imports)]
 use libc::{dev_t, gid_t, pid_t, socklen_t, uid_t};
+#[allow(unused_imports)]
+use libc::{intptr_t, off_t, size_t, ssize_t, time_t, uintptr_t, FILE};
 #[allow(unused_imports)]
 use std::ffi::{
     c_char, c_double, c_float, c_int, c_long, c_short, c_uchar, c_uint, c_ulong, c_ushort, c_void,
 };
 
 #[allow(unused_imports)]
-use glib::{GType, gboolean, gconstpointer, gpointer};
+use glib::{gboolean, gconstpointer, gpointer, GType};
 
 // Enums
 pub type GBusType = c_int;
@@ -142,12 +142,6 @@ pub const G_DRIVE_START_STOP_TYPE_NETWORK: GDriveStartStopType = 2;
 pub const G_DRIVE_START_STOP_TYPE_MULTIDISK: GDriveStartStopType = 3;
 pub const G_DRIVE_START_STOP_TYPE_PASSWORD: GDriveStartStopType = 4;
 
-pub type GEcnCodePoint = c_int;
-pub const G_ECN_NO_ECN: GEcnCodePoint = 0;
-pub const G_ECN_ECT_1: GEcnCodePoint = 1;
-pub const G_ECN_ECT_0: GEcnCodePoint = 2;
-pub const G_ECN_ECT_CE: GEcnCodePoint = 3;
-
 pub type GEmblemOrigin = c_int;
 pub const G_EMBLEM_ORIGIN_UNKNOWN: GEmblemOrigin = 0;
 pub const G_EMBLEM_ORIGIN_DEVICE: GEmblemOrigin = 1;
@@ -250,6 +244,10 @@ pub const G_IO_ERROR_MESSAGE_TOO_LARGE: GIOErrorEnum = 46;
 pub const G_IO_ERROR_NO_SUCH_DEVICE: GIOErrorEnum = 47;
 pub const G_IO_ERROR_DESTINATION_UNSET: GIOErrorEnum = 48;
 
+pub type GIOModuleScopeFlags = c_int;
+pub const G_IO_MODULE_SCOPE_NONE: GIOModuleScopeFlags = 0;
+pub const G_IO_MODULE_SCOPE_BLOCK_DUPLICATES: GIOModuleScopeFlags = 1;
+
 pub type GMemoryMonitorWarningLevel = c_int;
 pub const G_MEMORY_MONITOR_WARNING_LEVEL_LOW: GMemoryMonitorWarningLevel = 50;
 pub const G_MEMORY_MONITOR_WARNING_LEVEL_MEDIUM: GMemoryMonitorWarningLevel = 100;
@@ -333,6 +331,9 @@ pub const G_TLS_AUTHENTICATION_NONE: GTlsAuthenticationMode = 0;
 pub const G_TLS_AUTHENTICATION_REQUESTED: GTlsAuthenticationMode = 1;
 pub const G_TLS_AUTHENTICATION_REQUIRED: GTlsAuthenticationMode = 2;
 
+pub type GTlsCertificateRequestFlags = c_int;
+pub const G_TLS_CERTIFICATE_REQUEST_NONE: GTlsCertificateRequestFlags = 0;
+
 pub type GTlsChannelBindingError = c_int;
 pub const G_TLS_CHANNEL_BINDING_ERROR_NOT_IMPLEMENTED: GTlsChannelBindingError = 0;
 pub const G_TLS_CHANNEL_BINDING_ERROR_INVALID_STATE: GTlsChannelBindingError = 1;
@@ -343,9 +344,11 @@ pub const G_TLS_CHANNEL_BINDING_ERROR_GENERAL_ERROR: GTlsChannelBindingError = 4
 pub type GTlsChannelBindingType = c_int;
 pub const G_TLS_CHANNEL_BINDING_TLS_UNIQUE: GTlsChannelBindingType = 0;
 pub const G_TLS_CHANNEL_BINDING_TLS_SERVER_END_POINT: GTlsChannelBindingType = 1;
-#[cfg(feature = "v2_74")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_74")))]
 pub const G_TLS_CHANNEL_BINDING_TLS_EXPORTER: GTlsChannelBindingType = 2;
+
+pub type GTlsDatabaseLookupFlags = c_int;
+pub const G_TLS_DATABASE_LOOKUP_NONE: GTlsDatabaseLookupFlags = 0;
+pub const G_TLS_DATABASE_LOOKUP_KEYPAIR: GTlsDatabaseLookupFlags = 1;
 
 pub type GTlsError = c_int;
 pub const G_TLS_ERROR_UNAVAILABLE: GTlsError = 0;
@@ -394,6 +397,7 @@ pub const G_ZLIB_COMPRESSOR_FORMAT_RAW: GZlibCompressorFormat = 2;
 pub const G_DBUS_METHOD_INVOCATION_HANDLED: gboolean = glib::GTRUE;
 pub const G_DBUS_METHOD_INVOCATION_UNHANDLED: gboolean = glib::GFALSE;
 pub const G_DEBUG_CONTROLLER_EXTENSION_POINT_NAME: &[u8] = b"gio-debug-controller\0";
+pub const G_DESKTOP_APP_INFO_LOOKUP_EXTENSION_POINT_NAME: &[u8] = b"gio-desktop-app-info-lookup\0";
 pub const G_DRIVE_IDENTIFIER_KIND_UNIX_DEVICE: &[u8] = b"unix-device\0";
 pub const G_FILE_ATTRIBUTE_ACCESS_CAN_DELETE: &[u8] = b"access::can-delete\0";
 pub const G_FILE_ATTRIBUTE_ACCESS_CAN_EXECUTE: &[u8] = b"access::can-execute\0";
@@ -584,8 +588,6 @@ pub const G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_ALLOW_ANONYMOUS: GDBusConnectio
 pub const G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION: GDBusConnectionFlags = 8;
 pub const G_DBUS_CONNECTION_FLAGS_DELAY_MESSAGE_PROCESSING: GDBusConnectionFlags = 16;
 pub const G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_REQUIRE_SAME_USER: GDBusConnectionFlags = 32;
-#[cfg(feature = "v2_74")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_74")))]
 pub const G_DBUS_CONNECTION_FLAGS_CROSS_NAMESPACE: GDBusConnectionFlags = 64;
 
 pub type GDBusInterfaceSkeletonFlags = c_uint;
@@ -677,10 +679,6 @@ pub type GFileQueryInfoFlags = c_uint;
 pub const G_FILE_QUERY_INFO_NONE: GFileQueryInfoFlags = 0;
 pub const G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS: GFileQueryInfoFlags = 1;
 
-pub type GIOModuleScopeFlags = c_uint;
-pub const G_IO_MODULE_SCOPE_NONE: GIOModuleScopeFlags = 0;
-pub const G_IO_MODULE_SCOPE_BLOCK_DUPLICATES: GIOModuleScopeFlags = 1;
-
 pub type GIOStreamSpliceFlags = c_uint;
 pub const G_IO_STREAM_SPLICE_NONE: GIOStreamSpliceFlags = 0;
 pub const G_IO_STREAM_SPLICE_CLOSE_STREAM1: GIOStreamSpliceFlags = 1;
@@ -735,8 +733,6 @@ pub type GTestDBusFlags = c_uint;
 pub const G_TEST_DBUS_NONE: GTestDBusFlags = 0;
 
 pub type GTlsCertificateFlags = c_uint;
-#[cfg(feature = "v2_74")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_74")))]
 pub const G_TLS_CERTIFICATE_NO_FLAGS: GTlsCertificateFlags = 0;
 pub const G_TLS_CERTIFICATE_UNKNOWN_CA: GTlsCertificateFlags = 1;
 pub const G_TLS_CERTIFICATE_BAD_IDENTITY: GTlsCertificateFlags = 2;
@@ -746,13 +742,6 @@ pub const G_TLS_CERTIFICATE_REVOKED: GTlsCertificateFlags = 16;
 pub const G_TLS_CERTIFICATE_INSECURE: GTlsCertificateFlags = 32;
 pub const G_TLS_CERTIFICATE_GENERIC_ERROR: GTlsCertificateFlags = 64;
 pub const G_TLS_CERTIFICATE_VALIDATE_ALL: GTlsCertificateFlags = 127;
-
-pub type GTlsCertificateRequestFlags = c_uint;
-pub const G_TLS_CERTIFICATE_REQUEST_NONE: GTlsCertificateRequestFlags = 0;
-
-pub type GTlsDatabaseLookupFlags = c_uint;
-pub const G_TLS_DATABASE_LOOKUP_NONE: GTlsDatabaseLookupFlags = 0;
-pub const G_TLS_DATABASE_LOOKUP_KEYPAIR: GTlsDatabaseLookupFlags = 1;
 
 pub type GTlsDatabaseVerifyFlags = c_uint;
 pub const G_TLS_DATABASE_VERIFY_NONE: GTlsDatabaseVerifyFlags = 0;
@@ -873,6 +862,8 @@ pub type GDBusSubtreeIntrospectFunc = Option<
 >;
 pub type GDatagramBasedSourceFunc =
     Option<unsafe extern "C" fn(*mut GDatagramBased, glib::GIOCondition, gpointer) -> gboolean>;
+pub type GDesktopAppLaunchCallback =
+    Option<unsafe extern "C" fn(*mut GDesktopAppInfo, glib::GPid, gpointer)>;
 pub type GFileMeasureProgressCallback =
     Option<unsafe extern "C" fn(gboolean, u64, u64, u64, gpointer)>;
 pub type GFileProgressCallback = Option<unsafe extern "C" fn(i64, i64, gpointer)>;
@@ -1588,20 +1579,6 @@ pub type GCredentialsClass = _GCredentialsClass;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct GDBusActionGroupClass {
-    pub parent_class: gobject::GObjectClass,
-}
-
-impl ::std::fmt::Debug for GDBusActionGroupClass {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        f.debug_struct(&format!("GDBusActionGroupClass @ {self:p}"))
-            .field("parent_class", &self.parent_class)
-            .finish()
-    }
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct GDBusAnnotationInfo {
     pub ref_count: c_int,
     pub key: *mut c_char,
@@ -1713,16 +1690,7 @@ pub struct GDBusInterfaceSkeletonClass {
     pub get_properties:
         Option<unsafe extern "C" fn(*mut GDBusInterfaceSkeleton) -> *mut glib::GVariant>,
     pub flush: Option<unsafe extern "C" fn(*mut GDBusInterfaceSkeleton)>,
-    pub method_dispatch: Option<
-        unsafe extern "C" fn(
-            *mut GDBusInterfaceSkeleton,
-            GDBusInterfaceMethodCallFunc,
-            *mut GDBusMethodInvocation,
-            GDBusInterfaceSkeletonFlags,
-            *mut GDBusObject,
-        ),
-    >,
-    pub vfunc_padding: [gpointer; 7],
+    pub vfunc_padding: [gpointer; 8],
     pub g_authorize_method: Option<
         unsafe extern "C" fn(*mut GDBusInterfaceSkeleton, *mut GDBusMethodInvocation) -> gboolean,
     >,
@@ -1737,7 +1705,6 @@ impl ::std::fmt::Debug for GDBusInterfaceSkeletonClass {
             .field("get_vtable", &self.get_vtable)
             .field("get_properties", &self.get_properties)
             .field("flush", &self.flush)
-            .field("method_dispatch", &self.method_dispatch)
             .field("g_authorize_method", &self.g_authorize_method)
             .finish()
     }
@@ -2260,6 +2227,40 @@ impl ::std::fmt::Debug for GDebugControllerInterface {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
+pub struct GDesktopAppInfoClass {
+    pub parent_class: gobject::GObjectClass,
+}
+
+impl ::std::fmt::Debug for GDesktopAppInfoClass {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GDesktopAppInfoClass @ {self:p}"))
+            .field("parent_class", &self.parent_class)
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct GDesktopAppInfoLookupIface {
+    pub g_iface: gobject::GTypeInterface,
+    pub get_default_for_uri_scheme:
+        Option<unsafe extern "C" fn(*mut GDesktopAppInfoLookup, *const c_char) -> *mut GAppInfo>,
+}
+
+impl ::std::fmt::Debug for GDesktopAppInfoLookupIface {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GDesktopAppInfoLookupIface @ {self:p}"))
+            .field("g_iface", &self.g_iface)
+            .field(
+                "get_default_for_uri_scheme",
+                &self.get_default_for_uri_scheme,
+            )
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
 pub struct GDriveIface {
     pub g_iface: gobject::GTypeInterface,
     pub changed: Option<unsafe extern "C" fn(*mut GDrive)>,
@@ -2506,19 +2507,14 @@ impl ::std::fmt::Debug for GDtlsServerConnectionInterface {
     }
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub struct GEmblemClass {
-    pub parent_class: gobject::GObjectClass,
+#[allow(dead_code)]
+pub struct _GEmblemClass {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
-impl ::std::fmt::Debug for GEmblemClass {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        f.debug_struct(&format!("GEmblemClass @ {self:p}"))
-            .field("parent_class", &self.parent_class)
-            .finish()
-    }
-}
+pub type GEmblemClass = _GEmblemClass;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -2587,6 +2583,22 @@ pub struct GFileAttributeMatcher {
 impl ::std::fmt::Debug for GFileAttributeMatcher {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         f.debug_struct(&format!("GFileAttributeMatcher @ {self:p}"))
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct GFileDescriptorBasedIface {
+    pub g_iface: gobject::GTypeInterface,
+    pub get_fd: Option<unsafe extern "C" fn(*mut GFileDescriptorBased) -> c_int>,
+}
+
+impl ::std::fmt::Debug for GFileDescriptorBasedIface {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GFileDescriptorBasedIface @ {self:p}"))
+            .field("g_iface", &self.g_iface)
+            .field("get_fd", &self.get_fd)
             .finish()
     }
 }
@@ -3941,34 +3953,6 @@ pub struct _GIOStreamPrivate {
 }
 
 pub type GIOStreamPrivate = _GIOStreamPrivate;
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GIPTosMessageClass {
-    pub parent_class: GSocketControlMessageClass,
-}
-
-impl ::std::fmt::Debug for GIPTosMessageClass {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        f.debug_struct(&format!("GIPTosMessageClass @ {self:p}"))
-            .field("parent_class", &self.parent_class)
-            .finish()
-    }
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GIPv6TclassMessageClass {
-    pub parent_class: GSocketControlMessageClass,
-}
-
-impl ::std::fmt::Debug for GIPv6TclassMessageClass {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        f.debug_struct(&format!("GIPv6TclassMessageClass @ {self:p}"))
-            .field("parent_class", &self.parent_class)
-            .finish()
-    }
-}
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -6876,6 +6860,136 @@ pub type GUnixFDListPrivate = _GUnixFDListPrivate;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
+pub struct GUnixFDMessageClass {
+    pub parent_class: GSocketControlMessageClass,
+    pub _g_reserved1: Option<unsafe extern "C" fn()>,
+    pub _g_reserved2: Option<unsafe extern "C" fn()>,
+}
+
+impl ::std::fmt::Debug for GUnixFDMessageClass {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GUnixFDMessageClass @ {self:p}"))
+            .field("parent_class", &self.parent_class)
+            .field("_g_reserved1", &self._g_reserved1)
+            .field("_g_reserved2", &self._g_reserved2)
+            .finish()
+    }
+}
+
+#[repr(C)]
+#[allow(dead_code)]
+pub struct _GUnixFDMessagePrivate {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+pub type GUnixFDMessagePrivate = _GUnixFDMessagePrivate;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct GUnixInputStreamClass {
+    pub parent_class: GInputStreamClass,
+    pub _g_reserved1: Option<unsafe extern "C" fn()>,
+    pub _g_reserved2: Option<unsafe extern "C" fn()>,
+    pub _g_reserved3: Option<unsafe extern "C" fn()>,
+    pub _g_reserved4: Option<unsafe extern "C" fn()>,
+    pub _g_reserved5: Option<unsafe extern "C" fn()>,
+}
+
+impl ::std::fmt::Debug for GUnixInputStreamClass {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GUnixInputStreamClass @ {self:p}"))
+            .field("parent_class", &self.parent_class)
+            .field("_g_reserved1", &self._g_reserved1)
+            .field("_g_reserved2", &self._g_reserved2)
+            .field("_g_reserved3", &self._g_reserved3)
+            .field("_g_reserved4", &self._g_reserved4)
+            .field("_g_reserved5", &self._g_reserved5)
+            .finish()
+    }
+}
+
+#[repr(C)]
+#[allow(dead_code)]
+pub struct _GUnixInputStreamPrivate {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+pub type GUnixInputStreamPrivate = _GUnixInputStreamPrivate;
+
+#[repr(C)]
+#[allow(dead_code)]
+pub struct GUnixMountEntry {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+impl ::std::fmt::Debug for GUnixMountEntry {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GUnixMountEntry @ {self:p}"))
+            .finish()
+    }
+}
+
+#[repr(C)]
+#[allow(dead_code)]
+pub struct _GUnixMountMonitorClass {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+pub type GUnixMountMonitorClass = _GUnixMountMonitorClass;
+
+#[repr(C)]
+#[allow(dead_code)]
+pub struct GUnixMountPoint {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+impl ::std::fmt::Debug for GUnixMountPoint {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GUnixMountPoint @ {self:p}"))
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct GUnixOutputStreamClass {
+    pub parent_class: GOutputStreamClass,
+    pub _g_reserved1: Option<unsafe extern "C" fn()>,
+    pub _g_reserved2: Option<unsafe extern "C" fn()>,
+    pub _g_reserved3: Option<unsafe extern "C" fn()>,
+    pub _g_reserved4: Option<unsafe extern "C" fn()>,
+    pub _g_reserved5: Option<unsafe extern "C" fn()>,
+}
+
+impl ::std::fmt::Debug for GUnixOutputStreamClass {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GUnixOutputStreamClass @ {self:p}"))
+            .field("parent_class", &self.parent_class)
+            .field("_g_reserved1", &self._g_reserved1)
+            .field("_g_reserved2", &self._g_reserved2)
+            .field("_g_reserved3", &self._g_reserved3)
+            .field("_g_reserved4", &self._g_reserved4)
+            .field("_g_reserved5", &self._g_reserved5)
+            .finish()
+    }
+}
+
+#[repr(C)]
+#[allow(dead_code)]
+pub struct _GUnixOutputStreamPrivate {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+pub type GUnixOutputStreamPrivate = _GUnixOutputStreamPrivate;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
 pub struct GUnixSocketAddressClass {
     pub parent_class: GSocketAddressClass,
 }
@@ -7551,6 +7665,20 @@ impl ::std::fmt::Debug for GDebugControllerDBus {
 
 #[repr(C)]
 #[allow(dead_code)]
+pub struct GDesktopAppInfo {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+impl ::std::fmt::Debug for GDesktopAppInfo {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GDesktopAppInfo @ {self:p}"))
+            .finish()
+    }
+}
+
+#[repr(C)]
+#[allow(dead_code)]
 pub struct GEmblem {
     _data: [u8; 0],
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
@@ -7748,34 +7876,6 @@ impl ::std::fmt::Debug for GIOStream {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         f.debug_struct(&format!("GIOStream @ {self:p}"))
             .field("parent_instance", &self.parent_instance)
-            .finish()
-    }
-}
-
-#[repr(C)]
-#[allow(dead_code)]
-pub struct GIPTosMessage {
-    _data: [u8; 0],
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
-}
-
-impl ::std::fmt::Debug for GIPTosMessage {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        f.debug_struct(&format!("GIPTosMessage @ {self:p}"))
-            .finish()
-    }
-}
-
-#[repr(C)]
-#[allow(dead_code)]
-pub struct GIPv6TclassMessage {
-    _data: [u8; 0],
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
-}
-
-impl ::std::fmt::Debug for GIPv6TclassMessage {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        f.debug_struct(&format!("GIPv6TclassMessage @ {self:p}"))
             .finish()
     }
 }
@@ -8630,6 +8730,66 @@ impl ::std::fmt::Debug for GUnixFDList {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
+pub struct GUnixFDMessage {
+    pub parent_instance: GSocketControlMessage,
+    pub priv_: *mut GUnixFDMessagePrivate,
+}
+
+impl ::std::fmt::Debug for GUnixFDMessage {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GUnixFDMessage @ {self:p}"))
+            .field("parent_instance", &self.parent_instance)
+            .field("priv_", &self.priv_)
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct GUnixInputStream {
+    pub parent_instance: GInputStream,
+    pub priv_: *mut GUnixInputStreamPrivate,
+}
+
+impl ::std::fmt::Debug for GUnixInputStream {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GUnixInputStream @ {self:p}"))
+            .field("parent_instance", &self.parent_instance)
+            .finish()
+    }
+}
+
+#[repr(C)]
+#[allow(dead_code)]
+pub struct GUnixMountMonitor {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+impl ::std::fmt::Debug for GUnixMountMonitor {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GUnixMountMonitor @ {self:p}"))
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct GUnixOutputStream {
+    pub parent_instance: GOutputStream,
+    pub priv_: *mut GUnixOutputStreamPrivate,
+}
+
+impl ::std::fmt::Debug for GUnixOutputStream {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        f.debug_struct(&format!("GUnixOutputStream @ {self:p}"))
+            .field("parent_instance", &self.parent_instance)
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
 pub struct GUnixSocketAddress {
     pub parent_instance: GSocketAddress,
     pub priv_: *mut GUnixSocketAddressPrivate,
@@ -8859,6 +9019,19 @@ impl ::std::fmt::Debug for GDebugController {
 
 #[repr(C)]
 #[allow(dead_code)]
+pub struct GDesktopAppInfoLookup {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+impl ::std::fmt::Debug for GDesktopAppInfoLookup {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "GDesktopAppInfoLookup @ {self:p}")
+    }
+}
+
+#[repr(C)]
+#[allow(dead_code)]
 pub struct GDrive {
     _data: [u8; 0],
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
@@ -8919,6 +9092,19 @@ pub struct GFile {
 impl ::std::fmt::Debug for GFile {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         write!(f, "GFile @ {self:p}")
+    }
+}
+
+#[repr(C)]
+#[allow(dead_code)]
+pub struct GFileDescriptorBased {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+impl ::std::fmt::Debug for GFileDescriptorBased {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "GFileDescriptorBased @ {self:p}")
     }
 }
 
@@ -9182,7 +9368,7 @@ impl ::std::fmt::Debug for GVolume {
     }
 }
 
-unsafe extern "C" {
+extern "C" {
 
     //=========================================================================
     // GBusType
@@ -9268,13 +9454,6 @@ unsafe extern "C" {
     pub fn g_drive_start_stop_type_get_type() -> GType;
 
     //=========================================================================
-    // GEcnCodePoint
-    //=========================================================================
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    pub fn g_ecn_code_point_get_type() -> GType;
-
-    //=========================================================================
     // GEmblemOrigin
     //=========================================================================
     pub fn g_emblem_origin_get_type() -> GType;
@@ -9308,6 +9487,11 @@ unsafe extern "C" {
     // GIOErrorEnum
     //=========================================================================
     pub fn g_io_error_enum_get_type() -> GType;
+
+    //=========================================================================
+    // GIOModuleScopeFlags
+    //=========================================================================
+    pub fn g_io_module_scope_flags_get_type() -> GType;
 
     //=========================================================================
     // GMemoryMonitorWarningLevel
@@ -9391,6 +9575,11 @@ unsafe extern "C" {
     pub fn g_tls_authentication_mode_get_type() -> GType;
 
     //=========================================================================
+    // GTlsCertificateRequestFlags
+    //=========================================================================
+    pub fn g_tls_certificate_request_flags_get_type() -> GType;
+
+    //=========================================================================
     // GTlsChannelBindingError
     //=========================================================================
     #[cfg(feature = "v2_66")]
@@ -9406,6 +9595,11 @@ unsafe extern "C" {
     #[cfg(feature = "v2_66")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v2_66")))]
     pub fn g_tls_channel_binding_type_get_type() -> GType;
+
+    //=========================================================================
+    // GTlsDatabaseLookupFlags
+    //=========================================================================
+    pub fn g_tls_database_lookup_flags_get_type() -> GType;
 
     //=========================================================================
     // GTlsError
@@ -9566,11 +9760,6 @@ unsafe extern "C" {
     pub fn g_file_query_info_flags_get_type() -> GType;
 
     //=========================================================================
-    // GIOModuleScopeFlags
-    //=========================================================================
-    pub fn g_io_module_scope_flags_get_type() -> GType;
-
-    //=========================================================================
     // GIOStreamSpliceFlags
     //=========================================================================
     pub fn g_io_stream_splice_flags_get_type() -> GType;
@@ -9631,16 +9820,6 @@ unsafe extern "C" {
     // GTlsCertificateFlags
     //=========================================================================
     pub fn g_tls_certificate_flags_get_type() -> GType;
-
-    //=========================================================================
-    // GTlsCertificateRequestFlags
-    //=========================================================================
-    pub fn g_tls_certificate_request_flags_get_type() -> GType;
-
-    //=========================================================================
-    // GTlsDatabaseLookupFlags
-    //=========================================================================
-    pub fn g_tls_database_lookup_flags_get_type() -> GType;
 
     //=========================================================================
     // GTlsDatabaseVerifyFlags
@@ -9809,7 +9988,7 @@ unsafe extern "C" {
         extension_point: *mut GIOExtensionPoint,
     ) -> *mut glib::GList;
     pub fn g_io_extension_point_get_required_type(extension_point: *mut GIOExtensionPoint)
-    -> GType;
+        -> GType;
     pub fn g_io_extension_point_set_required_type(
         extension_point: *mut GIOExtensionPoint,
         type_: GType,
@@ -9901,7 +10080,7 @@ unsafe extern "C" {
     ) -> *mut GSettingsSchemaKey;
     pub fn g_settings_schema_get_path(schema: *mut GSettingsSchema) -> *const c_char;
     pub fn g_settings_schema_has_key(schema: *mut GSettingsSchema, name: *const c_char)
-    -> gboolean;
+        -> gboolean;
     pub fn g_settings_schema_list_children(schema: *mut GSettingsSchema) -> *mut *mut c_char;
     pub fn g_settings_schema_list_keys(schema: *mut GSettingsSchema) -> *mut *mut c_char;
     pub fn g_settings_schema_ref(schema: *mut GSettingsSchema) -> *mut GSettingsSchema;
@@ -9979,6 +10158,99 @@ unsafe extern "C" {
     pub fn g_static_resource_fini(static_resource: *mut GStaticResource);
     pub fn g_static_resource_get_resource(static_resource: *mut GStaticResource) -> *mut GResource;
     pub fn g_static_resource_init(static_resource: *mut GStaticResource);
+
+    //=========================================================================
+    // GUnixMountEntry
+    //=========================================================================
+    pub fn g_unix_mount_entry_get_type() -> GType;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_compare(
+        mount1: *mut GUnixMountEntry,
+        mount2: *mut GUnixMountEntry,
+    ) -> c_int;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_copy(mount_entry: *mut GUnixMountEntry) -> *mut GUnixMountEntry;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_free(mount_entry: *mut GUnixMountEntry);
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_get_device_path(mount_entry: *mut GUnixMountEntry) -> *const c_char;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_get_fs_type(mount_entry: *mut GUnixMountEntry) -> *const c_char;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_get_mount_path(mount_entry: *mut GUnixMountEntry) -> *const c_char;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_get_options(mount_entry: *mut GUnixMountEntry) -> *const c_char;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_get_root_path(mount_entry: *mut GUnixMountEntry) -> *const c_char;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_guess_can_eject(mount_entry: *mut GUnixMountEntry) -> gboolean;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_guess_icon(mount_entry: *mut GUnixMountEntry) -> *mut GIcon;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_guess_name(mount_entry: *mut GUnixMountEntry) -> *mut c_char;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_guess_should_display(mount_entry: *mut GUnixMountEntry) -> gboolean;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_guess_symbolic_icon(mount_entry: *mut GUnixMountEntry) -> *mut GIcon;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_is_readonly(mount_entry: *mut GUnixMountEntry) -> gboolean;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_is_system_internal(mount_entry: *mut GUnixMountEntry) -> gboolean;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_at(
+        mount_path: *const c_char,
+        time_read: *mut u64,
+    ) -> *mut GUnixMountEntry;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entry_for(
+        file_path: *const c_char,
+        time_read: *mut u64,
+    ) -> *mut GUnixMountEntry;
+
+    //=========================================================================
+    // GUnixMountPoint
+    //=========================================================================
+    pub fn g_unix_mount_point_get_type() -> GType;
+    pub fn g_unix_mount_point_compare(
+        mount1: *mut GUnixMountPoint,
+        mount2: *mut GUnixMountPoint,
+    ) -> c_int;
+    pub fn g_unix_mount_point_copy(mount_point: *mut GUnixMountPoint) -> *mut GUnixMountPoint;
+    pub fn g_unix_mount_point_free(mount_point: *mut GUnixMountPoint);
+    pub fn g_unix_mount_point_get_device_path(mount_point: *mut GUnixMountPoint) -> *const c_char;
+    pub fn g_unix_mount_point_get_fs_type(mount_point: *mut GUnixMountPoint) -> *const c_char;
+    pub fn g_unix_mount_point_get_mount_path(mount_point: *mut GUnixMountPoint) -> *const c_char;
+    pub fn g_unix_mount_point_get_options(mount_point: *mut GUnixMountPoint) -> *const c_char;
+    pub fn g_unix_mount_point_guess_can_eject(mount_point: *mut GUnixMountPoint) -> gboolean;
+    pub fn g_unix_mount_point_guess_icon(mount_point: *mut GUnixMountPoint) -> *mut GIcon;
+    pub fn g_unix_mount_point_guess_name(mount_point: *mut GUnixMountPoint) -> *mut c_char;
+    pub fn g_unix_mount_point_guess_symbolic_icon(mount_point: *mut GUnixMountPoint) -> *mut GIcon;
+    pub fn g_unix_mount_point_is_loopback(mount_point: *mut GUnixMountPoint) -> gboolean;
+    pub fn g_unix_mount_point_is_readonly(mount_point: *mut GUnixMountPoint) -> gboolean;
+    pub fn g_unix_mount_point_is_user_mountable(mount_point: *mut GUnixMountPoint) -> gboolean;
+    #[cfg(feature = "v2_66")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_66")))]
+    pub fn g_unix_mount_point_at(
+        mount_path: *const c_char,
+        time_read: *mut u64,
+    ) -> *mut GUnixMountPoint;
 
     //=========================================================================
     // GAppInfoMonitor
@@ -10771,12 +11043,6 @@ unsafe extern "C" {
         interface_: *const c_char,
         method: *const c_char,
     ) -> *mut GDBusMessage;
-    pub fn g_dbus_message_new_method_error(
-        method_call_message: *mut GDBusMessage,
-        error_name: *const c_char,
-        error_message_format: *const c_char,
-        ...
-    ) -> *mut GDBusMessage;
     pub fn g_dbus_message_new_signal(
         path: *const c_char,
         interface_: *const c_char,
@@ -10817,6 +11083,12 @@ unsafe extern "C" {
     pub fn g_dbus_message_get_signature(message: *mut GDBusMessage) -> *const c_char;
     pub fn g_dbus_message_get_unix_fd_list(message: *mut GDBusMessage) -> *mut GUnixFDList;
     pub fn g_dbus_message_lock(message: *mut GDBusMessage);
+    pub fn g_dbus_message_new_method_error(
+        method_call_message: *mut GDBusMessage,
+        error_name: *const c_char,
+        error_message_format: *const c_char,
+        ...
+    ) -> *mut GDBusMessage;
     pub fn g_dbus_message_new_method_error_literal(
         method_call_message: *mut GDBusMessage,
         error_name: *const c_char,
@@ -11043,7 +11315,7 @@ unsafe extern "C" {
         object_path: *const c_char,
     ) -> *mut GDBusObjectProxy;
     pub fn g_dbus_object_proxy_get_connection(proxy: *mut GDBusObjectProxy)
-    -> *mut GDBusConnection;
+        -> *mut GDBusConnection;
 
     //=========================================================================
     // GDBusObjectSkeleton
@@ -11423,6 +11695,87 @@ unsafe extern "C" {
     pub fn g_debug_controller_dbus_stop(self_: *mut GDebugControllerDBus);
 
     //=========================================================================
+    // GDesktopAppInfo
+    //=========================================================================
+    pub fn g_desktop_app_info_get_type() -> GType;
+    pub fn g_desktop_app_info_new(desktop_id: *const c_char) -> *mut GDesktopAppInfo;
+    pub fn g_desktop_app_info_new_from_filename(filename: *const c_char) -> *mut GDesktopAppInfo;
+    pub fn g_desktop_app_info_new_from_keyfile(
+        key_file: *mut glib::GKeyFile,
+    ) -> *mut GDesktopAppInfo;
+    pub fn g_desktop_app_info_get_implementations(interface: *const c_char) -> *mut glib::GList;
+    pub fn g_desktop_app_info_search(search_string: *const c_char) -> *mut *mut *mut c_char;
+    pub fn g_desktop_app_info_set_desktop_env(desktop_env: *const c_char);
+    pub fn g_desktop_app_info_get_action_name(
+        info: *mut GDesktopAppInfo,
+        action_name: *const c_char,
+    ) -> *mut c_char;
+    pub fn g_desktop_app_info_get_boolean(
+        info: *mut GDesktopAppInfo,
+        key: *const c_char,
+    ) -> gboolean;
+    pub fn g_desktop_app_info_get_categories(info: *mut GDesktopAppInfo) -> *const c_char;
+    pub fn g_desktop_app_info_get_filename(info: *mut GDesktopAppInfo) -> *const c_char;
+    pub fn g_desktop_app_info_get_generic_name(info: *mut GDesktopAppInfo) -> *const c_char;
+    pub fn g_desktop_app_info_get_is_hidden(info: *mut GDesktopAppInfo) -> gboolean;
+    pub fn g_desktop_app_info_get_keywords(info: *mut GDesktopAppInfo) -> *const *const c_char;
+    pub fn g_desktop_app_info_get_locale_string(
+        info: *mut GDesktopAppInfo,
+        key: *const c_char,
+    ) -> *mut c_char;
+    pub fn g_desktop_app_info_get_nodisplay(info: *mut GDesktopAppInfo) -> gboolean;
+    pub fn g_desktop_app_info_get_show_in(
+        info: *mut GDesktopAppInfo,
+        desktop_env: *const c_char,
+    ) -> gboolean;
+    pub fn g_desktop_app_info_get_startup_wm_class(info: *mut GDesktopAppInfo) -> *const c_char;
+    pub fn g_desktop_app_info_get_string(
+        info: *mut GDesktopAppInfo,
+        key: *const c_char,
+    ) -> *mut c_char;
+    #[cfg(feature = "v2_60")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_60")))]
+    pub fn g_desktop_app_info_get_string_list(
+        info: *mut GDesktopAppInfo,
+        key: *const c_char,
+        length: *mut size_t,
+    ) -> *mut *mut c_char;
+    pub fn g_desktop_app_info_has_key(info: *mut GDesktopAppInfo, key: *const c_char) -> gboolean;
+    pub fn g_desktop_app_info_launch_action(
+        info: *mut GDesktopAppInfo,
+        action_name: *const c_char,
+        launch_context: *mut GAppLaunchContext,
+    );
+    pub fn g_desktop_app_info_launch_uris_as_manager(
+        appinfo: *mut GDesktopAppInfo,
+        uris: *mut glib::GList,
+        launch_context: *mut GAppLaunchContext,
+        spawn_flags: glib::GSpawnFlags,
+        user_setup: glib::GSpawnChildSetupFunc,
+        user_setup_data: gpointer,
+        pid_callback: GDesktopAppLaunchCallback,
+        pid_callback_data: gpointer,
+        error: *mut *mut glib::GError,
+    ) -> gboolean;
+    #[cfg(feature = "v2_58")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_58")))]
+    pub fn g_desktop_app_info_launch_uris_as_manager_with_fds(
+        appinfo: *mut GDesktopAppInfo,
+        uris: *mut glib::GList,
+        launch_context: *mut GAppLaunchContext,
+        spawn_flags: glib::GSpawnFlags,
+        user_setup: glib::GSpawnChildSetupFunc,
+        user_setup_data: gpointer,
+        pid_callback: GDesktopAppLaunchCallback,
+        pid_callback_data: gpointer,
+        stdin_fd: c_int,
+        stdout_fd: c_int,
+        stderr_fd: c_int,
+        error: *mut *mut glib::GError,
+    ) -> gboolean;
+    pub fn g_desktop_app_info_list_actions(info: *mut GDesktopAppInfo) -> *const *const c_char;
+
+    //=========================================================================
     // GEmblem
     //=========================================================================
     pub fn g_emblem_get_type() -> GType;
@@ -11800,7 +12153,7 @@ unsafe extern "C" {
         stream: *mut GFilterInputStream,
     ) -> *mut GInputStream;
     pub fn g_filter_input_stream_get_close_base_stream(stream: *mut GFilterInputStream)
-    -> gboolean;
+        -> gboolean;
     pub fn g_filter_input_stream_set_close_base_stream(
         stream: *mut GFilterInputStream,
         close_base: gboolean,
@@ -11875,38 +12228,6 @@ unsafe extern "C" {
     );
 
     //=========================================================================
-    // GIPTosMessage
-    //=========================================================================
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    pub fn g_ip_tos_message_get_type() -> GType;
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    pub fn g_ip_tos_message_new(dscp: u8, ecn: GEcnCodePoint) -> *mut GSocketControlMessage;
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    pub fn g_ip_tos_message_get_dscp(message: *mut GIPTosMessage) -> u8;
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    pub fn g_ip_tos_message_get_ecn(message: *mut GIPTosMessage) -> GEcnCodePoint;
-
-    //=========================================================================
-    // GIPv6TclassMessage
-    //=========================================================================
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    pub fn g_ipv6_tclass_message_get_type() -> GType;
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    pub fn g_ipv6_tclass_message_new(dscp: u8, ecn: GEcnCodePoint) -> *mut GSocketControlMessage;
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    pub fn g_ipv6_tclass_message_get_dscp(message: *mut GIPv6TclassMessage) -> u8;
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    pub fn g_ipv6_tclass_message_get_ecn(message: *mut GIPv6TclassMessage) -> GEcnCodePoint;
-
-    //=========================================================================
     // GInetAddress
     //=========================================================================
     pub fn g_inet_address_get_type() -> GType;
@@ -11915,14 +12236,6 @@ unsafe extern "C" {
         bytes: *const u8,
         family: GSocketFamily,
     ) -> *mut GInetAddress;
-    #[cfg(feature = "v2_86")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_86")))]
-    pub fn g_inet_address_new_from_bytes_with_ipv6_info(
-        bytes: *const u8,
-        family: GSocketFamily,
-        flowinfo: u32,
-        scope_id: u32,
-    ) -> *mut GInetAddress;
     pub fn g_inet_address_new_from_string(string: *const c_char) -> *mut GInetAddress;
     pub fn g_inet_address_new_loopback(family: GSocketFamily) -> *mut GInetAddress;
     pub fn g_inet_address_equal(
@@ -11930,9 +12243,6 @@ unsafe extern "C" {
         other_address: *mut GInetAddress,
     ) -> gboolean;
     pub fn g_inet_address_get_family(address: *mut GInetAddress) -> GSocketFamily;
-    #[cfg(feature = "v2_86")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_86")))]
-    pub fn g_inet_address_get_flowinfo(address: *mut GInetAddress) -> u32;
     pub fn g_inet_address_get_is_any(address: *mut GInetAddress) -> gboolean;
     pub fn g_inet_address_get_is_link_local(address: *mut GInetAddress) -> gboolean;
     pub fn g_inet_address_get_is_loopback(address: *mut GInetAddress) -> gboolean;
@@ -11944,9 +12254,6 @@ unsafe extern "C" {
     pub fn g_inet_address_get_is_multicast(address: *mut GInetAddress) -> gboolean;
     pub fn g_inet_address_get_is_site_local(address: *mut GInetAddress) -> gboolean;
     pub fn g_inet_address_get_native_size(address: *mut GInetAddress) -> size_t;
-    #[cfg(feature = "v2_86")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_86")))]
-    pub fn g_inet_address_get_scope_id(address: *mut GInetAddress) -> u32;
     pub fn g_inet_address_to_bytes(address: *mut GInetAddress) -> *const u8;
     pub fn g_inet_address_to_string(address: *mut GInetAddress) -> *mut c_char;
 
@@ -11986,7 +12293,7 @@ unsafe extern "C" {
         port: c_uint,
     ) -> *mut GSocketAddress;
     pub fn g_inet_socket_address_get_address(address: *mut GInetSocketAddress)
-    -> *mut GInetAddress;
+        -> *mut GInetAddress;
     pub fn g_inet_socket_address_get_flowinfo(address: *mut GInetSocketAddress) -> u32;
     pub fn g_inet_socket_address_get_port(address: *mut GInetSocketAddress) -> u16;
     pub fn g_inet_socket_address_get_scope_id(address: *mut GInetSocketAddress) -> u32;
@@ -14295,7 +14602,7 @@ unsafe extern "C" {
     #[cfg_attr(docsrs, doc(cfg(feature = "v2_60")))]
     pub fn g_tls_connection_get_negotiated_protocol(conn: *mut GTlsConnection) -> *const c_char;
     pub fn g_tls_connection_get_peer_certificate(conn: *mut GTlsConnection)
-    -> *mut GTlsCertificate;
+        -> *mut GTlsCertificate;
     pub fn g_tls_connection_get_peer_certificate_errors(
         conn: *mut GTlsConnection,
     ) -> GTlsCertificateFlags;
@@ -14602,23 +14909,62 @@ unsafe extern "C" {
         fd: c_int,
         error: *mut *mut glib::GError,
     ) -> c_int;
-    #[cfg(feature = "v2_90")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_90")))]
-    pub fn g_unix_fd_list_append_take(list: *mut GUnixFDList, fd: c_int) -> size_t;
     pub fn g_unix_fd_list_get(
         list: *mut GUnixFDList,
         index_: c_int,
         error: *mut *mut glib::GError,
     ) -> c_int;
     pub fn g_unix_fd_list_get_length(list: *mut GUnixFDList) -> c_int;
-    #[cfg(feature = "v2_90")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_90")))]
-    pub fn g_unix_fd_list_lookup(list: *mut GUnixFDList, index_: size_t) -> c_int;
-    #[cfg(feature = "v2_90")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_90")))]
-    pub fn g_unix_fd_list_peek(list: *mut GUnixFDList, index_: size_t) -> c_int;
     pub fn g_unix_fd_list_peek_fds(list: *mut GUnixFDList, length: *mut c_int) -> *const c_int;
     pub fn g_unix_fd_list_steal_fds(list: *mut GUnixFDList, length: *mut c_int) -> *mut c_int;
+
+    //=========================================================================
+    // GUnixFDMessage
+    //=========================================================================
+    pub fn g_unix_fd_message_get_type() -> GType;
+    pub fn g_unix_fd_message_new() -> *mut GSocketControlMessage;
+    pub fn g_unix_fd_message_new_with_fd_list(
+        fd_list: *mut GUnixFDList,
+    ) -> *mut GSocketControlMessage;
+    pub fn g_unix_fd_message_append_fd(
+        message: *mut GUnixFDMessage,
+        fd: c_int,
+        error: *mut *mut glib::GError,
+    ) -> gboolean;
+    pub fn g_unix_fd_message_get_fd_list(message: *mut GUnixFDMessage) -> *mut GUnixFDList;
+    pub fn g_unix_fd_message_steal_fds(
+        message: *mut GUnixFDMessage,
+        length: *mut c_int,
+    ) -> *mut c_int;
+
+    //=========================================================================
+    // GUnixInputStream
+    //=========================================================================
+    pub fn g_unix_input_stream_get_type() -> GType;
+    pub fn g_unix_input_stream_new(fd: c_int, close_fd: gboolean) -> *mut GInputStream;
+    pub fn g_unix_input_stream_get_close_fd(stream: *mut GUnixInputStream) -> gboolean;
+    pub fn g_unix_input_stream_get_fd(stream: *mut GUnixInputStream) -> c_int;
+    pub fn g_unix_input_stream_set_close_fd(stream: *mut GUnixInputStream, close_fd: gboolean);
+
+    //=========================================================================
+    // GUnixMountMonitor
+    //=========================================================================
+    pub fn g_unix_mount_monitor_get_type() -> GType;
+    pub fn g_unix_mount_monitor_new() -> *mut GUnixMountMonitor;
+    pub fn g_unix_mount_monitor_get() -> *mut GUnixMountMonitor;
+    pub fn g_unix_mount_monitor_set_rate_limit(
+        mount_monitor: *mut GUnixMountMonitor,
+        limit_msec: c_int,
+    );
+
+    //=========================================================================
+    // GUnixOutputStream
+    //=========================================================================
+    pub fn g_unix_output_stream_get_type() -> GType;
+    pub fn g_unix_output_stream_new(fd: c_int, close_fd: gboolean) -> *mut GOutputStream;
+    pub fn g_unix_output_stream_get_close_fd(stream: *mut GUnixOutputStream) -> gboolean;
+    pub fn g_unix_output_stream_get_fd(stream: *mut GUnixOutputStream) -> c_int;
+    pub fn g_unix_output_stream_set_close_fd(stream: *mut GUnixOutputStream, close_fd: gboolean);
 
     //=========================================================================
     // GUnixSocketAddress
@@ -14694,16 +15040,10 @@ unsafe extern "C" {
         level: c_int,
     ) -> *mut GZlibCompressor;
     pub fn g_zlib_compressor_get_file_info(compressor: *mut GZlibCompressor) -> *mut GFileInfo;
-    #[cfg(feature = "v2_86")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_86")))]
-    pub fn g_zlib_compressor_get_os(compressor: *mut GZlibCompressor) -> c_int;
     pub fn g_zlib_compressor_set_file_info(
         compressor: *mut GZlibCompressor,
         file_info: *mut GFileInfo,
     );
-    #[cfg(feature = "v2_86")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_86")))]
-    pub fn g_zlib_compressor_set_os(compressor: *mut GZlibCompressor, os: c_int);
 
     //=========================================================================
     // GZlibDecompressor
@@ -15073,7 +15413,7 @@ unsafe extern "C" {
         object_path: *const c_char,
     ) -> *mut GDBusObject;
     pub fn g_dbus_object_manager_get_object_path(manager: *mut GDBusObjectManager)
-    -> *const c_char;
+        -> *const c_char;
     pub fn g_dbus_object_manager_get_objects(manager: *mut GDBusObjectManager) -> *mut glib::GList;
 
     //=========================================================================
@@ -15130,6 +15470,15 @@ unsafe extern "C" {
         self_: *mut GDebugController,
         debug_enabled: gboolean,
     );
+
+    //=========================================================================
+    // GDesktopAppInfoLookup
+    //=========================================================================
+    pub fn g_desktop_app_info_lookup_get_type() -> GType;
+    pub fn g_desktop_app_info_lookup_get_default_for_uri_scheme(
+        lookup: *mut GDesktopAppInfoLookup,
+        uri_scheme: *const c_char,
+    ) -> *mut GAppInfo;
 
     //=========================================================================
     // GDrive
@@ -16226,6 +16575,12 @@ unsafe extern "C" {
     ) -> gboolean;
 
     //=========================================================================
+    // GFileDescriptorBased
+    //=========================================================================
+    pub fn g_file_descriptor_based_get_type() -> GType;
+    pub fn g_file_descriptor_based_get_fd(fd_based: *mut GFileDescriptorBased) -> c_int;
+
+    //=========================================================================
     // GIcon
     //=========================================================================
     pub fn g_icon_get_type() -> GType;
@@ -17010,5 +17365,63 @@ unsafe extern "C" {
         user_data: gpointer,
         error: *mut glib::GError,
     );
+    pub fn g_unix_is_mount_path_system_internal(mount_path: *const c_char) -> gboolean;
+    pub fn g_unix_is_system_device_path(device_path: *const c_char) -> gboolean;
+    pub fn g_unix_is_system_fs_type(fs_type: *const c_char) -> gboolean;
+    pub fn g_unix_mount_at(mount_path: *const c_char, time_read: *mut u64) -> *mut GUnixMountEntry;
+    pub fn g_unix_mount_compare(
+        mount1: *mut GUnixMountEntry,
+        mount2: *mut GUnixMountEntry,
+    ) -> c_int;
+    pub fn g_unix_mount_copy(mount_entry: *mut GUnixMountEntry) -> *mut GUnixMountEntry;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entries_changed_since(time: u64) -> gboolean;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entries_get(time_read: *mut u64) -> *mut glib::GList;
+    #[cfg(feature = "v2_84")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_84")))]
+    pub fn g_unix_mount_entries_get_from_file(
+        table_path: *const c_char,
+        time_read_out: *mut u64,
+        n_entries_out: *mut size_t,
+    ) -> *mut *mut GUnixMountEntry;
+    pub fn g_unix_mount_for(file_path: *const c_char, time_read: *mut u64) -> *mut GUnixMountEntry;
+    pub fn g_unix_mount_free(mount_entry: *mut GUnixMountEntry);
+    pub fn g_unix_mount_get_device_path(mount_entry: *mut GUnixMountEntry) -> *const c_char;
+    pub fn g_unix_mount_get_fs_type(mount_entry: *mut GUnixMountEntry) -> *const c_char;
+    pub fn g_unix_mount_get_mount_path(mount_entry: *mut GUnixMountEntry) -> *const c_char;
+    #[cfg(feature = "v2_58")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_58")))]
+    pub fn g_unix_mount_get_options(mount_entry: *mut GUnixMountEntry) -> *const c_char;
+    #[cfg(feature = "v2_60")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_60")))]
+    pub fn g_unix_mount_get_root_path(mount_entry: *mut GUnixMountEntry) -> *const c_char;
+    pub fn g_unix_mount_guess_can_eject(mount_entry: *mut GUnixMountEntry) -> gboolean;
+    pub fn g_unix_mount_guess_icon(mount_entry: *mut GUnixMountEntry) -> *mut GIcon;
+    pub fn g_unix_mount_guess_name(mount_entry: *mut GUnixMountEntry) -> *mut c_char;
+    pub fn g_unix_mount_guess_should_display(mount_entry: *mut GUnixMountEntry) -> gboolean;
+    pub fn g_unix_mount_guess_symbolic_icon(mount_entry: *mut GUnixMountEntry) -> *mut GIcon;
+    pub fn g_unix_mount_is_readonly(mount_entry: *mut GUnixMountEntry) -> gboolean;
+    pub fn g_unix_mount_is_system_internal(mount_entry: *mut GUnixMountEntry) -> gboolean;
+    pub fn g_unix_mount_points_changed_since(time: u64) -> gboolean;
+    pub fn g_unix_mount_points_get(time_read: *mut u64) -> *mut glib::GList;
+    #[cfg(feature = "v2_82")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_82")))]
+    pub fn g_unix_mount_points_get_from_file(
+        table_path: *const c_char,
+        time_read_out: *mut u64,
+        n_points_out: *mut size_t,
+    ) -> *mut *mut GUnixMountPoint;
+    pub fn g_unix_mounts_changed_since(time: u64) -> gboolean;
+    pub fn g_unix_mounts_get(time_read: *mut u64) -> *mut glib::GList;
+    #[cfg(feature = "v2_82")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v2_82")))]
+    pub fn g_unix_mounts_get_from_file(
+        table_path: *const c_char,
+        time_read_out: *mut u64,
+        n_entries_out: *mut size_t,
+    ) -> *mut *mut GUnixMountEntry;
 
 }

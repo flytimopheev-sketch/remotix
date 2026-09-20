@@ -17,8 +17,6 @@ bitflags! {
         const VARIANT = ffi::PANGO_FONT_MASK_VARIANT as _;
         #[doc(alias = "PANGO_FONT_MASK_WEIGHT")]
         const WEIGHT = ffi::PANGO_FONT_MASK_WEIGHT as _;
-        #[doc(alias = "PANGO_FONT_MASK_WIDTH")]
-        const WIDTH = ffi::PANGO_FONT_MASK_WIDTH as _;
         #[doc(alias = "PANGO_FONT_MASK_STRETCH")]
         const STRETCH = ffi::PANGO_FONT_MASK_STRETCH as _;
         #[doc(alias = "PANGO_FONT_MASK_SIZE")]
@@ -33,10 +31,6 @@ bitflags! {
         #[cfg_attr(docsrs, doc(cfg(feature = "v1_56")))]
         #[doc(alias = "PANGO_FONT_MASK_FEATURES")]
         const FEATURES = ffi::PANGO_FONT_MASK_FEATURES as _;
-        #[cfg(feature = "v1_57")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-        #[doc(alias = "PANGO_FONT_MASK_COLOR")]
-        const COLOR = ffi::PANGO_FONT_MASK_COLOR as _;
     }
 }
 
@@ -85,7 +79,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for FontMask {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0))
     }
 }
 
@@ -182,7 +176,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for LayoutDeserializeFlags {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0))
     }
 }
 
@@ -285,7 +279,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for LayoutSerializeFlags {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0))
     }
 }
 
@@ -312,117 +306,6 @@ impl ToValue for LayoutSerializeFlags {
 impl From<LayoutSerializeFlags> for glib::Value {
     #[inline]
     fn from(v: LayoutSerializeFlags) -> Self {
-        ToValue::to_value(&v)
-    }
-}
-
-#[cfg(feature = "v1_58")]
-bitflags! {
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-    #[doc(alias = "PangoRenderComponent")]
-    pub struct RenderComponent: u32 {
-        #[doc(alias = "PANGO_RENDER_COMPONENT_NONE")]
-        const NONE = ffi::PANGO_RENDER_COMPONENT_NONE as _;
-        #[doc(alias = "PANGO_RENDER_COMPONENT_PLAIN_GLYPH")]
-        const PLAIN_GLYPH = ffi::PANGO_RENDER_COMPONENT_PLAIN_GLYPH as _;
-        #[doc(alias = "PANGO_RENDER_COMPONENT_COLOR_GLYPH")]
-        const COLOR_GLYPH = ffi::PANGO_RENDER_COMPONENT_COLOR_GLYPH as _;
-        #[doc(alias = "PANGO_RENDER_COMPONENT_BACKGROUND")]
-        const BACKGROUND = ffi::PANGO_RENDER_COMPONENT_BACKGROUND as _;
-        #[doc(alias = "PANGO_RENDER_COMPONENT_UNDERLINE")]
-        const UNDERLINE = ffi::PANGO_RENDER_COMPONENT_UNDERLINE as _;
-        #[doc(alias = "PANGO_RENDER_COMPONENT_STRIKETHROUGH")]
-        const STRIKETHROUGH = ffi::PANGO_RENDER_COMPONENT_STRIKETHROUGH as _;
-        #[doc(alias = "PANGO_RENDER_COMPONENT_OVERLINE")]
-        const OVERLINE = ffi::PANGO_RENDER_COMPONENT_OVERLINE as _;
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-#[doc(hidden)]
-impl IntoGlib for RenderComponent {
-    type GlibType = ffi::PangoRenderComponent;
-
-    #[inline]
-    fn into_glib(self) -> ffi::PangoRenderComponent {
-        self.bits()
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-#[doc(hidden)]
-impl FromGlib<ffi::PangoRenderComponent> for RenderComponent {
-    #[inline]
-    unsafe fn from_glib(value: ffi::PangoRenderComponent) -> Self {
-        Self::from_bits_truncate(value)
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-impl StaticType for RenderComponent {
-    #[inline]
-    #[doc(alias = "pango_render_component_get_type")]
-    fn static_type() -> glib::Type {
-        unsafe { from_glib(ffi::pango_render_component_get_type()) }
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-impl glib::HasParamSpec for RenderComponent {
-    type ParamSpec = glib::ParamSpecFlags;
-    type SetValue = Self;
-    type BuilderFn = fn(&str) -> glib::ParamSpecFlagsBuilder<Self>;
-
-    fn param_spec_builder() -> Self::BuilderFn {
-        Self::ParamSpec::builder
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-impl glib::value::ValueType for RenderComponent {
-    type Type = Self;
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-unsafe impl<'a> glib::value::FromValue<'a> for RenderComponent {
-    type Checker = glib::value::GenericValueTypeChecker<Self>;
-
-    #[inline]
-    unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0)) }
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-impl ToValue for RenderComponent {
-    #[inline]
-    fn to_value(&self) -> glib::Value {
-        let mut value = glib::Value::for_value_type::<Self>();
-        unsafe {
-            glib::gobject_ffi::g_value_set_flags(value.to_glib_none_mut().0, self.into_glib());
-        }
-        value
-    }
-
-    #[inline]
-    fn value_type(&self) -> glib::Type {
-        Self::static_type()
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-impl From<RenderComponent> for glib::Value {
-    #[inline]
-    fn from(v: RenderComponent) -> Self {
         ToValue::to_value(&v)
     }
 }
@@ -497,7 +380,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for ShapeFlags {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0))
     }
 }
 
@@ -602,7 +485,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for ShowFlags {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_flags(value.to_glib_none().0))
     }
 }
 

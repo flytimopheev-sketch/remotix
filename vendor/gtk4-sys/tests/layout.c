@@ -9,8 +9,6 @@
 int main() {
     printf("%s;%zu;%zu\n", "GtkAccessibleAnnouncementPriority", sizeof(GtkAccessibleAnnouncementPriority), alignof(GtkAccessibleAnnouncementPriority));
     printf("%s;%zu;%zu\n", "GtkAccessibleAutocomplete", sizeof(GtkAccessibleAutocomplete), alignof(GtkAccessibleAutocomplete));
-    printf("%s;%zu;%zu\n", "GtkAccessibleHyperlinkClass", sizeof(GtkAccessibleHyperlinkClass), alignof(GtkAccessibleHyperlinkClass));
-    printf("%s;%zu;%zu\n", "GtkAccessibleHypertextInterface", sizeof(GtkAccessibleHypertextInterface), alignof(GtkAccessibleHypertextInterface));
     printf("%s;%zu;%zu\n", "GtkAccessibleInterface", sizeof(GtkAccessibleInterface), alignof(GtkAccessibleInterface));
     printf("%s;%zu;%zu\n", "GtkAccessibleInvalidState", sizeof(GtkAccessibleInvalidState), alignof(GtkAccessibleInvalidState));
     printf("%s;%zu;%zu\n", "GtkAccessiblePlatformState", sizeof(GtkAccessiblePlatformState), alignof(GtkAccessiblePlatformState));
@@ -118,8 +116,6 @@ int main() {
     printf("%s;%zu;%zu\n", "GtkEntryBufferClass", sizeof(GtkEntryBufferClass), alignof(GtkEntryBufferClass));
     printf("%s;%zu;%zu\n", "GtkEntryClass", sizeof(GtkEntryClass), alignof(GtkEntryClass));
     printf("%s;%zu;%zu\n", "GtkEntryIconPosition", sizeof(GtkEntryIconPosition), alignof(GtkEntryIconPosition));
-    printf("%s;%zu;%zu\n", "GtkEnumListClass", sizeof(GtkEnumListClass), alignof(GtkEnumListClass));
-    printf("%s;%zu;%zu\n", "GtkEnumListItemClass", sizeof(GtkEnumListItemClass), alignof(GtkEnumListItemClass));
     printf("%s;%zu;%zu\n", "GtkEventControllerScrollFlags", sizeof(GtkEventControllerScrollFlags), alignof(GtkEventControllerScrollFlags));
     printf("%s;%zu;%zu\n", "GtkEventSequenceState", sizeof(GtkEventSequenceState), alignof(GtkEventSequenceState));
     printf("%s;%zu;%zu\n", "GtkFileChooserAction", sizeof(GtkFileChooserAction), alignof(GtkFileChooserAction));
@@ -162,7 +158,6 @@ int main() {
     printf("%s;%zu;%zu\n", "GtkIMMulticontext", sizeof(GtkIMMulticontext), alignof(GtkIMMulticontext));
     printf("%s;%zu;%zu\n", "GtkIMMulticontextClass", sizeof(GtkIMMulticontextClass), alignof(GtkIMMulticontextClass));
     printf("%s;%zu;%zu\n", "GtkIconLookupFlags", sizeof(GtkIconLookupFlags), alignof(GtkIconLookupFlags));
-    printf("%s;%zu;%zu\n", "GtkIconPaintableClass", sizeof(GtkIconPaintableClass), alignof(GtkIconPaintableClass));
     printf("%s;%zu;%zu\n", "GtkIconSize", sizeof(GtkIconSize), alignof(GtkIconSize));
     printf("%s;%zu;%zu\n", "GtkIconThemeError", sizeof(GtkIconThemeError), alignof(GtkIconThemeError));
     printf("%s;%zu;%zu\n", "GtkIconViewDropPosition", sizeof(GtkIconViewDropPosition), alignof(GtkIconViewDropPosition));
@@ -171,8 +166,6 @@ int main() {
     printf("%s;%zu;%zu\n", "GtkInputPurpose", sizeof(GtkInputPurpose), alignof(GtkInputPurpose));
     printf("%s;%zu;%zu\n", "GtkInscriptionClass", sizeof(GtkInscriptionClass), alignof(GtkInscriptionClass));
     printf("%s;%zu;%zu\n", "GtkInscriptionOverflow", sizeof(GtkInscriptionOverflow), alignof(GtkInscriptionOverflow));
-    printf("%s;%zu;%zu\n", "GtkInterfaceColorScheme", sizeof(GtkInterfaceColorScheme), alignof(GtkInterfaceColorScheme));
-    printf("%s;%zu;%zu\n", "GtkInterfaceContrast", sizeof(GtkInterfaceContrast), alignof(GtkInterfaceContrast));
     printf("%s;%zu;%zu\n", "GtkJustification", sizeof(GtkJustification), alignof(GtkJustification));
     printf("%s;%zu;%zu\n", "GtkLayoutChild", sizeof(GtkLayoutChild), alignof(GtkLayoutChild));
     printf("%s;%zu;%zu\n", "GtkLayoutChildClass", sizeof(GtkLayoutChildClass), alignof(GtkLayoutChildClass));
@@ -225,7 +218,6 @@ int main() {
     printf("%s;%zu;%zu\n", "GtkPictureClass", sizeof(GtkPictureClass), alignof(GtkPictureClass));
     printf("%s;%zu;%zu\n", "GtkPolicyType", sizeof(GtkPolicyType), alignof(GtkPolicyType));
     printf("%s;%zu;%zu\n", "GtkPopover", sizeof(GtkPopover), alignof(GtkPopover));
-    printf("%s;%zu;%zu\n", "GtkPopoverBinClass", sizeof(GtkPopoverBinClass), alignof(GtkPopoverBinClass));
     printf("%s;%zu;%zu\n", "GtkPopoverClass", sizeof(GtkPopoverClass), alignof(GtkPopoverClass));
     printf("%s;%zu;%zu\n", "GtkPopoverMenuFlags", sizeof(GtkPopoverMenuFlags), alignof(GtkPopoverMenuFlags));
     printf("%s;%zu;%zu\n", "GtkPositionType", sizeof(GtkPositionType), alignof(GtkPositionType));
@@ -249,11 +241,9 @@ int main() {
     printf("%s;%zu;%zu\n", "GtkRecentManager", sizeof(GtkRecentManager), alignof(GtkRecentManager));
     printf("%s;%zu;%zu\n", "GtkRecentManagerClass", sizeof(GtkRecentManagerClass), alignof(GtkRecentManagerClass));
     printf("%s;%zu;%zu\n", "GtkRecentManagerError", sizeof(GtkRecentManagerError), alignof(GtkRecentManagerError));
-    printf("%s;%zu;%zu\n", "GtkReducedMotion", sizeof(GtkReducedMotion), alignof(GtkReducedMotion));
     printf("%s;%zu;%zu\n", "GtkRequestedSize", sizeof(GtkRequestedSize), alignof(GtkRequestedSize));
     printf("%s;%zu;%zu\n", "GtkRequisition", sizeof(GtkRequisition), alignof(GtkRequisition));
     printf("%s;%zu;%zu\n", "GtkResponseType", sizeof(GtkResponseType), alignof(GtkResponseType));
-    printf("%s;%zu;%zu\n", "GtkRestoreReason", sizeof(GtkRestoreReason), alignof(GtkRestoreReason));
     printf("%s;%zu;%zu\n", "GtkRevealerTransitionType", sizeof(GtkRevealerTransitionType), alignof(GtkRevealerTransitionType));
     printf("%s;%zu;%zu\n", "GtkScale", sizeof(GtkScale), alignof(GtkScale));
     printf("%s;%zu;%zu\n", "GtkScaleButton", sizeof(GtkScaleButton), alignof(GtkScaleButton));
@@ -296,11 +286,6 @@ int main() {
     printf("%s;%zu;%zu\n", "GtkStyleContext", sizeof(GtkStyleContext), alignof(GtkStyleContext));
     printf("%s;%zu;%zu\n", "GtkStyleContextClass", sizeof(GtkStyleContextClass), alignof(GtkStyleContextClass));
     printf("%s;%zu;%zu\n", "GtkStyleContextPrintFlags", sizeof(GtkStyleContextPrintFlags), alignof(GtkStyleContextPrintFlags));
-    printf("%s;%zu;%zu\n", "GtkSvgClass", sizeof(GtkSvgClass), alignof(GtkSvgClass));
-    printf("%s;%zu;%zu\n", "GtkSvgError", sizeof(GtkSvgError), alignof(GtkSvgError));
-    printf("%s;%zu;%zu\n", "GtkSvgFeatures", sizeof(GtkSvgFeatures), alignof(GtkSvgFeatures));
-    printf("%s;%zu;%zu\n", "GtkSvgLocation", sizeof(GtkSvgLocation), alignof(GtkSvgLocation));
-    printf("%s;%zu;%zu\n", "GtkSvgWidgetClass", sizeof(GtkSvgWidgetClass), alignof(GtkSvgWidgetClass));
     printf("%s;%zu;%zu\n", "GtkSymbolicColor", sizeof(GtkSymbolicColor), alignof(GtkSymbolicColor));
     printf("%s;%zu;%zu\n", "GtkSymbolicPaintableInterface", sizeof(GtkSymbolicPaintableInterface), alignof(GtkSymbolicPaintableInterface));
     printf("%s;%zu;%zu\n", "GtkSystemSetting", sizeof(GtkSystemSetting), alignof(GtkSystemSetting));
@@ -355,7 +340,6 @@ int main() {
     printf("%s;%zu;%zu\n", "GtkWindow", sizeof(GtkWindow), alignof(GtkWindow));
     printf("%s;%zu;%zu\n", "GtkWindowClass", sizeof(GtkWindowClass), alignof(GtkWindowClass));
     printf("%s;%zu;%zu\n", "GtkWindowControlsClass", sizeof(GtkWindowControlsClass), alignof(GtkWindowControlsClass));
-    printf("%s;%zu;%zu\n", "GtkWindowGravity", sizeof(GtkWindowGravity), alignof(GtkWindowGravity));
     printf("%s;%zu;%zu\n", "GtkWindowGroup", sizeof(GtkWindowGroup), alignof(GtkWindowGroup));
     printf("%s;%zu;%zu\n", "GtkWindowGroupClass", sizeof(GtkWindowGroupClass), alignof(GtkWindowGroupClass));
     printf("%s;%zu;%zu\n", "GtkWindowHandleClass", sizeof(GtkWindowHandleClass), alignof(GtkWindowHandleClass));

@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{FilterOutputStream, OutputStream, Seekable, ffi};
+use crate::{ffi, FilterOutputStream, OutputStream, Seekable};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -110,7 +110,12 @@ impl BufferedOutputStreamBuilder {
     }
 }
 
-pub trait BufferedOutputStreamExt: IsA<BufferedOutputStream> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::BufferedOutputStream>> Sealed for T {}
+}
+
+pub trait BufferedOutputStreamExt: IsA<BufferedOutputStream> + sealed::Sealed + 'static {
     #[doc(alias = "g_buffered_output_stream_get_auto_grow")]
     #[doc(alias = "get_auto_grow")]
     #[doc(alias = "auto-grow")]
@@ -158,16 +163,14 @@ pub trait BufferedOutputStreamExt: IsA<BufferedOutputStream> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(BufferedOutputStream::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(BufferedOutputStream::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::auto-grow".as_ptr(),
+                b"notify::auto-grow\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_auto_grow_trampoline::<Self, F> as *const (),
                 )),
@@ -186,16 +189,14 @@ pub trait BufferedOutputStreamExt: IsA<BufferedOutputStream> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(BufferedOutputStream::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(BufferedOutputStream::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::buffer-size".as_ptr(),
+                b"notify::buffer-size\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_buffer_size_trampoline::<Self, F> as *const (),
                 )),

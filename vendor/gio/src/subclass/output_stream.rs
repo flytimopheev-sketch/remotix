@@ -2,11 +2,11 @@
 
 use std::ptr;
 
-use glib::{Error, prelude::*, subclass::prelude::*, translate::*};
+use glib::{prelude::*, subclass::prelude::*, translate::*, Error};
 
-use crate::{Cancellable, InputStream, OutputStream, OutputStreamSpliceFlags, ffi};
+use crate::{ffi, Cancellable, InputStream, OutputStream, OutputStreamSpliceFlags};
 
-pub trait OutputStreamImpl: Send + ObjectImpl + ObjectSubclass<Type: IsA<OutputStream>> {
+pub trait OutputStreamImpl: ObjectImpl + OutputStreamImplExt + Send {
     fn write(&self, buffer: &[u8], cancellable: Option<&Cancellable>) -> Result<usize, Error> {
         self.parent_write(buffer, cancellable)
     }
@@ -29,7 +29,12 @@ pub trait OutputStreamImpl: Send + ObjectImpl + ObjectSubclass<Type: IsA<OutputS
     }
 }
 
-pub trait OutputStreamImplExt: OutputStreamImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::OutputStreamImplExt> Sealed for T {}
+}
+
+pub trait OutputStreamImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_write(
         &self,
         buffer: &[u8],
@@ -166,33 +171,31 @@ unsafe extern "C" fn stream_write<T: OutputStreamImpl>(
     cancellable: *mut ffi::GCancellable,
     err: *mut *mut glib::ffi::GError,
 ) -> isize {
-    unsafe {
-        debug_assert!(count <= isize::MAX as usize);
+    debug_assert!(count <= isize::MAX as usize);
 
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        match imp.write(
-            if count == 0 {
-                &[]
-            } else {
-                std::slice::from_raw_parts(buffer as *const u8, count)
-            },
-            Option::<Cancellable>::from_glib_borrow(cancellable)
-                .as_ref()
-                .as_ref(),
-        ) {
-            Ok(res) => {
-                assert!(res <= isize::MAX as usize);
-                assert!(res <= count);
-                res as isize
+    match imp.write(
+        if count == 0 {
+            &[]
+        } else {
+            std::slice::from_raw_parts(buffer as *const u8, count)
+        },
+        Option::<Cancellable>::from_glib_borrow(cancellable)
+            .as_ref()
+            .as_ref(),
+    ) {
+        Ok(res) => {
+            assert!(res <= isize::MAX as usize);
+            assert!(res <= count);
+            res as isize
+        }
+        Err(e) => {
+            if !err.is_null() {
+                *err = e.into_glib_ptr();
             }
-            Err(e) => {
-                if !err.is_null() {
-                    *err = e.into_glib_ptr();
-                }
-                -1
-            }
+            -1
         }
     }
 }
@@ -202,22 +205,20 @@ unsafe extern "C" fn stream_close<T: OutputStreamImpl>(
     cancellable: *mut ffi::GCancellable,
     err: *mut *mut glib::ffi::GError,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        match imp.close(
-            Option::<Cancellable>::from_glib_borrow(cancellable)
-                .as_ref()
-                .as_ref(),
-        ) {
-            Ok(_) => glib::ffi::GTRUE,
-            Err(e) => {
-                if !err.is_null() {
-                    *err = e.into_glib_ptr();
-                }
-                glib::ffi::GFALSE
+    match imp.close(
+        Option::<Cancellable>::from_glib_borrow(cancellable)
+            .as_ref()
+            .as_ref(),
+    ) {
+        Ok(_) => glib::ffi::GTRUE,
+        Err(e) => {
+            if !err.is_null() {
+                *err = e.into_glib_ptr();
             }
+            glib::ffi::GFALSE
         }
     }
 }
@@ -227,22 +228,20 @@ unsafe extern "C" fn stream_flush<T: OutputStreamImpl>(
     cancellable: *mut ffi::GCancellable,
     err: *mut *mut glib::ffi::GError,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        match imp.flush(
-            Option::<Cancellable>::from_glib_borrow(cancellable)
-                .as_ref()
-                .as_ref(),
-        ) {
-            Ok(_) => glib::ffi::GTRUE,
-            Err(e) => {
-                if !err.is_null() {
-                    *err = e.into_glib_ptr();
-                }
-                glib::ffi::GFALSE
+    match imp.flush(
+        Option::<Cancellable>::from_glib_borrow(cancellable)
+            .as_ref()
+            .as_ref(),
+    ) {
+        Ok(_) => glib::ffi::GTRUE,
+        Err(e) => {
+            if !err.is_null() {
+                *err = e.into_glib_ptr();
             }
+            glib::ffi::GFALSE
         }
     }
 }
@@ -254,27 +253,25 @@ unsafe extern "C" fn stream_splice<T: OutputStreamImpl>(
     cancellable: *mut ffi::GCancellable,
     err: *mut *mut glib::ffi::GError,
 ) -> isize {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        match imp.splice(
-            &from_glib_borrow(input_stream),
-            from_glib(flags),
-            Option::<Cancellable>::from_glib_borrow(cancellable)
-                .as_ref()
-                .as_ref(),
-        ) {
-            Ok(res) => {
-                assert!(res <= isize::MAX as usize);
-                res as isize
+    match imp.splice(
+        &from_glib_borrow(input_stream),
+        from_glib(flags),
+        Option::<Cancellable>::from_glib_borrow(cancellable)
+            .as_ref()
+            .as_ref(),
+    ) {
+        Ok(res) => {
+            assert!(res <= isize::MAX as usize);
+            res as isize
+        }
+        Err(e) => {
+            if !err.is_null() {
+                *err = e.into_glib_ptr();
             }
-            Err(e) => {
-                if !err.is_null() {
-                    *err = e.into_glib_ptr();
-                }
-                -1
-            }
+            -1
         }
     }
 }

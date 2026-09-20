@@ -3,8 +3,8 @@
 use std::{cmp::Ordering, ops, slice};
 
 use crate::{
-    ParamSpecValueArray, ParamSpecValueArrayBuilder, Type, Value, ffi, gobject_ffi, prelude::*,
-    translate::*,
+    ffi, gobject_ffi, prelude::*, translate::*, ParamSpecValueArray, ParamSpecValueArrayBuilder,
+    Type, Value,
 };
 
 wrapper! {
@@ -118,20 +118,18 @@ impl ValueArray {
             b: ffi::gconstpointer,
             func: ffi::gpointer,
         ) -> i32 {
-            unsafe {
-                let func = func as *mut &mut dyn FnMut(&Value, &Value) -> Ordering;
+            let func = func as *mut &mut (dyn FnMut(&Value, &Value) -> Ordering);
 
-                let a = &*(a as *const Value);
-                let b = &*(b as *const Value);
+            let a = &*(a as *const Value);
+            let b = &*(b as *const Value);
 
-                (*func)(a, b).into_glib()
-            }
+            (*func)(a, b).into_glib()
         }
         unsafe {
             let mut func = compare_func;
-            let func_obj: &mut dyn FnMut(&Value, &Value) -> Ordering = &mut func;
+            let func_obj: &mut (dyn FnMut(&Value, &Value) -> Ordering) = &mut func;
             let func_ptr =
-                &func_obj as *const &mut dyn FnMut(&Value, &Value) -> Ordering as ffi::gpointer;
+                &func_obj as *const &mut (dyn FnMut(&Value, &Value) -> Ordering) as ffi::gpointer;
 
             gobject_ffi::g_value_array_sort_with_data(
                 self.to_glib_none_mut().0,
@@ -228,11 +226,9 @@ unsafe impl<'a> crate::value::FromValue<'a> for ValueArray {
 
     #[inline]
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe {
-            let ptr = gobject_ffi::g_value_dup_boxed(value.to_glib_none().0);
-            debug_assert!(!ptr.is_null());
-            from_glib_full(ptr as *mut gobject_ffi::GValueArray)
-        }
+        let ptr = gobject_ffi::g_value_dup_boxed(value.to_glib_none().0);
+        debug_assert!(!ptr.is_null());
+        from_glib_full(ptr as *mut gobject_ffi::GValueArray)
     }
 }
 
@@ -242,18 +238,16 @@ unsafe impl<'a> crate::value::FromValue<'a> for &'a ValueArray {
 
     #[inline]
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe {
-            debug_assert_eq!(
-                std::mem::size_of::<Self>(),
-                std::mem::size_of::<ffi::gpointer>()
-            );
-            let value = &*(value as *const Value as *const gobject_ffi::GValue);
-            debug_assert!(!value.data[0].v_pointer.is_null());
-            <ValueArray>::from_glib_ptr_borrow(
-                &*(&value.data[0].v_pointer as *const ffi::gpointer
-                    as *const *mut gobject_ffi::GValueArray),
-            )
-        }
+        debug_assert_eq!(
+            std::mem::size_of::<Self>(),
+            std::mem::size_of::<ffi::gpointer>()
+        );
+        let value = &*(value as *const Value as *const gobject_ffi::GValue);
+        debug_assert!(!value.data[0].v_pointer.is_null());
+        <ValueArray>::from_glib_ptr_borrow(
+            &*(&value.data[0].v_pointer as *const ffi::gpointer
+                as *const *mut gobject_ffi::GValueArray),
+        )
     }
 }
 

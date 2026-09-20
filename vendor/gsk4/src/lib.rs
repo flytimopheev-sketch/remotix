@@ -24,8 +24,6 @@ macro_rules! skip_assert_initialized {
 
 #[allow(clippy::derived_hash_with_manual_eq)]
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::type_complexity)]
-#[allow(clippy::let_and_return)]
 #[allow(unused_imports)]
 mod auto;
 
@@ -47,17 +45,8 @@ mod clip_node;
 mod color_matrix_node;
 mod color_node;
 mod color_stop;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-mod component_transfer_node;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod composite_node;
 mod conic_gradient_node;
 mod container_node;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod copy_node;
 mod cross_fade_node;
 mod debug_node;
 #[cfg(feature = "v4_14")]
@@ -66,9 +55,6 @@ mod fill_node;
 mod gl_shader;
 mod gl_shader_node;
 mod inset_shadow_node;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod isolation_node;
 mod linear_gradient_node;
 #[cfg(feature = "v4_10")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
@@ -79,9 +65,6 @@ mod ngl_renderer;
 mod opacity_node;
 mod outset_shadow_node;
 mod parse_location;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod paste_node;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 mod path;
@@ -92,12 +75,6 @@ mod path_builder;
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 mod path_point;
 mod radial_gradient_node;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-mod rect_snap;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub use rect_snap::RectSnap;
 mod repeat_node;
 mod repeating_linear_gradient_node;
 mod repeating_radial_gradient_node;
@@ -109,9 +86,6 @@ mod stroke;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 mod stroke_node;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod subsurface_node;
 mod text_node;
 mod texture_node;
 #[cfg(feature = "v4_10")]

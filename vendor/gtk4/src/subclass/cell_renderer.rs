@@ -1,21 +1,21 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`CellRenderer`].
+//! Traits intended for subclassing [`CellRenderer`](crate::CellRenderer).
 
 use std::mem;
 
-use glib::{GString, translate::*};
+use glib::{translate::*, GString};
 use libc::{c_char, c_int};
 
 use crate::{
-    CellEditable, CellRenderer, CellRendererState, SizeRequestMode, Snapshot, Widget, ffi,
-    prelude::*, subclass::prelude::*,
+    ffi, prelude::*, subclass::prelude::*, CellEditable, CellRenderer, CellRendererState,
+    SizeRequestMode, Snapshot, Widget,
 };
 
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait CellRendererImpl: ObjectImpl + ObjectSubclass<Type: IsA<CellRenderer>> {
+pub trait CellRendererImpl: CellRendererImplExt + ObjectImpl {
     fn activate<P: IsA<Widget>>(
         &self,
         event: Option<&gdk::Event>,
@@ -95,9 +95,14 @@ pub trait CellRendererImpl: ObjectImpl + ObjectSubclass<Type: IsA<CellRenderer>>
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::CellRendererImplExt> Sealed for T {}
+}
+
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait CellRendererImplExt: CellRendererImpl {
+pub trait CellRendererImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_request_mode(&self) -> SizeRequestMode {
         unsafe {
             let data = Self::type_data();
@@ -383,33 +388,29 @@ unsafe extern "C" fn cell_renderer_activate<T: CellRendererImpl>(
     cellptr: *const gdk::ffi::GdkRectangle,
     flags: ffi::GtkCellRendererState,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
-        let evt: Borrowed<Option<gdk::Event>> = from_glib_borrow(evtptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
+    let evt: Borrowed<Option<gdk::Event>> = from_glib_borrow(evtptr);
 
-        imp.activate(
-            evt.as_ref().as_ref(),
-            &*widget,
-            &GString::from_glib_borrow(pathptr),
-            &from_glib_borrow(bgptr),
-            &from_glib_borrow(cellptr),
-            from_glib(flags),
-        )
-        .into_glib()
-    }
+    imp.activate(
+        evt.as_ref().as_ref(),
+        &*widget,
+        &GString::from_glib_borrow(pathptr),
+        &from_glib_borrow(bgptr),
+        &from_glib_borrow(cellptr),
+        from_glib(flags),
+    )
+    .into_glib()
 }
 
 unsafe extern "C" fn cell_renderer_editing_canceled<T: CellRendererImpl>(
     ptr: *mut ffi::GtkCellRenderer,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.editing_canceled();
-    }
+    imp.editing_canceled();
 }
 
 unsafe extern "C" fn cell_renderer_editing_started<T: CellRendererImpl>(
@@ -417,13 +418,11 @@ unsafe extern "C" fn cell_renderer_editing_started<T: CellRendererImpl>(
     editableptr: *mut ffi::GtkCellEditable,
     pathptr: *const c_char,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let editable = from_glib_borrow(editableptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let editable = from_glib_borrow(editableptr);
 
-        imp.editing_started(&editable, &GString::from_glib_borrow(pathptr));
-    }
+    imp.editing_started(&editable, &GString::from_glib_borrow(pathptr));
 }
 
 unsafe extern "C" fn cell_renderer_get_aligned_area<T: CellRendererImpl>(
@@ -433,14 +432,12 @@ unsafe extern "C" fn cell_renderer_get_aligned_area<T: CellRendererImpl>(
     cellarea: *const gdk::ffi::GdkRectangle,
     alignedptr: *mut gdk::ffi::GdkRectangle,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
 
-        let rectangle = imp.aligned_area(&*widget, from_glib(flags), &from_glib_borrow(cellarea));
-        *alignedptr = *rectangle.to_glib_none().0;
-    }
+    let rectangle = imp.aligned_area(&*widget, from_glib(flags), &from_glib_borrow(cellarea));
+    *alignedptr = *rectangle.to_glib_none().0;
 }
 
 unsafe extern "C" fn cell_renderer_get_preferred_height_for_width<T: CellRendererImpl>(
@@ -450,18 +447,16 @@ unsafe extern "C" fn cell_renderer_get_preferred_height_for_width<T: CellRendere
     min_height_ptr: *mut c_int,
     nat_height_ptr: *mut c_int,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
 
-        let (min_height, nat_height) = imp.preferred_height_for_width(&*widget, width);
-        if !min_height_ptr.is_null() {
-            *min_height_ptr = min_height;
-        }
-        if !nat_height_ptr.is_null() {
-            *nat_height_ptr = nat_height;
-        }
+    let (min_height, nat_height) = imp.preferred_height_for_width(&*widget, width);
+    if !min_height_ptr.is_null() {
+        *min_height_ptr = min_height;
+    }
+    if !nat_height_ptr.is_null() {
+        *nat_height_ptr = nat_height;
     }
 }
 
@@ -471,18 +466,16 @@ unsafe extern "C" fn cell_renderer_get_preferred_height<T: CellRendererImpl>(
     minptr: *mut c_int,
     natptr: *mut c_int,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
 
-        let (min_size, nat_size) = imp.preferred_height(&*widget);
-        if !minptr.is_null() {
-            *minptr = min_size;
-        }
-        if !natptr.is_null() {
-            *natptr = nat_size;
-        }
+    let (min_size, nat_size) = imp.preferred_height(&*widget);
+    if !minptr.is_null() {
+        *minptr = min_size;
+    }
+    if !natptr.is_null() {
+        *natptr = nat_size;
     }
 }
 
@@ -493,18 +486,16 @@ unsafe extern "C" fn cell_renderer_get_preferred_width_for_height<T: CellRendere
     min_width_ptr: *mut c_int,
     nat_width_ptr: *mut c_int,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
 
-        let (min_width, nat_width) = imp.preferred_width_for_height(&*widget, height);
-        if !min_width_ptr.is_null() {
-            *min_width_ptr = min_width;
-        }
-        if !nat_width_ptr.is_null() {
-            *nat_width_ptr = nat_width;
-        }
+    let (min_width, nat_width) = imp.preferred_width_for_height(&*widget, height);
+    if !min_width_ptr.is_null() {
+        *min_width_ptr = min_width;
+    }
+    if !nat_width_ptr.is_null() {
+        *nat_width_ptr = nat_width;
     }
 }
 
@@ -514,30 +505,26 @@ unsafe extern "C" fn cell_renderer_get_preferred_width<T: CellRendererImpl>(
     minptr: *mut c_int,
     natptr: *mut c_int,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
 
-        let (min_size, nat_size) = imp.preferred_width(&*widget);
-        if !minptr.is_null() {
-            *minptr = min_size;
-        }
-        if !natptr.is_null() {
-            *natptr = nat_size;
-        }
+    let (min_size, nat_size) = imp.preferred_width(&*widget);
+    if !minptr.is_null() {
+        *minptr = min_size;
+    }
+    if !natptr.is_null() {
+        *natptr = nat_size;
     }
 }
 
 unsafe extern "C" fn cell_renderer_get_request_mode<T: CellRendererImpl>(
     ptr: *mut ffi::GtkCellRenderer,
 ) -> ffi::GtkSizeRequestMode {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.request_mode().into_glib()
-    }
+    imp.request_mode().into_glib()
 }
 
 unsafe extern "C" fn cell_renderer_snapshot<T: CellRendererImpl>(
@@ -548,20 +535,18 @@ unsafe extern "C" fn cell_renderer_snapshot<T: CellRendererImpl>(
     cellptr: *const gdk::ffi::GdkRectangle,
     flags: ffi::GtkCellRendererState,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
-        let snapshot: Borrowed<Snapshot> = from_glib_borrow(snapshotptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
+    let snapshot: Borrowed<Snapshot> = from_glib_borrow(snapshotptr);
 
-        imp.snapshot(
-            &snapshot,
-            &*widget,
-            &from_glib_borrow(bgptr),
-            &from_glib_borrow(cellptr),
-            from_glib(flags),
-        );
-    }
+    imp.snapshot(
+        &snapshot,
+        &*widget,
+        &from_glib_borrow(bgptr),
+        &from_glib_borrow(cellptr),
+        from_glib(flags),
+    );
 }
 
 unsafe extern "C" fn cell_renderer_start_editing<T: CellRendererImpl>(
@@ -573,21 +558,19 @@ unsafe extern "C" fn cell_renderer_start_editing<T: CellRendererImpl>(
     cellptr: *const gdk::ffi::GdkRectangle,
     flags: ffi::GtkCellRendererState,
 ) -> *mut ffi::GtkCellEditable {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
-        let evt: Borrowed<Option<gdk::Event>> = from_glib_borrow(evtptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let widget: Borrowed<Widget> = from_glib_borrow(wdgtptr);
+    let evt: Borrowed<Option<gdk::Event>> = from_glib_borrow(evtptr);
 
-        imp.start_editing(
-            evt.as_ref().as_ref(),
-            &*widget,
-            &GString::from_glib_borrow(pathptr),
-            &from_glib_borrow(bgptr),
-            &from_glib_borrow(cellptr),
-            from_glib(flags),
-        )
-        .to_glib_none()
-        .0
-    }
+    imp.start_editing(
+        evt.as_ref().as_ref(),
+        &*widget,
+        &GString::from_glib_borrow(pathptr),
+        &from_glib_borrow(bgptr),
+        &from_glib_borrow(cellptr),
+        from_glib(flags),
+    )
+    .to_glib_none()
+    .0
 }

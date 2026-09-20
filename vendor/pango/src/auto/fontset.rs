@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Font, FontMetrics, ffi};
+use crate::{ffi, Font, FontMetrics};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -18,7 +18,12 @@ impl Fontset {
     pub const NONE: Option<&'static Fontset> = None;
 }
 
-pub trait FontsetExt: IsA<Fontset> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Fontset>> Sealed for T {}
+}
+
+pub trait FontsetExt: IsA<Fontset> + sealed::Sealed + 'static {
     #[doc(alias = "pango_fontset_foreach")]
     fn foreach<P: FnMut(&Fontset, &Font) -> bool>(&self, func: P) {
         let mut func_data: P = func;
@@ -27,12 +32,10 @@ pub trait FontsetExt: IsA<Fontset> + 'static {
             font: *mut ffi::PangoFont,
             user_data: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let fontset = from_glib_borrow(fontset);
-                let font = from_glib_borrow(font);
-                let callback = user_data as *mut P;
-                (*callback)(&fontset, &font).into_glib()
-            }
+            let fontset = from_glib_borrow(fontset);
+            let font = from_glib_borrow(font);
+            let callback = user_data as *mut P;
+            (*callback)(&fontset, &font).into_glib()
         }
         let func = Some(func_func::<P> as _);
         let super_callback0: &mut P = &mut func_data;

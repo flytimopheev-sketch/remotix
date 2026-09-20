@@ -3,8 +3,9 @@
 use std::mem::MaybeUninit;
 
 use crate::{
-    UnicodeBreakType, UnicodeScript, UnicodeType, ffi,
-    translate::{IntoGlib, UnsafeFrom, from_glib},
+    ffi,
+    translate::{from_glib, IntoGlib, UnsafeFrom},
+    UnicodeBreakType, UnicodeScript, UnicodeType,
 };
 
 mod sealed {

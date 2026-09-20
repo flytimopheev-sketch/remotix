@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Action, ffi};
+use crate::{ffi, Action};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -81,21 +81,19 @@ impl SimpleAction {
             parameter: *mut glib::ffi::GVariant,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    &from_glib_borrow(this),
-                    Option::<glib::Variant>::from_glib_borrow(parameter)
-                        .as_ref()
-                        .as_ref(),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                &from_glib_borrow(this),
+                Option::<glib::Variant>::from_glib_borrow(parameter)
+                    .as_ref()
+                    .as_ref(),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"activate".as_ptr(),
+                b"activate\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     activate_trampoline::<F> as *const (),
                 )),
@@ -116,21 +114,19 @@ impl SimpleAction {
             value: *mut glib::ffi::GVariant,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    &from_glib_borrow(this),
-                    Option::<glib::Variant>::from_glib_borrow(value)
-                        .as_ref()
-                        .as_ref(),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                &from_glib_borrow(this),
+                Option::<glib::Variant>::from_glib_borrow(value)
+                    .as_ref()
+                    .as_ref(),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"change-state".as_ptr(),
+                b"change-state\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     change_state_trampoline::<F> as *const (),
                 )),

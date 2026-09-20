@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{DBusConnection, DBusObjectManager, DBusObjectSkeleton, ffi};
+use crate::{ffi, DBusConnection, DBusObjectManager, DBusObjectSkeleton};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -32,7 +32,14 @@ impl DBusObjectManagerServer {
     }
 }
 
-pub trait DBusObjectManagerServerExt: IsA<DBusObjectManagerServer> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::DBusObjectManagerServer>> Sealed for T {}
+}
+
+pub trait DBusObjectManagerServerExt:
+    IsA<DBusObjectManagerServer> + sealed::Sealed + 'static
+{
     #[doc(alias = "g_dbus_object_manager_server_export")]
     fn export(&self, object: &impl IsA<DBusObjectSkeleton>) {
         unsafe {
@@ -104,16 +111,14 @@ pub trait DBusObjectManagerServerExt: IsA<DBusObjectManagerServer> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(DBusObjectManagerServer::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(DBusObjectManagerServer::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::connection".as_ptr(),
+                b"notify::connection\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_connection_trampoline::<Self, F> as *const (),
                 )),

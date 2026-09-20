@@ -64,11 +64,9 @@ unsafe impl<'a> crate::value::FromValue<'a> for BindingFlags {
 
     #[inline]
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe {
-            from_glib(crate::gobject_ffi::g_value_get_flags(
-                value.to_glib_none().0,
-            ))
-        }
+        from_glib(crate::gobject_ffi::g_value_get_flags(
+            value.to_glib_none().0,
+        ))
     }
 }
 
@@ -146,8 +144,6 @@ bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     #[doc(alias = "GTypeFlags")]
     pub struct TypeFlags: u32 {
-        #[cfg(feature = "v2_74")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "v2_74")))]
         #[doc(alias = "G_TYPE_FLAG_NONE")]
         const NONE = crate::gobject_ffi::G_TYPE_FLAG_NONE as _;
         #[doc(alias = "G_TYPE_FLAG_ABSTRACT")]

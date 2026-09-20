@@ -1,25 +1,29 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`CellRendererText`].
+//! Traits intended for subclassing
+//! [`CellRendererText`](crate::CellRendererText).
 
-use glib::{GString, translate::*};
+use glib::{translate::*, GString};
 
-use crate::{CellRendererText, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, CellRendererText};
 
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait CellRendererTextImpl:
-    CellRendererImpl + ObjectSubclass<Type: IsA<CellRendererText>>
-{
+pub trait CellRendererTextImpl: CellRendererTextImplExt + CellRendererImpl {
     fn edited(&self, path: &str, new_text: &str) {
         self.parent_edited(path, new_text);
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::CellRendererTextImplExt> Sealed for T {}
+}
+
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait CellRendererTextImplExt: CellRendererTextImpl {
+pub trait CellRendererTextImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_edited(&self, path: &str, new_text: &str) {
         unsafe {
             let data = Self::type_data();
@@ -54,13 +58,11 @@ unsafe extern "C" fn cell_renderer_text_edited<T: CellRendererTextImpl>(
     path: *const libc::c_char,
     new_text: *const libc::c_char,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.edited(
-            &GString::from_glib_borrow(path),
-            &GString::from_glib_borrow(new_text),
-        )
-    }
+    imp.edited(
+        &GString::from_glib_borrow(path),
+        &GString::from_glib_borrow(new_text),
+    )
 }

@@ -18,18 +18,18 @@ use glib_sys as glib;
 use gobject_sys as gobject;
 use pango_sys as pango;
 
-#[allow(unused_imports)]
-use libc::{FILE, intptr_t, off_t, size_t, ssize_t, time_t, uintptr_t};
 #[cfg(unix)]
 #[allow(unused_imports)]
 use libc::{dev_t, gid_t, pid_t, socklen_t, uid_t};
+#[allow(unused_imports)]
+use libc::{intptr_t, off_t, size_t, ssize_t, time_t, uintptr_t, FILE};
 #[allow(unused_imports)]
 use std::ffi::{
     c_char, c_double, c_float, c_int, c_long, c_short, c_uchar, c_uint, c_ulong, c_ushort, c_void,
 };
 
 #[allow(unused_imports)]
-use glib::{GType, gboolean, gconstpointer, gpointer};
+use glib::{gboolean, gconstpointer, gpointer, GType};
 
 // Enums
 pub type GdkAxisUse = c_int;
@@ -50,12 +50,6 @@ pub const GDK_AXIS_LAST: GdkAxisUse = 12;
 pub type GdkCicpRange = c_int;
 pub const GDK_CICP_RANGE_NARROW: GdkCicpRange = 0;
 pub const GDK_CICP_RANGE_FULL: GdkCicpRange = 1;
-
-pub type GdkColorChannel = c_int;
-pub const GDK_COLOR_CHANNEL_RED: GdkColorChannel = 0;
-pub const GDK_COLOR_CHANNEL_GREEN: GdkColorChannel = 1;
-pub const GDK_COLOR_CHANNEL_BLUE: GdkColorChannel = 2;
-pub const GDK_COLOR_CHANNEL_ALPHA: GdkColorChannel = 3;
 
 pub type GdkCrossingMode = c_int;
 pub const GDK_CROSSING_NORMAL: GdkCrossingMode = 0;
@@ -125,8 +119,7 @@ pub const GDK_PAD_GROUP_MODE: GdkEventType = 27;
 #[cfg(feature = "v4_6")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_6")))]
 pub const GDK_TOUCHPAD_HOLD: GdkEventType = 28;
-pub const GDK_PAD_DIAL: GdkEventType = 29;
-pub const GDK_EVENT_LAST: GdkEventType = 30;
+pub const GDK_EVENT_LAST: GdkEventType = 29;
 
 pub type GdkFullscreenMode = c_int;
 pub const GDK_FULLSCREEN_ON_CURRENT_MONITOR: GdkFullscreenMode = 0;
@@ -245,121 +238,7 @@ pub const GDK_MEMORY_R8G8B8X8: GdkMemoryFormat = 31;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 pub const GDK_MEMORY_X8B8G8R8: GdkMemoryFormat = 32;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_B8R8_420: GdkMemoryFormat = 33;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_R8B8_420: GdkMemoryFormat = 34;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_B8R8_422: GdkMemoryFormat = 35;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_R8B8_422: GdkMemoryFormat = 36;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_B8R8_444: GdkMemoryFormat = 37;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_R8B8_444: GdkMemoryFormat = 38;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G10X6_B10X6R10X6_420: GdkMemoryFormat = 39;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G12X4_B12X4R12X4_420: GdkMemoryFormat = 40;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G16_B16R16_420: GdkMemoryFormat = 41;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_B8_R8_410: GdkMemoryFormat = 42;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_R8_B8_410: GdkMemoryFormat = 43;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_B8_R8_411: GdkMemoryFormat = 44;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_R8_B8_411: GdkMemoryFormat = 45;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_B8_R8_420: GdkMemoryFormat = 46;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_R8_B8_420: GdkMemoryFormat = 47;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_B8_R8_422: GdkMemoryFormat = 48;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_R8_B8_422: GdkMemoryFormat = 49;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_B8_R8_444: GdkMemoryFormat = 50;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8_R8_B8_444: GdkMemoryFormat = 51;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8B8G8R8_422: GdkMemoryFormat = 52;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G8R8G8B8_422: GdkMemoryFormat = 53;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_R8G8B8G8_422: GdkMemoryFormat = 54;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_B8G8R8G8_422: GdkMemoryFormat = 55;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_X6G10_X6B10_X6R10_420: GdkMemoryFormat = 56;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_X6G10_X6B10_X6R10_422: GdkMemoryFormat = 57;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_X6G10_X6B10_X6R10_444: GdkMemoryFormat = 58;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_X4G12_X4B12_X4R12_420: GdkMemoryFormat = 59;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_X4G12_X4B12_X4R12_422: GdkMemoryFormat = 60;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_X4G12_X4B12_X4R12_444: GdkMemoryFormat = 61;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G16_B16_R16_420: GdkMemoryFormat = 62;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G16_B16_R16_422: GdkMemoryFormat = 63;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_MEMORY_G16_B16_R16_444: GdkMemoryFormat = 64;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub const GDK_MEMORY_ARGB2101010_PREMULTIPLIED: GdkMemoryFormat = 65;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub const GDK_MEMORY_ARGB2101010: GdkMemoryFormat = 66;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub const GDK_MEMORY_XRGB2101010: GdkMemoryFormat = 67;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub const GDK_MEMORY_ABGR2101010_PREMULTIPLIED: GdkMemoryFormat = 68;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub const GDK_MEMORY_ABGR2101010: GdkMemoryFormat = 69;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub const GDK_MEMORY_XBGR2101010: GdkMemoryFormat = 70;
-pub const GDK_MEMORY_N_FORMATS: GdkMemoryFormat = 71;
+pub const GDK_MEMORY_N_FORMATS: GdkMemoryFormat = 33;
 
 pub type GdkNotifyType = c_int;
 pub const GDK_NOTIFY_ANCESTOR: GdkNotifyType = 0;
@@ -375,11 +254,6 @@ pub const GDK_SCROLL_DOWN: GdkScrollDirection = 1;
 pub const GDK_SCROLL_LEFT: GdkScrollDirection = 2;
 pub const GDK_SCROLL_RIGHT: GdkScrollDirection = 3;
 pub const GDK_SCROLL_SMOOTH: GdkScrollDirection = 4;
-
-pub type GdkScrollRelativeDirection = c_int;
-pub const GDK_SCROLL_RELATIVE_DIRECTION_IDENTICAL: GdkScrollRelativeDirection = 0;
-pub const GDK_SCROLL_RELATIVE_DIRECTION_INVERTED: GdkScrollRelativeDirection = 1;
-pub const GDK_SCROLL_RELATIVE_DIRECTION_UNKNOWN: GdkScrollRelativeDirection = 2;
 
 pub type GdkScrollUnit = c_int;
 pub const GDK_SCROLL_UNIT_WHEEL: GdkScrollUnit = 0;
@@ -434,8 +308,6 @@ pub const GDK_EVENT_PROPAGATE: gboolean = glib::GFALSE;
 pub const GDK_EVENT_STOP: gboolean = glib::GTRUE;
 pub const GDK_KEY_0: c_int = 48;
 pub const GDK_KEY_1: c_int = 49;
-pub const GDK_KEY_10ChannelsDown: c_int = 268964281;
-pub const GDK_KEY_10ChannelsUp: c_int = 268964280;
 pub const GDK_KEY_2: c_int = 50;
 pub const GDK_KEY_3: c_int = 51;
 pub const GDK_KEY_3270_AltCursor: c_int = 64784;
@@ -468,7 +340,6 @@ pub const GDK_KEY_3270_Right2: c_int = 64771;
 pub const GDK_KEY_3270_Rule: c_int = 64788;
 pub const GDK_KEY_3270_Setup: c_int = 64791;
 pub const GDK_KEY_3270_Test: c_int = 64781;
-pub const GDK_KEY_3DMode: c_int = 268964463;
 pub const GDK_KEY_4: c_int = 52;
 pub const GDK_KEY_5: c_int = 53;
 pub const GDK_KEY_6: c_int = 54;
@@ -477,7 +348,6 @@ pub const GDK_KEY_8: c_int = 56;
 pub const GDK_KEY_9: c_int = 57;
 pub const GDK_KEY_A: c_int = 65;
 pub const GDK_KEY_AE: c_int = 198;
-pub const GDK_KEY_ALSToggle: c_int = 268964400;
 pub const GDK_KEY_Aacute: c_int = 193;
 pub const GDK_KEY_Abelowdot: c_int = 16785056;
 pub const GDK_KEY_Abreve: c_int = 451;
@@ -488,7 +358,6 @@ pub const GDK_KEY_Abrevehook: c_int = 16785074;
 pub const GDK_KEY_Abrevetilde: c_int = 16785076;
 pub const GDK_KEY_AccessX_Enable: c_int = 65136;
 pub const GDK_KEY_AccessX_Feedback_Enable: c_int = 65137;
-pub const GDK_KEY_Accessibility: c_int = 268964430;
 pub const GDK_KEY_Acircumflex: c_int = 194;
 pub const GDK_KEY_Acircumflexacute: c_int = 16785060;
 pub const GDK_KEY_Acircumflexbelowdot: c_int = 16785068;
@@ -496,7 +365,6 @@ pub const GDK_KEY_Acircumflexgrave: c_int = 16785062;
 pub const GDK_KEY_Acircumflexhook: c_int = 16785064;
 pub const GDK_KEY_Acircumflextilde: c_int = 16785066;
 pub const GDK_KEY_AddFavorite: c_int = 269025081;
-pub const GDK_KEY_Addressbook: c_int = 268964269;
 pub const GDK_KEY_Adiaeresis: c_int = 196;
 pub const GDK_KEY_Agrave: c_int = 192;
 pub const GDK_KEY_Ahook: c_int = 16785058;
@@ -504,7 +372,6 @@ pub const GDK_KEY_Alt_L: c_int = 65513;
 pub const GDK_KEY_Alt_R: c_int = 65514;
 pub const GDK_KEY_Amacron: c_int = 960;
 pub const GDK_KEY_Aogonek: c_int = 417;
-pub const GDK_KEY_AppSelect: c_int = 268964420;
 pub const GDK_KEY_ApplicationLeft: c_int = 269025104;
 pub const GDK_KEY_ApplicationRight: c_int = 269025105;
 pub const GDK_KEY_Arabic_0: c_int = 16778848;
@@ -678,16 +545,9 @@ pub const GDK_KEY_Armenian_yech: c_int = 16778597;
 pub const GDK_KEY_Armenian_yentamna: c_int = 16778634;
 pub const GDK_KEY_Armenian_za: c_int = 16778598;
 pub const GDK_KEY_Armenian_zhe: c_int = 16778602;
-pub const GDK_KEY_AspectRatio: c_int = 268964215;
-pub const GDK_KEY_Assistant: c_int = 268964423;
 pub const GDK_KEY_Atilde: c_int = 195;
-pub const GDK_KEY_AttendantOff: c_int = 268964380;
-pub const GDK_KEY_AttendantOn: c_int = 268964379;
-pub const GDK_KEY_AttendantToggle: c_int = 268964381;
 pub const GDK_KEY_AudibleBell_Enable: c_int = 65146;
-pub const GDK_KEY_Audio: c_int = 268964232;
 pub const GDK_KEY_AudioCycleTrack: c_int = 269025179;
-pub const GDK_KEY_AudioDesc: c_int = 268964462;
 pub const GDK_KEY_AudioForward: c_int = 269025175;
 pub const GDK_KEY_AudioLowerVolume: c_int = 269025041;
 pub const GDK_KEY_AudioMedia: c_int = 269025074;
@@ -704,7 +564,6 @@ pub const GDK_KEY_AudioRecord: c_int = 269025052;
 pub const GDK_KEY_AudioRepeat: c_int = 269025176;
 pub const GDK_KEY_AudioRewind: c_int = 269025086;
 pub const GDK_KEY_AudioStop: c_int = 269025045;
-pub const GDK_KEY_AutopilotEngageToggle: c_int = 268964477;
 pub const GDK_KEY_Away: c_int = 269025165;
 pub const GDK_KEY_B: c_int = 66;
 pub const GDK_KEY_Babovedot: c_int = 16784898;
@@ -719,10 +578,6 @@ pub const GDK_KEY_Book: c_int = 269025106;
 pub const GDK_KEY_BounceKeys_Enable: c_int = 65140;
 pub const GDK_KEY_Break: c_int = 65387;
 pub const GDK_KEY_BrightnessAdjust: c_int = 269025083;
-pub const GDK_KEY_BrightnessAuto: c_int = 268964084;
-pub const GDK_KEY_BrightnessMax: c_int = 268964433;
-pub const GDK_KEY_BrightnessMin: c_int = 268964432;
-pub const GDK_KEY_Buttonconfig: c_int = 268964416;
 pub const GDK_KEY_Byelorussian_SHORTU: c_int = 1726;
 pub const GDK_KEY_Byelorussian_shortu: c_int = 1710;
 pub const GDK_KEY_C: c_int = 67;
@@ -734,34 +589,19 @@ pub const GDK_KEY_Cabovedot: c_int = 709;
 pub const GDK_KEY_Cacute: c_int = 454;
 pub const GDK_KEY_Calculator: c_int = 269025053;
 pub const GDK_KEY_Calendar: c_int = 269025056;
-pub const GDK_KEY_CameraAccessDisable: c_int = 268964428;
-pub const GDK_KEY_CameraAccessEnable: c_int = 268964427;
-pub const GDK_KEY_CameraAccessToggle: c_int = 268964429;
-pub const GDK_KEY_CameraDown: c_int = 268964376;
-pub const GDK_KEY_CameraFocus: c_int = 268964368;
-pub const GDK_KEY_CameraLeft: c_int = 268964377;
-pub const GDK_KEY_CameraRight: c_int = 268964378;
-pub const GDK_KEY_CameraUp: c_int = 268964375;
-pub const GDK_KEY_CameraZoomIn: c_int = 268964373;
-pub const GDK_KEY_CameraZoomOut: c_int = 268964374;
 pub const GDK_KEY_Cancel: c_int = 65385;
 pub const GDK_KEY_Caps_Lock: c_int = 65509;
 pub const GDK_KEY_Ccaron: c_int = 456;
 pub const GDK_KEY_Ccedilla: c_int = 199;
 pub const GDK_KEY_Ccircumflex: c_int = 710;
 pub const GDK_KEY_Ch: c_int = 65185;
-pub const GDK_KEY_ChannelDown: c_int = 268964243;
-pub const GDK_KEY_ChannelUp: c_int = 268964242;
 pub const GDK_KEY_Clear: c_int = 65291;
 pub const GDK_KEY_ClearGrab: c_int = 269024801;
-pub const GDK_KEY_ClearvuSonar: c_int = 268964486;
 pub const GDK_KEY_Close: c_int = 269025110;
 pub const GDK_KEY_Codeinput: c_int = 65335;
 pub const GDK_KEY_ColonSign: c_int = 16785569;
 pub const GDK_KEY_Community: c_int = 269025085;
-pub const GDK_KEY_ContextMenu: c_int = 268964278;
 pub const GDK_KEY_ContrastAdjust: c_int = 269025058;
-pub const GDK_KEY_ControlPanel: c_int = 268964419;
 pub const GDK_KEY_Control_L: c_int = 65507;
 pub const GDK_KEY_Control_R: c_int = 65508;
 pub const GDK_KEY_Copy: c_int = 269025111;
@@ -874,22 +714,14 @@ pub const GDK_KEY_Cyrillic_zhe: c_int = 1750;
 pub const GDK_KEY_Cyrillic_zhe_descender: c_int = 16778391;
 pub const GDK_KEY_D: c_int = 68;
 pub const GDK_KEY_DOS: c_int = 269025114;
-pub const GDK_KEY_DVD: c_int = 268964229;
 pub const GDK_KEY_Dabovedot: c_int = 16784906;
-pub const GDK_KEY_Data: c_int = 268964471;
-pub const GDK_KEY_Database: c_int = 268964266;
 pub const GDK_KEY_Dcaron: c_int = 463;
 pub const GDK_KEY_Delete: c_int = 65535;
-pub const GDK_KEY_Dictate: c_int = 268964426;
 pub const GDK_KEY_Display: c_int = 269025113;
-pub const GDK_KEY_DisplayOff: c_int = 268964085;
-pub const GDK_KEY_DisplayToggle: c_int = 268964271;
-pub const GDK_KEY_DoNotDisturb: c_int = 268964431;
 pub const GDK_KEY_Documents: c_int = 269025115;
 pub const GDK_KEY_DongSign: c_int = 16785579;
 pub const GDK_KEY_Down: c_int = 65364;
 pub const GDK_KEY_Dstroke: c_int = 464;
-pub const GDK_KEY_DualRangeRadar: c_int = 268964483;
 pub const GDK_KEY_E: c_int = 69;
 pub const GDK_KEY_ENG: c_int = 957;
 pub const GDK_KEY_ETH: c_int = 208;
@@ -906,14 +738,12 @@ pub const GDK_KEY_Ecircumflexhook: c_int = 16785090;
 pub const GDK_KEY_Ecircumflextilde: c_int = 16785092;
 pub const GDK_KEY_EcuSign: c_int = 16785568;
 pub const GDK_KEY_Ediaeresis: c_int = 203;
-pub const GDK_KEY_Editor: c_int = 268964262;
 pub const GDK_KEY_Egrave: c_int = 200;
 pub const GDK_KEY_Ehook: c_int = 16785082;
 pub const GDK_KEY_Eisu_Shift: c_int = 65327;
 pub const GDK_KEY_Eisu_toggle: c_int = 65328;
 pub const GDK_KEY_Eject: c_int = 269025068;
 pub const GDK_KEY_Emacron: c_int = 938;
-pub const GDK_KEY_EmojiPicker: c_int = 268964425;
 pub const GDK_KEY_End: c_int = 65367;
 pub const GDK_KEY_Eogonek: c_int = 458;
 pub const GDK_KEY_Escape: c_int = 65307;
@@ -972,19 +802,13 @@ pub const GDK_KEY_Farsi_7: c_int = 16778999;
 pub const GDK_KEY_Farsi_8: c_int = 16779000;
 pub const GDK_KEY_Farsi_9: c_int = 16779001;
 pub const GDK_KEY_Farsi_yeh: c_int = 16778956;
-pub const GDK_KEY_FastReverse: c_int = 268964469;
 pub const GDK_KEY_Favorites: c_int = 269025072;
 pub const GDK_KEY_Finance: c_int = 269025084;
 pub const GDK_KEY_Find: c_int = 65384;
 pub const GDK_KEY_First_Virtual_Screen: c_int = 65232;
-pub const GDK_KEY_FishingChart: c_int = 268964481;
-pub const GDK_KEY_Fn: c_int = 268964304;
-pub const GDK_KEY_FnRightShift: c_int = 268964325;
-pub const GDK_KEY_Fn_Esc: c_int = 268964305;
 pub const GDK_KEY_Forward: c_int = 269025063;
 pub const GDK_KEY_FrameBack: c_int = 269025181;
 pub const GDK_KEY_FrameForward: c_int = 269025182;
-pub const GDK_KEY_FullScreen: c_int = 269025208;
 pub const GDK_KEY_G: c_int = 71;
 pub const GDK_KEY_Gabovedot: c_int = 725;
 pub const GDK_KEY_Game: c_int = 269025118;
@@ -1032,7 +856,6 @@ pub const GDK_KEY_Georgian_xan: c_int = 16781550;
 pub const GDK_KEY_Georgian_zen: c_int = 16781526;
 pub const GDK_KEY_Georgian_zhar: c_int = 16781535;
 pub const GDK_KEY_Go: c_int = 269025119;
-pub const GDK_KEY_GraphicsEditor: c_int = 268964264;
 pub const GDK_KEY_Greek_ALPHA: c_int = 1985;
 pub const GDK_KEY_Greek_ALPHAaccent: c_int = 1953;
 pub const GDK_KEY_Greek_BETA: c_int = 1986;
@@ -1216,7 +1039,6 @@ pub const GDK_KEY_Hangul_YO: c_int = 3787;
 pub const GDK_KEY_Hangul_YU: c_int = 3792;
 pub const GDK_KEY_Hangul_YeorinHieuh: c_int = 3829;
 pub const GDK_KEY_Hangul_switch: c_int = 65406;
-pub const GDK_KEY_HangupPhone: c_int = 268964286;
 pub const GDK_KEY_Hankaku: c_int = 65321;
 pub const GDK_KEY_Hcircumflex: c_int = 678;
 pub const GDK_KEY_Hebrew_switch: c_int = 65406;
@@ -1283,14 +1105,11 @@ pub const GDK_KEY_Idiaeresis: c_int = 207;
 pub const GDK_KEY_Igrave: c_int = 204;
 pub const GDK_KEY_Ihook: c_int = 16785096;
 pub const GDK_KEY_Imacron: c_int = 975;
-pub const GDK_KEY_Images: c_int = 268964282;
-pub const GDK_KEY_Info: c_int = 268964198;
 pub const GDK_KEY_Insert: c_int = 65379;
 pub const GDK_KEY_Iogonek: c_int = 967;
 pub const GDK_KEY_Itilde: c_int = 933;
 pub const GDK_KEY_J: c_int = 74;
 pub const GDK_KEY_Jcircumflex: c_int = 684;
-pub const GDK_KEY_Journal: c_int = 268964418;
 pub const GDK_KEY_K: c_int = 75;
 pub const GDK_KEY_KP_0: c_int = 65456;
 pub const GDK_KEY_KP_1: c_int = 65457;
@@ -1336,17 +1155,6 @@ pub const GDK_KEY_Kanji_Bangou: c_int = 65335;
 pub const GDK_KEY_Katakana: c_int = 65318;
 pub const GDK_KEY_KbdBrightnessDown: c_int = 269025030;
 pub const GDK_KEY_KbdBrightnessUp: c_int = 269025029;
-pub const GDK_KEY_KbdInputAssistAccept: c_int = 268964452;
-pub const GDK_KEY_KbdInputAssistCancel: c_int = 268964453;
-pub const GDK_KEY_KbdInputAssistNext: c_int = 268964449;
-pub const GDK_KEY_KbdInputAssistNextgroup: c_int = 268964451;
-pub const GDK_KEY_KbdInputAssistPrev: c_int = 268964448;
-pub const GDK_KEY_KbdInputAssistPrevgroup: c_int = 268964450;
-pub const GDK_KEY_KbdLcdMenu1: c_int = 268964536;
-pub const GDK_KEY_KbdLcdMenu2: c_int = 268964537;
-pub const GDK_KEY_KbdLcdMenu3: c_int = 268964538;
-pub const GDK_KEY_KbdLcdMenu4: c_int = 268964539;
-pub const GDK_KEY_KbdLcdMenu5: c_int = 268964540;
 pub const GDK_KEY_KbdLightOnOff: c_int = 269025028;
 pub const GDK_KEY_Kcedilla: c_int = 979;
 pub const GDK_KEY_Keyboard: c_int = 269025203;
@@ -1384,10 +1192,7 @@ pub const GDK_KEY_Lbelowdot: c_int = 16784950;
 pub const GDK_KEY_Lcaron: c_int = 421;
 pub const GDK_KEY_Lcedilla: c_int = 934;
 pub const GDK_KEY_Left: c_int = 65361;
-pub const GDK_KEY_LeftDown: c_int = 268964457;
-pub const GDK_KEY_LeftUp: c_int = 268964456;
 pub const GDK_KEY_LightBulb: c_int = 269025077;
-pub const GDK_KEY_LightsToggle: c_int = 268964382;
 pub const GDK_KEY_Linefeed: c_int = 65290;
 pub const GDK_KEY_LiraSign: c_int = 16785572;
 pub const GDK_KEY_LogGrabInfo: c_int = 269024805;
@@ -1402,50 +1207,11 @@ pub const GDK_KEY_Macedonia_KJE: c_int = 1724;
 pub const GDK_KEY_Macedonia_dse: c_int = 1701;
 pub const GDK_KEY_Macedonia_gje: c_int = 1698;
 pub const GDK_KEY_Macedonia_kje: c_int = 1708;
-pub const GDK_KEY_Macro1: c_int = 268964496;
-pub const GDK_KEY_Macro10: c_int = 268964505;
-pub const GDK_KEY_Macro11: c_int = 268964506;
-pub const GDK_KEY_Macro12: c_int = 268964507;
-pub const GDK_KEY_Macro13: c_int = 268964508;
-pub const GDK_KEY_Macro14: c_int = 268964509;
-pub const GDK_KEY_Macro15: c_int = 268964510;
-pub const GDK_KEY_Macro16: c_int = 268964511;
-pub const GDK_KEY_Macro17: c_int = 268964512;
-pub const GDK_KEY_Macro18: c_int = 268964513;
-pub const GDK_KEY_Macro19: c_int = 268964514;
-pub const GDK_KEY_Macro2: c_int = 268964497;
-pub const GDK_KEY_Macro20: c_int = 268964515;
-pub const GDK_KEY_Macro21: c_int = 268964516;
-pub const GDK_KEY_Macro22: c_int = 268964517;
-pub const GDK_KEY_Macro23: c_int = 268964518;
-pub const GDK_KEY_Macro24: c_int = 268964519;
-pub const GDK_KEY_Macro25: c_int = 268964520;
-pub const GDK_KEY_Macro26: c_int = 268964521;
-pub const GDK_KEY_Macro27: c_int = 268964522;
-pub const GDK_KEY_Macro28: c_int = 268964523;
-pub const GDK_KEY_Macro29: c_int = 268964524;
-pub const GDK_KEY_Macro3: c_int = 268964498;
-pub const GDK_KEY_Macro30: c_int = 268964525;
-pub const GDK_KEY_Macro4: c_int = 268964499;
-pub const GDK_KEY_Macro5: c_int = 268964500;
-pub const GDK_KEY_Macro6: c_int = 268964501;
-pub const GDK_KEY_Macro7: c_int = 268964502;
-pub const GDK_KEY_Macro8: c_int = 268964503;
-pub const GDK_KEY_Macro9: c_int = 268964504;
-pub const GDK_KEY_MacroPreset1: c_int = 268964531;
-pub const GDK_KEY_MacroPreset2: c_int = 268964532;
-pub const GDK_KEY_MacroPreset3: c_int = 268964533;
-pub const GDK_KEY_MacroPresetCycle: c_int = 268964530;
-pub const GDK_KEY_MacroRecordStart: c_int = 268964528;
-pub const GDK_KEY_MacroRecordStop: c_int = 268964529;
 pub const GDK_KEY_Mae_Koho: c_int = 65342;
 pub const GDK_KEY_Mail: c_int = 269025049;
 pub const GDK_KEY_MailForward: c_int = 269025168;
-pub const GDK_KEY_MarkWaypoint: c_int = 268964478;
 pub const GDK_KEY_Market: c_int = 269025122;
 pub const GDK_KEY_Massyo: c_int = 65324;
-pub const GDK_KEY_MediaRepeat: c_int = 268964279;
-pub const GDK_KEY_MediaTopMenu: c_int = 268964459;
 pub const GDK_KEY_Meeting: c_int = 269025123;
 pub const GDK_KEY_Memo: c_int = 269025054;
 pub const GDK_KEY_Menu: c_int = 65383;
@@ -1457,7 +1223,6 @@ pub const GDK_KEY_Meta_R: c_int = 65512;
 pub const GDK_KEY_MillSign: c_int = 16785573;
 pub const GDK_KEY_ModeLock: c_int = 269025025;
 pub const GDK_KEY_Mode_switch: c_int = 65406;
-pub const GDK_KEY_MonBrightnessCycle: c_int = 269025031;
 pub const GDK_KEY_MonBrightnessDown: c_int = 269025027;
 pub const GDK_KEY_MonBrightnessUp: c_int = 269025026;
 pub const GDK_KEY_MouseKeys_Accel_Enable: c_int = 65143;
@@ -1471,39 +1236,16 @@ pub const GDK_KEY_MySites: c_int = 269025127;
 pub const GDK_KEY_N: c_int = 78;
 pub const GDK_KEY_Nacute: c_int = 465;
 pub const GDK_KEY_NairaSign: c_int = 16785574;
-pub const GDK_KEY_NavChart: c_int = 268964480;
-pub const GDK_KEY_NavInfo: c_int = 268964488;
 pub const GDK_KEY_Ncaron: c_int = 466;
 pub const GDK_KEY_Ncedilla: c_int = 977;
 pub const GDK_KEY_New: c_int = 269025128;
 pub const GDK_KEY_NewSheqelSign: c_int = 16785578;
 pub const GDK_KEY_News: c_int = 269025129;
 pub const GDK_KEY_Next: c_int = 65366;
-pub const GDK_KEY_NextElement: c_int = 268964475;
-pub const GDK_KEY_NextFavorite: c_int = 268964464;
 pub const GDK_KEY_Next_VMode: c_int = 269024802;
 pub const GDK_KEY_Next_Virtual_Screen: c_int = 65234;
-pub const GDK_KEY_NotificationCenter: c_int = 268964284;
 pub const GDK_KEY_Ntilde: c_int = 209;
 pub const GDK_KEY_Num_Lock: c_int = 65407;
-pub const GDK_KEY_Numeric0: c_int = 268964352;
-pub const GDK_KEY_Numeric1: c_int = 268964353;
-pub const GDK_KEY_Numeric11: c_int = 268964460;
-pub const GDK_KEY_Numeric12: c_int = 268964461;
-pub const GDK_KEY_Numeric2: c_int = 268964354;
-pub const GDK_KEY_Numeric3: c_int = 268964355;
-pub const GDK_KEY_Numeric4: c_int = 268964356;
-pub const GDK_KEY_Numeric5: c_int = 268964357;
-pub const GDK_KEY_Numeric6: c_int = 268964358;
-pub const GDK_KEY_Numeric7: c_int = 268964359;
-pub const GDK_KEY_Numeric8: c_int = 268964360;
-pub const GDK_KEY_Numeric9: c_int = 268964361;
-pub const GDK_KEY_NumericA: c_int = 268964364;
-pub const GDK_KEY_NumericB: c_int = 268964365;
-pub const GDK_KEY_NumericC: c_int = 268964366;
-pub const GDK_KEY_NumericD: c_int = 268964367;
-pub const GDK_KEY_NumericPound: c_int = 268964363;
-pub const GDK_KEY_NumericStar: c_int = 268964362;
 pub const GDK_KEY_O: c_int = 79;
 pub const GDK_KEY_OE: c_int = 5052;
 pub const GDK_KEY_Oacute: c_int = 211;
@@ -1528,7 +1270,6 @@ pub const GDK_KEY_Ohorngrave: c_int = 16785116;
 pub const GDK_KEY_Ohornhook: c_int = 16785118;
 pub const GDK_KEY_Ohorntilde: c_int = 16785120;
 pub const GDK_KEY_Omacron: c_int = 978;
-pub const GDK_KEY_OnScreenKeyboard: c_int = 268964472;
 pub const GDK_KEY_Ooblique: c_int = 216;
 pub const GDK_KEY_Open: c_int = 269025131;
 pub const GDK_KEY_OpenURL: c_int = 269025080;
@@ -1543,10 +1284,8 @@ pub const GDK_KEY_Page_Down: c_int = 65366;
 pub const GDK_KEY_Page_Up: c_int = 65365;
 pub const GDK_KEY_Paste: c_int = 269025133;
 pub const GDK_KEY_Pause: c_int = 65299;
-pub const GDK_KEY_PauseRecord: c_int = 268964466;
 pub const GDK_KEY_PesetaSign: c_int = 16785575;
 pub const GDK_KEY_Phone: c_int = 269025134;
-pub const GDK_KEY_PickupPhone: c_int = 268964285;
 pub const GDK_KEY_Pictures: c_int = 269025169;
 pub const GDK_KEY_Pointer_Accelerate: c_int = 65274;
 pub const GDK_KEY_Pointer_Button1: c_int = 65257;
@@ -1580,14 +1319,11 @@ pub const GDK_KEY_Pointer_UpLeft: c_int = 65252;
 pub const GDK_KEY_Pointer_UpRight: c_int = 65253;
 pub const GDK_KEY_PowerDown: c_int = 269025057;
 pub const GDK_KEY_PowerOff: c_int = 269025066;
-pub const GDK_KEY_Presentation: c_int = 268964265;
 pub const GDK_KEY_Prev_VMode: c_int = 269024803;
 pub const GDK_KEY_Prev_Virtual_Screen: c_int = 65233;
 pub const GDK_KEY_PreviousCandidate: c_int = 65342;
-pub const GDK_KEY_PreviousElement: c_int = 268964476;
 pub const GDK_KEY_Print: c_int = 65377;
 pub const GDK_KEY_Prior: c_int = 65365;
-pub const GDK_KEY_PrivacyScreenToggle: c_int = 268964473;
 pub const GDK_KEY_Q: c_int = 81;
 pub const GDK_KEY_R: c_int = 82;
 pub const GDK_KEY_R1: c_int = 65490;
@@ -1607,28 +1343,22 @@ pub const GDK_KEY_R8: c_int = 65497;
 pub const GDK_KEY_R9: c_int = 65498;
 pub const GDK_KEY_RFKill: c_int = 269025205;
 pub const GDK_KEY_Racute: c_int = 448;
-pub const GDK_KEY_RadarOverlay: c_int = 268964484;
 pub const GDK_KEY_Rcaron: c_int = 472;
 pub const GDK_KEY_Rcedilla: c_int = 931;
 pub const GDK_KEY_Red: c_int = 269025187;
 pub const GDK_KEY_Redo: c_int = 65382;
 pub const GDK_KEY_Refresh: c_int = 269025065;
-pub const GDK_KEY_RefreshRateToggle: c_int = 268964402;
 pub const GDK_KEY_Reload: c_int = 269025139;
 pub const GDK_KEY_RepeatKeys_Enable: c_int = 65138;
 pub const GDK_KEY_Reply: c_int = 269025138;
 pub const GDK_KEY_Return: c_int = 65293;
 pub const GDK_KEY_Right: c_int = 65363;
-pub const GDK_KEY_RightDown: c_int = 268964455;
-pub const GDK_KEY_RightUp: c_int = 268964454;
 pub const GDK_KEY_RockerDown: c_int = 269025060;
 pub const GDK_KEY_RockerEnter: c_int = 269025061;
 pub const GDK_KEY_RockerUp: c_int = 269025059;
 pub const GDK_KEY_Romaji: c_int = 65316;
-pub const GDK_KEY_RootMenu: c_int = 268964458;
 pub const GDK_KEY_RotateWindows: c_int = 269025140;
 pub const GDK_KEY_RotationKB: c_int = 269025142;
-pub const GDK_KEY_RotationLockToggle: c_int = 269025207;
 pub const GDK_KEY_RotationPB: c_int = 269025141;
 pub const GDK_KEY_RupeeSign: c_int = 16785576;
 pub const GDK_KEY_S: c_int = 83;
@@ -1640,7 +1370,6 @@ pub const GDK_KEY_Scaron: c_int = 425;
 pub const GDK_KEY_Scedilla: c_int = 426;
 pub const GDK_KEY_Scircumflex: c_int = 734;
 pub const GDK_KEY_ScreenSaver: c_int = 269025069;
-pub const GDK_KEY_Screensaver: c_int = 268964421;
 pub const GDK_KEY_ScrollClick: c_int = 269025146;
 pub const GDK_KEY_ScrollDown: c_int = 269025145;
 pub const GDK_KEY_ScrollUp: c_int = 269025144;
@@ -1648,7 +1377,6 @@ pub const GDK_KEY_Scroll_Lock: c_int = 65300;
 pub const GDK_KEY_Search: c_int = 269025051;
 pub const GDK_KEY_Select: c_int = 65376;
 pub const GDK_KEY_SelectButton: c_int = 269025184;
-pub const GDK_KEY_SelectiveScreenshot: c_int = 268964474;
 pub const GDK_KEY_Send: c_int = 269025147;
 pub const GDK_KEY_Serbian_DJE: c_int = 1713;
 pub const GDK_KEY_Serbian_DZE: c_int = 1727;
@@ -1666,9 +1394,7 @@ pub const GDK_KEY_Shift_L: c_int = 65505;
 pub const GDK_KEY_Shift_Lock: c_int = 65510;
 pub const GDK_KEY_Shift_R: c_int = 65506;
 pub const GDK_KEY_Shop: c_int = 269025078;
-pub const GDK_KEY_SidevuSonar: c_int = 268964487;
 pub const GDK_KEY_SingleCandidate: c_int = 65340;
-pub const GDK_KEY_SingleRangeRadar: c_int = 268964482;
 pub const GDK_KEY_Sinh_a: c_int = 16780677;
 pub const GDK_KEY_Sinh_aa: c_int = 16780678;
 pub const GDK_KEY_Sinh_aa2: c_int = 16780751;
@@ -1751,16 +1477,12 @@ pub const GDK_KEY_Sinh_va: c_int = 16780736;
 pub const GDK_KEY_Sinh_ya: c_int = 16780730;
 pub const GDK_KEY_Sleep: c_int = 269025071;
 pub const GDK_KEY_SlowKeys_Enable: c_int = 65139;
-pub const GDK_KEY_SlowReverse: c_int = 268964470;
-pub const GDK_KEY_Sos: c_int = 268964479;
 pub const GDK_KEY_Spell: c_int = 269025148;
-pub const GDK_KEY_SpellCheck: c_int = 268964272;
 pub const GDK_KEY_SplitScreen: c_int = 269025149;
 pub const GDK_KEY_Standby: c_int = 269025040;
 pub const GDK_KEY_Start: c_int = 269025050;
 pub const GDK_KEY_StickyKeys_Enable: c_int = 65141;
 pub const GDK_KEY_Stop: c_int = 269025064;
-pub const GDK_KEY_StopRecord: c_int = 268964465;
 pub const GDK_KEY_Subtitle: c_int = 269025178;
 pub const GDK_KEY_Super_L: c_int = 65515;
 pub const GDK_KEY_Super_R: c_int = 65516;
@@ -1784,7 +1506,6 @@ pub const GDK_KEY_THORN: c_int = 222;
 pub const GDK_KEY_Tab: c_int = 65289;
 pub const GDK_KEY_Tabovedot: c_int = 16785002;
 pub const GDK_KEY_TaskPane: c_int = 269025151;
-pub const GDK_KEY_Taskmanager: c_int = 268964417;
 pub const GDK_KEY_Tcaron: c_int = 427;
 pub const GDK_KEY_Tcedilla: c_int = 478;
 pub const GDK_KEY_Terminal: c_int = 269025152;
@@ -1882,7 +1603,6 @@ pub const GDK_KEY_TouchpadOff: c_int = 269025201;
 pub const GDK_KEY_TouchpadOn: c_int = 269025200;
 pub const GDK_KEY_TouchpadToggle: c_int = 269025193;
 pub const GDK_KEY_Touroku: c_int = 65323;
-pub const GDK_KEY_TraditionalSonar: c_int = 268964485;
 pub const GDK_KEY_Travel: c_int = 269025154;
 pub const GDK_KEY_Tslash: c_int = 940;
 pub const GDK_KEY_U: c_int = 85;
@@ -1918,7 +1638,6 @@ pub const GDK_KEY_Ukranian_yi: c_int = 1703;
 pub const GDK_KEY_Umacron: c_int = 990;
 pub const GDK_KEY_Undo: c_int = 65381;
 pub const GDK_KEY_Ungrab: c_int = 269024800;
-pub const GDK_KEY_Unmute: c_int = 268964468;
 pub const GDK_KEY_Uogonek: c_int = 985;
 pub const GDK_KEY_Up: c_int = 65362;
 pub const GDK_KEY_Uring: c_int = 473;
@@ -1927,17 +1646,12 @@ pub const GDK_KEY_User2KB: c_int = 269025158;
 pub const GDK_KEY_UserPB: c_int = 269025156;
 pub const GDK_KEY_Utilde: c_int = 989;
 pub const GDK_KEY_V: c_int = 86;
-pub const GDK_KEY_VOD: c_int = 268964467;
 pub const GDK_KEY_VendorHome: c_int = 269025076;
 pub const GDK_KEY_Video: c_int = 269025159;
-pub const GDK_KEY_VideoPhone: c_int = 268964256;
 pub const GDK_KEY_View: c_int = 269025185;
-pub const GDK_KEY_VoiceCommand: c_int = 268964422;
-pub const GDK_KEY_Voicemail: c_int = 268964268;
 pub const GDK_KEY_VoidSymbol: c_int = 16777215;
 pub const GDK_KEY_W: c_int = 87;
 pub const GDK_KEY_WLAN: c_int = 269025173;
-pub const GDK_KEY_WPSButton: c_int = 268964369;
 pub const GDK_KEY_WWAN: c_int = 269025204;
 pub const GDK_KEY_WWW: c_int = 269025070;
 pub const GDK_KEY_Wacute: c_int = 16785026;
@@ -1971,7 +1685,6 @@ pub const GDK_KEY_Zenkaku: c_int = 65320;
 pub const GDK_KEY_Zenkaku_Hankaku: c_int = 65322;
 pub const GDK_KEY_ZoomIn: c_int = 269025163;
 pub const GDK_KEY_ZoomOut: c_int = 269025164;
-pub const GDK_KEY_ZoomReset: c_int = 268964260;
 pub const GDK_KEY_Zstroke: c_int = 16777653;
 pub const GDK_KEY_a: c_int = 97;
 pub const GDK_KEY_aacute: c_int = 225;
@@ -2911,9 +2624,6 @@ pub const GDK_AXIS_FLAG_ROTATION: GdkAxisFlags = 1024;
 pub const GDK_AXIS_FLAG_SLIDER: GdkAxisFlags = 2048;
 
 pub type GdkDragAction = c_uint;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_ACTION_NONE: GdkDragAction = 0;
 pub const GDK_ACTION_COPY: GdkDragAction = 1;
 pub const GDK_ACTION_MOVE: GdkDragAction = 2;
 pub const GDK_ACTION_LINK: GdkDragAction = 4;
@@ -2963,32 +2673,6 @@ pub const GDK_SEAT_CAPABILITY_KEYBOARD: GdkSeatCapabilities = 8;
 pub const GDK_SEAT_CAPABILITY_TABLET_PAD: GdkSeatCapabilities = 16;
 pub const GDK_SEAT_CAPABILITY_ALL_POINTING: GdkSeatCapabilities = 7;
 pub const GDK_SEAT_CAPABILITY_ALL: GdkSeatCapabilities = 31;
-
-pub type GdkToplevelCapabilities = c_uint;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_TOPLEVEL_CAPABILITIES_EDGE_CONSTRAINTS: GdkToplevelCapabilities = 1;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_TOPLEVEL_CAPABILITIES_INHIBIT_SHORTCUTS: GdkToplevelCapabilities = 2;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_TOPLEVEL_CAPABILITIES_TITLEBAR_GESTURES: GdkToplevelCapabilities = 4;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_TOPLEVEL_CAPABILITIES_WINDOW_MENU: GdkToplevelCapabilities = 8;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_TOPLEVEL_CAPABILITIES_MAXIMIZE: GdkToplevelCapabilities = 16;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_TOPLEVEL_CAPABILITIES_FULLSCREEN: GdkToplevelCapabilities = 32;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_TOPLEVEL_CAPABILITIES_MINIMIZE: GdkToplevelCapabilities = 64;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub const GDK_TOPLEVEL_CAPABILITIES_LOWER: GdkToplevelCapabilities = 128;
 
 pub type GdkToplevelState = c_uint;
 pub const GDK_TOPLEVEL_STATE_MINIMIZED: GdkToplevelState = 1;
@@ -4151,7 +3835,7 @@ impl ::std::fmt::Debug for GdkToplevel {
     }
 }
 
-unsafe extern "C" {
+extern "C" {
 
     //=========================================================================
     // GdkAxisUse
@@ -4164,13 +3848,6 @@ unsafe extern "C" {
     #[cfg(feature = "v4_16")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
     pub fn gdk_cicp_range_get_type() -> GType;
-
-    //=========================================================================
-    // GdkColorChannel
-    //=========================================================================
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    pub fn gdk_color_channel_get_type() -> GType;
 
     //=========================================================================
     // GdkCrossingMode
@@ -4247,13 +3924,6 @@ unsafe extern "C" {
     // GdkScrollDirection
     //=========================================================================
     pub fn gdk_scroll_direction_get_type() -> GType;
-
-    //=========================================================================
-    // GdkScrollRelativeDirection
-    //=========================================================================
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_scroll_relative_direction_get_type() -> GType;
 
     //=========================================================================
     // GdkScrollUnit
@@ -4344,13 +4014,6 @@ unsafe extern "C" {
     pub fn gdk_seat_capabilities_get_type() -> GType;
 
     //=========================================================================
-    // GdkToplevelCapabilities
-    //=========================================================================
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_toplevel_capabilities_get_type() -> GType;
-
-    //=========================================================================
     // GdkToplevelState
     //=========================================================================
     pub fn gdk_toplevel_state_get_type() -> GType;
@@ -4367,12 +4030,6 @@ unsafe extern "C" {
     #[cfg(feature = "v4_16")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
     pub fn gdk_color_state_equal(self_: *mut GdkColorState, other: *mut GdkColorState) -> gboolean;
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_color_state_equivalent(
-        self_: *mut GdkColorState,
-        other: *mut GdkColorState,
-    ) -> gboolean;
     #[cfg(feature = "v4_16")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
     pub fn gdk_color_state_ref(self_: *mut GdkColorState) -> *mut GdkColorState;
@@ -4640,9 +4297,6 @@ unsafe extern "C" {
     pub fn gdk_rgba_is_clear(rgba: *const GdkRGBA) -> gboolean;
     pub fn gdk_rgba_is_opaque(rgba: *const GdkRGBA) -> gboolean;
     pub fn gdk_rgba_parse(rgba: *mut GdkRGBA, spec: *const c_char) -> gboolean;
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    pub fn gdk_rgba_print(rgba: *const GdkRGBA, string: *mut glib::GString) -> *mut glib::GString;
     pub fn gdk_rgba_to_string(rgba: *const GdkRGBA) -> *mut c_char;
 
     //=========================================================================
@@ -4682,13 +4336,6 @@ unsafe extern "C" {
         self_: *const GdkTextureDownloader,
         out_stride: *mut size_t,
     ) -> *mut glib::GBytes;
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_texture_downloader_download_bytes_with_planes(
-        self_: *const GdkTextureDownloader,
-        out_offsets: *mut [size_t; 4],
-        out_strides: *mut [size_t; 4],
-    ) -> *mut glib::GBytes;
     #[cfg(feature = "v4_10")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     pub fn gdk_texture_downloader_download_into(
@@ -4707,7 +4354,7 @@ unsafe extern "C" {
     #[cfg(feature = "v4_10")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     pub fn gdk_texture_downloader_get_format(self_: *const GdkTextureDownloader)
-    -> GdkMemoryFormat;
+        -> GdkMemoryFormat;
     #[cfg(feature = "v4_10")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     pub fn gdk_texture_downloader_get_texture(
@@ -4792,7 +4439,7 @@ unsafe extern "C" {
     //=========================================================================
     pub fn gdk_app_launch_context_get_type() -> GType;
     pub fn gdk_app_launch_context_get_display(context: *mut GdkAppLaunchContext)
-    -> *mut GdkDisplay;
+        -> *mut GdkDisplay;
     pub fn gdk_app_launch_context_set_desktop(context: *mut GdkAppLaunchContext, desktop: c_int);
     pub fn gdk_app_launch_context_set_icon(
         context: *mut GdkAppLaunchContext,
@@ -5162,7 +4809,7 @@ unsafe extern "C" {
     ) -> gboolean;
     pub fn gdk_display_flush(display: *mut GdkDisplay);
     pub fn gdk_display_get_app_launch_context(display: *mut GdkDisplay)
-    -> *mut GdkAppLaunchContext;
+        -> *mut GdkAppLaunchContext;
     pub fn gdk_display_get_clipboard(display: *mut GdkDisplay) -> *mut GdkClipboard;
     pub fn gdk_display_get_default_seat(display: *mut GdkDisplay) -> *mut GdkSeat;
     #[cfg(feature = "v4_14")]
@@ -5580,7 +5227,7 @@ unsafe extern "C" {
     #[cfg(feature = "v4_4")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_4")))]
     pub fn gdk_gl_context_is_shared(self_: *mut GdkGLContext, other: *mut GdkGLContext)
-    -> gboolean;
+        -> gboolean;
     pub fn gdk_gl_context_make_current(context: *mut GdkGLContext);
     pub fn gdk_gl_context_realize(
         context: *mut GdkGLContext,
@@ -5636,7 +5283,7 @@ unsafe extern "C" {
     #[cfg(feature = "v4_12")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_12")))]
     pub fn gdk_gl_texture_builder_get_context(self_: *mut GdkGLTextureBuilder)
-    -> *mut GdkGLContext;
+        -> *mut GdkGLContext;
     #[cfg(feature = "v4_12")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_12")))]
     pub fn gdk_gl_texture_builder_get_format(self_: *mut GdkGLTextureBuilder) -> GdkMemoryFormat;
@@ -5768,7 +5415,7 @@ unsafe extern "C" {
     #[cfg(feature = "v4_16")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
     pub fn gdk_memory_texture_builder_build(self_: *mut GdkMemoryTextureBuilder)
-    -> *mut GdkTexture;
+        -> *mut GdkTexture;
     #[cfg(feature = "v4_16")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
     pub fn gdk_memory_texture_builder_get_bytes(
@@ -5787,21 +5434,9 @@ unsafe extern "C" {
     #[cfg(feature = "v4_16")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
     pub fn gdk_memory_texture_builder_get_height(self_: *mut GdkMemoryTextureBuilder) -> c_int;
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_memory_texture_builder_get_offset(
-        self_: *mut GdkMemoryTextureBuilder,
-        plane: c_uint,
-    ) -> size_t;
     #[cfg(feature = "v4_16")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
     pub fn gdk_memory_texture_builder_get_stride(self_: *mut GdkMemoryTextureBuilder) -> size_t;
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_memory_texture_builder_get_stride_for_plane(
-        self_: *mut GdkMemoryTextureBuilder,
-        plane: c_uint,
-    ) -> size_t;
     #[cfg(feature = "v4_16")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
     pub fn gdk_memory_texture_builder_get_update_region(
@@ -5839,24 +5474,10 @@ unsafe extern "C" {
         self_: *mut GdkMemoryTextureBuilder,
         height: c_int,
     );
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_memory_texture_builder_set_offset(
-        self_: *mut GdkMemoryTextureBuilder,
-        plane: c_uint,
-        offset: size_t,
-    );
     #[cfg(feature = "v4_16")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
     pub fn gdk_memory_texture_builder_set_stride(
         self_: *mut GdkMemoryTextureBuilder,
-        stride: size_t,
-    );
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_memory_texture_builder_set_stride_for_plane(
-        self_: *mut GdkMemoryTextureBuilder,
-        plane: c_uint,
         stride: size_t,
     );
     #[cfg(feature = "v4_16")]
@@ -5933,11 +5554,6 @@ unsafe extern "C" {
         delta_y: *mut c_double,
     );
     pub fn gdk_scroll_event_get_direction(event: *mut GdkScrollEvent) -> GdkScrollDirection;
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_scroll_event_get_relative_direction(
-        event: *mut GdkScrollEvent,
-    ) -> GdkScrollRelativeDirection;
     #[cfg(feature = "v4_8")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_8")))]
     pub fn gdk_scroll_event_get_unit(event: *mut GdkScrollEvent) -> GdkScrollUnit;
@@ -6196,12 +5812,6 @@ unsafe extern "C" {
         timestamp: u32,
     );
     pub fn gdk_toplevel_focus(toplevel: *mut GdkToplevel, timestamp: u32);
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_toplevel_get_capabilities(toplevel: *mut GdkToplevel) -> GdkToplevelCapabilities;
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_toplevel_get_gravity(toplevel: *mut GdkToplevel) -> GdkGravity;
     pub fn gdk_toplevel_get_state(toplevel: *mut GdkToplevel) -> GdkToplevelState;
     pub fn gdk_toplevel_inhibit_system_shortcuts(toplevel: *mut GdkToplevel, event: *mut GdkEvent);
     pub fn gdk_toplevel_lower(toplevel: *mut GdkToplevel) -> gboolean;
@@ -6210,9 +5820,6 @@ unsafe extern "C" {
     pub fn gdk_toplevel_restore_system_shortcuts(toplevel: *mut GdkToplevel);
     pub fn gdk_toplevel_set_decorated(toplevel: *mut GdkToplevel, decorated: gboolean);
     pub fn gdk_toplevel_set_deletable(toplevel: *mut GdkToplevel, deletable: gboolean);
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gdk_toplevel_set_gravity(toplevel: *mut GdkToplevel, gravity: GdkGravity);
     pub fn gdk_toplevel_set_icon_list(toplevel: *mut GdkToplevel, surfaces: *mut glib::GList);
     pub fn gdk_toplevel_set_modal(toplevel: *mut GdkToplevel, modal: gboolean);
     pub fn gdk_toplevel_set_startup_id(toplevel: *mut GdkToplevel, startup_id: *const c_char);
@@ -6316,9 +5923,6 @@ unsafe extern "C" {
     pub fn gdk_intern_mime_type(string: *const c_char) -> *const c_char;
     pub fn gdk_keyval_convert_case(symbol: c_uint, lower: *mut c_uint, upper: *mut c_uint);
     pub fn gdk_keyval_from_name(keyval_name: *const c_char) -> c_uint;
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    pub fn gdk_keyval_get_aliases(keyval: c_uint, n_aliases: *mut c_uint) -> *const c_uint;
     pub fn gdk_keyval_is_lower(keyval: c_uint) -> gboolean;
     pub fn gdk_keyval_is_upper(keyval: c_uint) -> gboolean;
     pub fn gdk_keyval_name(keyval: c_uint) -> *const c_char;

@@ -8,9 +8,9 @@ use std::{ffi::CString, fmt, mem::MaybeUninit, ops, ptr, slice};
 use glib::translate::*;
 
 use crate::{
-    Antialias, Content, Error, FillRule, FontExtents, FontFace, FontOptions, FontSlant, FontWeight,
-    Glyph, LineCap, LineJoin, Matrix, Operator, Path, Pattern, Rectangle, ScaledFont, Surface,
-    TextCluster, TextClusterFlags, TextExtents, ffi, utils::status_to_result,
+    ffi, utils::status_to_result, Antialias, Content, Error, FillRule, FontExtents, FontFace,
+    FontOptions, FontSlant, FontWeight, Glyph, LineCap, LineJoin, Matrix, Operator, Path, Pattern,
+    Rectangle, ScaledFont, Surface, TextCluster, TextClusterFlags, TextExtents,
 };
 
 pub struct RectangleList {
@@ -60,7 +60,7 @@ pub struct Context(ptr::NonNull<ffi::cairo_t>);
 #[cfg_attr(docsrs, doc(cfg(feature = "use_glib")))]
 impl IntoGlibPtr<*mut ffi::cairo_t> for Context {
     #[inline]
-    fn into_glib_ptr(self) -> *mut ffi::cairo_t {
+    unsafe fn into_glib_ptr(self) -> *mut ffi::cairo_t {
         (&*std::mem::ManuallyDrop::new(self)).to_glib_none().0
     }
 }
@@ -86,7 +86,7 @@ impl<'a> ToGlibPtr<'a, *mut ffi::cairo_t> for &'a Context {
 impl FromGlibPtrNone<*mut ffi::cairo_t> for Context {
     #[inline]
     unsafe fn from_glib_none(ptr: *mut ffi::cairo_t) -> Context {
-        unsafe { Self::from_raw_none(ptr) }
+        Self::from_raw_none(ptr)
     }
 }
 
@@ -95,7 +95,7 @@ impl FromGlibPtrNone<*mut ffi::cairo_t> for Context {
 impl FromGlibPtrBorrow<*mut ffi::cairo_t> for Context {
     #[inline]
     unsafe fn from_glib_borrow(ptr: *mut ffi::cairo_t) -> crate::Borrowed<Context> {
-        unsafe { Self::from_raw_borrow(ptr) }
+        Self::from_raw_borrow(ptr)
     }
 }
 
@@ -104,7 +104,7 @@ impl FromGlibPtrBorrow<*mut ffi::cairo_t> for Context {
 impl FromGlibPtrFull<*mut ffi::cairo_t> for Context {
     #[inline]
     unsafe fn from_glib_full(ptr: *mut ffi::cairo_t) -> Context {
-        unsafe { Self::from_raw_full(ptr) }
+        Self::from_raw_full(ptr)
     }
 }
 
@@ -134,27 +134,21 @@ impl Drop for Context {
 impl Context {
     #[inline]
     pub unsafe fn from_raw_none(ptr: *mut ffi::cairo_t) -> Context {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            ffi::cairo_reference(ptr);
-            Context(ptr::NonNull::new_unchecked(ptr))
-        }
+        debug_assert!(!ptr.is_null());
+        ffi::cairo_reference(ptr);
+        Context(ptr::NonNull::new_unchecked(ptr))
     }
 
     #[inline]
     pub unsafe fn from_raw_borrow(ptr: *mut ffi::cairo_t) -> crate::Borrowed<Context> {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            crate::Borrowed::new(Context(ptr::NonNull::new_unchecked(ptr)))
-        }
+        debug_assert!(!ptr.is_null());
+        crate::Borrowed::new(Context(ptr::NonNull::new_unchecked(ptr)))
     }
 
     #[inline]
     pub unsafe fn from_raw_full(ptr: *mut ffi::cairo_t) -> Context {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            Context(ptr::NonNull::new_unchecked(ptr))
-        }
+        debug_assert!(!ptr.is_null());
+        Context(ptr::NonNull::new_unchecked(ptr))
     }
 
     #[inline]
@@ -449,13 +443,13 @@ impl Context {
     #[doc(alias = "cairo_copy_clip_rectangle_list")]
     pub fn copy_clip_rectangle_list(&self) -> Result<RectangleList, Error> {
         unsafe {
-            let rectangle_list = RectangleList {
-                ptr: ffi::cairo_copy_clip_rectangle_list(self.0.as_ptr()),
-            };
+            let rectangle_list = ffi::cairo_copy_clip_rectangle_list(self.0.as_ptr());
 
-            status_to_result((*rectangle_list.ptr).status)?;
+            status_to_result((*rectangle_list).status)?;
 
-            Ok(rectangle_list)
+            Ok(RectangleList {
+                ptr: rectangle_list,
+            })
         }
     }
 

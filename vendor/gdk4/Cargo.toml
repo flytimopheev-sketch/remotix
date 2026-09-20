@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.92"
+edition = "2021"
+rust-version = "1.70"
 name = "gdk4"
-version = "0.11.4"
+version = "0.9.6"
 authors = ["The gtk-rs Project Developers"]
 build = false
 autolib = false
@@ -41,7 +41,55 @@ repository = "https://github.com/gtk-rs/gtk4-rs"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = [
+    "--cfg",
+    "docsrs",
+]
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+    "--generate-link-to-definition",
+]
+
+[lib]
+name = "gdk4"
+path = "src/lib.rs"
+
+[[test]]
+name = "check_gir"
+path = "tests/check_gir.rs"
+
+[dependencies.cairo-rs]
+version = "0.20"
+features = ["use_glib"]
+
+[dependencies.gdk-pixbuf]
+version = "0.20"
+
+[dependencies.gdk4-sys]
+version = "0.9.4"
+
+[dependencies.gio]
+version = "0.20"
+features = ["v2_66"]
+
+[dependencies.gl]
+version = "0.14"
+optional = true
+
+[dependencies.glib]
+version = "0.20"
+features = ["v2_66"]
+
+[dependencies.libc]
+version = "0.2"
+
+[dependencies.pango]
+version = "0.20"
+features = ["v1_46"]
+
+[dev-dependencies.gir-format-check]
+version = "^0.1"
 
 [features]
 gl = ["dep:gl"]
@@ -66,18 +114,6 @@ v4_18 = [
     "v4_16",
 ]
 v4_2 = ["gdk4-sys/v4_2"]
-v4_20 = [
-    "gdk4-sys/v4_20",
-    "v4_18",
-]
-v4_22 = [
-    "gdk4-sys/v4_22",
-    "v4_20",
-]
-v4_24 = [
-    "gdk4-sys/v4_24",
-    "v4_22",
-]
 v4_4 = [
     "gdk4-sys/v4_4",
     "v4_2",
@@ -90,43 +126,3 @@ v4_8 = [
     "gdk4-sys/v4_8",
     "v4_6",
 ]
-
-[lib]
-name = "gdk4"
-path = "src/lib.rs"
-
-[[test]]
-name = "check_gir"
-path = "tests/check_gir.rs"
-
-[dependencies.cairo-rs]
-version = "0.22.0"
-features = ["use_glib"]
-
-[dependencies.gdk-pixbuf]
-version = "0.22.0"
-
-[dependencies.gdk4-sys]
-version = "0.11.0"
-
-[dependencies.gio]
-version = "0.22.0"
-features = ["v2_66"]
-
-[dependencies.gl]
-version = "0.14"
-optional = true
-
-[dependencies.glib]
-version = "0.22.0"
-features = ["v2_66"]
-
-[dependencies.libc]
-version = "0.2"
-
-[dependencies.pango]
-version = "0.22.0"
-features = ["v1_46"]
-
-[dev-dependencies.gir-format-check]
-version = "^0.1"

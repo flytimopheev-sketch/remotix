@@ -5,12 +5,13 @@
 
 use std::{any::Any, collections::BTreeMap, marker, mem, ptr};
 
-use super::{SignalId, interface::ObjectInterface};
+use super::{interface::ObjectInterface, SignalId};
 use crate::{
-    Closure, InterfaceInfo, Object, Type, TypeInfo, Value, ffi, gobject_ffi,
+    ffi, gobject_ffi,
     object::{IsClass, IsInterface, ObjectSubclassIs, ParentClassIs},
     prelude::*,
     translate::*,
+    Closure, InterfaceInfo, Object, Type, TypeFlags, TypeInfo, Value,
 };
 
 // rustdoc-stripper-ignore-next
@@ -99,15 +100,15 @@ pub unsafe trait InstanceStructExt: InstanceStruct {
 /// overflow or if the resulting pointer is not correctly aligned.
 #[inline]
 fn offset_ptr_by_bytes<T, U>(ptr: *const T, offset: isize) -> *const U {
-    let ptr = ptr.expose_provenance();
+    // FIXME: Use `ptr::expose_addr()` once stable
+    let ptr = ptr as usize;
     let ptr = if offset < 0 {
         ptr - (-offset) as usize
     } else {
         ptr + offset as usize
     };
-    let ptr: *const U = std::ptr::with_exposed_provenance(ptr);
-    debug_assert!(ptr.is_aligned());
-    ptr
+    debug_assert_eq!(ptr & (mem::align_of::<U>() - 1), 0);
+    ptr as *const U
 }
 
 // rustdoc-stripper-ignore-next
@@ -121,15 +122,15 @@ fn offset_ptr_by_bytes<T, U>(ptr: *const T, offset: isize) -> *const U {
 /// overflow or if the resulting pointer is not correctly aligned.
 #[inline]
 fn offset_ptr_by_bytes_mut<T, U>(ptr: *mut T, offset: isize) -> *mut U {
-    let ptr = ptr.expose_provenance();
+    // FIXME: Use `ptr::expose_addr()` once stable
+    let ptr = ptr as usize;
     let ptr = if offset < 0 {
         ptr - (-offset) as usize
     } else {
         ptr + offset as usize
     };
-    let ptr: *mut U = std::ptr::with_exposed_provenance_mut(ptr);
-    debug_assert!(ptr.is_aligned());
-    ptr
+    debug_assert_eq!(ptr & (mem::align_of::<U>() - 1), 0);
+    ptr as *mut U
 }
 
 unsafe impl<T: InstanceStruct> InstanceStructExt for T {
@@ -323,24 +324,22 @@ unsafe extern "C" fn interface_init<T: ObjectSubclass, A: IsImplementable<T>>(
 ) where
     <A as ObjectType>::GlibClassType: Copy,
 {
-    unsafe {
-        let iface = &mut *(iface as *mut crate::Interface<A>);
+    let iface = &mut *(iface as *mut crate::Interface<A>);
 
-        let mut data = T::type_data();
-        if data.as_ref().parent_ifaces.is_none() {
-            data.as_mut().parent_ifaces = Some(BTreeMap::default());
-        }
-        {
-            let copy = Box::new(*iface.as_ref());
-            data.as_mut()
-                .parent_ifaces
-                .as_mut()
-                .unwrap()
-                .insert(A::static_type(), Box::into_raw(copy) as ffi::gpointer);
-        }
-
-        A::interface_init(iface);
+    let mut data = T::type_data();
+    if data.as_ref().parent_ifaces.is_none() {
+        data.as_mut().parent_ifaces = Some(BTreeMap::default());
     }
+    {
+        let copy = Box::new(*iface.as_ref());
+        data.as_mut()
+            .parent_ifaces
+            .as_mut()
+            .unwrap()
+            .insert(A::static_type(), Box::into_raw(copy) as ffi::gpointer);
+    }
+
+    A::interface_init(iface);
 }
 
 // rustdoc-stripper-ignore-next
@@ -618,25 +617,6 @@ pub trait ObjectSubclass: ObjectSubclassType + Sized + 'static {
     const ABSTRACT: bool = false;
 
     // rustdoc-stripper-ignore-next
-    /// If this subclass is a final class or not.
-    ///
-    /// By default, all subclasses are derivables types but setting this to `true` will create a
-    /// final class instead.
-    ///
-    /// Final classes can't be derived.
-    ///
-    /// Optional.
-    const FINAL: bool = false;
-
-    // rustdoc-stripper-ignore-next
-    /// If this subclass is a deprecated class or not.
-    ///
-    /// Marking the subclass as deprecated will emit a warning if instantiated while running with `G_ENABLE_DIAGNOSTIC=1`.
-    ///
-    /// Optional.
-    const DEPRECATED: bool = false;
-
-    // rustdoc-stripper-ignore-next
     /// Allow name conflicts for this class.
     ///
     /// By default, trying to register a type with a name that was registered before will panic. If
@@ -760,6 +740,17 @@ pub trait ObjectSubclass: ObjectSubclassType + Sized + 'static {
 pub trait ObjectSubclassExt: ObjectSubclass {
     // rustdoc-stripper-ignore-next
     /// Returns the corresponding object instance.
+    #[doc(alias = "get_instance")]
+    #[deprecated = "Use obj() instead"]
+    fn instance(&self) -> crate::BorrowedObject<Self::Type>;
+
+    // rustdoc-stripper-ignore-next
+    /// Returns the implementation from an instance.
+    #[deprecated = "Use from_obj() instead"]
+    fn from_instance(obj: &Self::Type) -> &Self;
+
+    // rustdoc-stripper-ignore-next
+    /// Returns the corresponding object instance.
     ///
     /// Shorter alias for `instance()`.
     #[doc(alias = "get_instance")]
@@ -785,6 +776,15 @@ pub trait ObjectSubclassExt: ObjectSubclass {
 
 impl<T: ObjectSubclass> ObjectSubclassExt for T {
     #[inline]
+    fn instance(&self) -> crate::BorrowedObject<Self::Type> {
+        self.obj()
+    }
+
+    #[inline]
+    fn from_instance(obj: &Self::Type) -> &Self {
+        Self::from_obj(obj)
+    }
+
     fn obj(&self) -> crate::BorrowedObject<'_, Self::Type> {
         unsafe {
             let data = Self::type_data();
@@ -917,37 +917,34 @@ unsafe extern "C" fn class_init<T: ObjectSubclass>(
     klass: ffi::gpointer,
     _klass_data: ffi::gpointer,
 ) {
-    unsafe {
-        let mut data = T::type_data();
+    let mut data = T::type_data();
 
-        // We have to update the private struct offset once the class is actually
-        // being initialized.
-        let mut private_offset = data.as_ref().private_offset as i32;
-        gobject_ffi::g_type_class_adjust_private_offset(klass, &mut private_offset);
-        data.as_mut().private_offset = private_offset as isize;
+    // We have to update the private struct offset once the class is actually
+    // being initialized.
+    let mut private_offset = data.as_ref().private_offset as i32;
+    gobject_ffi::g_type_class_adjust_private_offset(klass, &mut private_offset);
+    data.as_mut().private_offset = private_offset as isize;
 
-        // Set trampolines for the basic GObject virtual methods.
-        {
-            let gobject_klass = &mut *(klass as *mut gobject_ffi::GObjectClass);
+    // Set trampolines for the basic GObject virtual methods.
+    {
+        let gobject_klass = &mut *(klass as *mut gobject_ffi::GObjectClass);
 
-            gobject_klass.finalize = Some(finalize::<T>);
-        }
+        gobject_klass.finalize = Some(finalize::<T>);
+    }
 
-        // And finally peek the parent class struct (containing the parent class'
-        // implementations of virtual methods for chaining up), and call the subclass'
-        // class initialization function.
-        {
-            let klass = &mut *(klass as *mut T::Class);
-            let parent_class =
-                gobject_ffi::g_type_class_peek_parent(klass as *mut _ as ffi::gpointer)
-                    as *mut <T::ParentType as ObjectType>::GlibClassType;
-            debug_assert!(!parent_class.is_null());
+    // And finally peek the parent class struct (containing the parent class'
+    // implementations of virtual methods for chaining up), and call the subclass'
+    // class initialization function.
+    {
+        let klass = &mut *(klass as *mut T::Class);
+        let parent_class = gobject_ffi::g_type_class_peek_parent(klass as *mut _ as ffi::gpointer)
+            as *mut <T::ParentType as ObjectType>::GlibClassType;
+        debug_assert!(!parent_class.is_null());
 
-            data.as_mut().parent_class = parent_class as ffi::gpointer;
+        data.as_mut().parent_class = parent_class as ffi::gpointer;
 
-            klass.class_init();
-            T::class_init(klass);
-        }
+        klass.class_init();
+        T::class_init(klass);
     }
 }
 
@@ -955,63 +952,59 @@ unsafe extern "C" fn instance_init<T: ObjectSubclass>(
     obj: *mut gobject_ffi::GTypeInstance,
     klass: ffi::gpointer,
 ) {
-    unsafe {
-        // Get offset to the storage of our private struct, create it
-        // and actually store it in that place.
-        let mut data = T::type_data();
-        let private_offset = data.as_mut().private_offset;
-        let priv_ptr = offset_ptr_by_bytes_mut::<gobject_ffi::GTypeInstance, PrivateStruct<T>>(
-            obj,
-            private_offset,
-        );
+    // Get offset to the storage of our private struct, create it
+    // and actually store it in that place.
+    let mut data = T::type_data();
+    let private_offset = data.as_mut().private_offset;
+    let priv_ptr = offset_ptr_by_bytes_mut::<gobject_ffi::GTypeInstance, PrivateStruct<T>>(
+        obj,
+        private_offset,
+    );
 
-        assert!(
-            (priv_ptr as *const PrivateStruct<T>).is_aligned(),
-            "Private instance data has higher alignment requirements ({}) than \
+    assert!(
+        priv_ptr as usize & (mem::align_of::<PrivateStruct<T>>() - 1) == 0,
+        "Private instance data has higher alignment requirements ({}) than \
          the allocation from GLib. If alignment of more than {} bytes \
          is required, store the corresponding data separately on the heap.",
-            mem::align_of::<PrivateStruct<T>>(),
-            2 * mem::size_of::<usize>(),
-        );
+        mem::align_of::<PrivateStruct<T>>(),
+        2 * mem::size_of::<usize>(),
+    );
 
-        let klass = &*(klass as *const T::Class);
+    let klass = &*(klass as *const T::Class);
 
-        let imp = T::with_class(klass);
-        ptr::write(
-            priv_ptr,
-            PrivateStruct {
-                imp,
-                instance_data: None,
-            },
-        );
+    let imp = T::with_class(klass);
+    ptr::write(
+        priv_ptr,
+        PrivateStruct {
+            imp,
+            instance_data: None,
+        },
+    );
 
-        // Any additional instance initialization.
-        T::Instance::instance_init(&mut *(obj as *mut _));
+    // Any additional instance initialization.
+    T::Instance::instance_init(&mut *(obj as *mut _));
 
-        let obj = from_glib_borrow::<_, Object>(obj.cast());
-        let obj = Borrowed::new(obj.into_inner().unsafe_cast());
-        let mut obj = InitializingObject(obj);
+    let obj = from_glib_borrow::<_, Object>(obj.cast());
+    let obj = Borrowed::new(obj.into_inner().unsafe_cast());
+    let mut obj = InitializingObject(obj);
 
-        T::Interfaces::instance_init(&mut obj);
-        T::instance_init(&obj);
-    }
+    T::Interfaces::instance_init(&mut obj);
+    T::instance_init(&obj);
 }
 
 unsafe extern "C" fn finalize<T: ObjectSubclass>(obj: *mut gobject_ffi::GObject) {
-    unsafe {
-        // Retrieve the private struct and drop it for freeing all associated memory.
-        let mut data = T::type_data();
-        let private_offset = data.as_mut().private_offset;
-        let priv_ptr =
-            offset_ptr_by_bytes_mut::<gobject_ffi::GObject, PrivateStruct<T>>(obj, private_offset);
-        ptr::drop_in_place(ptr::addr_of_mut!((*priv_ptr).imp));
-        ptr::drop_in_place(ptr::addr_of_mut!((*priv_ptr).instance_data));
+    // Retrieve the private struct and drop it for freeing all associated memory.
+    let mut data = T::type_data();
+    let private_offset = data.as_mut().private_offset;
+    let priv_ptr =
+        offset_ptr_by_bytes_mut::<gobject_ffi::GObject, PrivateStruct<T>>(obj, private_offset);
+    ptr::drop_in_place(ptr::addr_of_mut!((*priv_ptr).imp));
+    ptr::drop_in_place(ptr::addr_of_mut!((*priv_ptr).instance_data));
 
-        // Chain up to the parent class' finalize implementation, if any.
-        let parent_class = &*(data.as_ref().parent_class() as *const gobject_ffi::GObjectClass);
-        if let Some(ref func) = parent_class.finalize {
-            func(obj);
-        }
+    // Chain up to the parent class' finalize implementation, if any.
+    let parent_class = &*(data.as_ref().parent_class() as *const gobject_ffi::GObjectClass);
+    if let Some(ref func) = parent_class.finalize {
+        func(obj);
     }
 }
 
@@ -1063,16 +1056,6 @@ pub fn register_type<T: ObjectSubclass>() -> Type {
 
             type_name
         };
-        let mut flags = glib::TypeFlags::empty();
-        if T::ABSTRACT {
-            flags |= glib::TypeFlags::ABSTRACT;
-        }
-        if T::FINAL {
-            flags |= glib::TypeFlags::FINAL;
-        }
-        if T::DEPRECATED {
-            flags |= glib::TypeFlags::DEPRECATED;
-        }
 
         let type_ = Type::from_glib(gobject_ffi::g_type_register_static_simple(
             <T::ParentType as StaticType>::static_type().into_glib(),
@@ -1081,7 +1064,11 @@ pub fn register_type<T: ObjectSubclass>() -> Type {
             Some(class_init::<T>),
             mem::size_of::<T::Instance>() as u32,
             Some(instance_init::<T>),
-            flags.into_glib(),
+            if T::ABSTRACT {
+                gobject_ffi::G_TYPE_FLAG_ABSTRACT
+            } else {
+                0
+            },
         ));
         assert!(type_.is_valid());
 
@@ -1093,7 +1080,16 @@ pub fn register_type<T: ObjectSubclass>() -> Type {
             mem::size_of::<PrivateStruct<T>>(),
         );
         data.as_mut().private_offset = private_offset as isize;
-        data.as_mut().private_imp_offset = mem::offset_of!(PrivateStruct<T>, imp) as isize;
+
+        // Get the offset from PrivateStruct<T> to the imp field in it. This has to go through
+        // some hoops because Rust doesn't have an offsetof operator yet.
+        data.as_mut().private_imp_offset = {
+            // Must not be a dangling pointer so let's create some uninitialized memory
+            let priv_ = mem::MaybeUninit::<PrivateStruct<T>>::uninit();
+            let ptr = priv_.as_ptr();
+            let imp_ptr = ptr::addr_of!((*ptr).imp);
+            (imp_ptr as isize) - (ptr as isize)
+        };
 
         let iface_types = T::Interfaces::iface_infos();
         for (iface_type, iface_info) in iface_types {
@@ -1154,23 +1150,16 @@ pub fn register_dynamic_type<P: DynamicObjectRegisterExt, T: ObjectSubclass>(
             ..TypeInfo::default().0
         });
 
-        let mut flags = glib::TypeFlags::empty();
-        if T::ABSTRACT {
-            flags |= glib::TypeFlags::ABSTRACT;
-        }
-        if T::FINAL {
-            flags |= glib::TypeFlags::FINAL;
-        }
-        if T::DEPRECATED {
-            flags |= glib::TypeFlags::DEPRECATED;
-        }
-
         // registers the type within the `type_plugin`
         let type_ = type_plugin.register_dynamic_type(
             <T::ParentType as StaticType>::static_type(),
             type_name.to_str().unwrap(),
             &type_info,
-            flags,
+            if T::ABSTRACT {
+                TypeFlags::ABSTRACT
+            } else {
+                TypeFlags::NONE
+            },
         );
         assert!(type_.is_valid());
 
@@ -1179,7 +1168,16 @@ pub fn register_dynamic_type<P: DynamicObjectRegisterExt, T: ObjectSubclass>(
 
         let private_offset = mem::size_of::<PrivateStruct<T>>();
         data.as_mut().private_offset = private_offset as isize;
-        data.as_mut().private_imp_offset = mem::offset_of!(PrivateStruct<T>, imp) as isize;
+
+        // gets the offset from PrivateStruct<T> to the imp field in it. This has to go through
+        // some hoops because Rust doesn't have an offsetof operator yet.
+        data.as_mut().private_imp_offset = {
+            // Must not be a dangling pointer so let's create some uninitialized memory
+            let priv_ = mem::MaybeUninit::<PrivateStruct<T>>::uninit();
+            let ptr = priv_.as_ptr();
+            let imp_ptr = ptr::addr_of!((*ptr).imp);
+            (imp_ptr as isize) - (ptr as isize)
+        };
 
         let plugin_ptr = type_plugin.as_ref().to_glib_none().0;
         let iface_types = T::Interfaces::iface_infos();
@@ -1215,56 +1213,54 @@ pub(crate) unsafe fn signal_override_class_handler<F>(
 ) where
     F: Fn(&super::SignalClassHandlerToken, &[Value]) -> Option<Value> + Send + Sync + 'static,
 {
-    unsafe {
-        let (signal_id, _) = SignalId::parse_name(name, from_glib(type_), false)
-            .unwrap_or_else(|| panic!("Signal '{name}' not found"));
+    let (signal_id, _) = SignalId::parse_name(name, from_glib(type_), false)
+        .unwrap_or_else(|| panic!("Signal '{name}' not found"));
 
-        let query = signal_id.query();
-        let return_type = query.return_type();
+    let query = signal_id.query();
+    let return_type = query.return_type();
 
-        let class_handler = Closure::new(move |values| {
-            let instance = gobject_ffi::g_value_get_object(values[0].to_glib_none().0);
-            let res = class_handler(
-                &super::SignalClassHandlerToken(
-                    instance as *mut _,
-                    return_type.into(),
-                    values.as_ptr(),
-                ),
-                values,
-            );
+    let class_handler = Closure::new(move |values| {
+        let instance = gobject_ffi::g_value_get_object(values[0].to_glib_none().0);
+        let res = class_handler(
+            &super::SignalClassHandlerToken(
+                instance as *mut _,
+                return_type.into(),
+                values.as_ptr(),
+            ),
+            values,
+        );
 
-            if return_type == Type::UNIT {
-                if let Some(ref v) = res {
-                    panic!(
-                        "Signal has no return value but class handler returned a value of type {}",
+        if return_type == Type::UNIT {
+            if let Some(ref v) = res {
+                panic!(
+                    "Signal has no return value but class handler returned a value of type {}",
+                    v.type_()
+                );
+            }
+        } else {
+            match res {
+                None => {
+                    panic!("Signal has a return value but class handler returned none");
+                }
+                Some(ref v) => {
+                    assert!(
+                        v.type_().is_a(return_type.into()),
+                        "Signal has a return type of {} but class handler returned {}",
+                        Type::from(return_type),
                         v.type_()
                     );
                 }
-            } else {
-                match res {
-                    None => {
-                        panic!("Signal has a return value but class handler returned none");
-                    }
-                    Some(ref v) => {
-                        assert!(
-                            v.type_().is_a(return_type.into()),
-                            "Signal has a return type of {} but class handler returned {}",
-                            Type::from(return_type),
-                            v.type_()
-                        );
-                    }
-                }
             }
+        }
 
-            res
-        });
+        res
+    });
 
-        gobject_ffi::g_signal_override_class_closure(
-            signal_id.into_glib(),
-            type_,
-            class_handler.to_glib_none().0,
-        );
-    }
+    gobject_ffi::g_signal_override_class_closure(
+        signal_id.into_glib(),
+        type_,
+        class_handler.to_glib_none().0,
+    );
 }
 
 pub(crate) unsafe fn signal_chain_from_overridden(
@@ -1272,19 +1268,17 @@ pub(crate) unsafe fn signal_chain_from_overridden(
     token: &super::SignalClassHandlerToken,
     values: &[Value],
 ) -> Option<Value> {
-    unsafe {
-        assert_eq!(instance, token.0);
-        assert_eq!(
-            values.as_ptr(),
-            token.2,
-            "Arguments must be forwarded without changes when chaining up"
-        );
+    assert_eq!(instance, token.0);
+    assert_eq!(
+        values.as_ptr(),
+        token.2,
+        "Arguments must be forwarded without changes when chaining up"
+    );
 
-        let mut result = Value::from_type_unchecked(token.1);
-        gobject_ffi::g_signal_chain_from_overridden(
-            values.as_ptr() as *mut Value as *mut gobject_ffi::GValue,
-            result.to_glib_none_mut().0,
-        );
-        Some(result).filter(|r| r.type_().is_valid() && r.type_() != Type::UNIT)
-    }
+    let mut result = Value::from_type_unchecked(token.1);
+    gobject_ffi::g_signal_chain_from_overridden(
+        values.as_ptr() as *mut Value as *mut gobject_ffi::GValue,
+        result.to_glib_none_mut().0,
+    );
+    Some(result).filter(|r| r.type_().is_valid() && r.type_() != Type::UNIT)
 }

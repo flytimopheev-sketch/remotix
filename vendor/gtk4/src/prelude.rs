@@ -9,6 +9,7 @@ pub use gdk::prelude::*;
 pub use gsk::prelude::*;
 
 pub use crate::{
+    accessible::AccessibleExtManual,
     actionable::ActionableExtManual,
     auto::traits::*,
     cell_area::CellAreaExtManual,
@@ -34,9 +35,5 @@ pub use crate::{
     tree_model_filter::TreeModelFilterExtManual,
     tree_sortable::TreeSortableExtManual,
     tree_view::TreeViewExtManual,
-    widget::{WidgetClassManualExt, WidgetExtManual},
+    widget::WidgetExtManual,
 };
-
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-pub use crate::accessible::AccessibleExtManual;

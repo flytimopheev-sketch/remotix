@@ -2,7 +2,7 @@
 
 use glib::translate::*;
 
-use crate::{BookmarkList, ffi};
+use crate::{ffi, BookmarkList};
 
 impl BookmarkList {
     #[doc(alias = "gtk_bookmark_list_get_io_priority")]

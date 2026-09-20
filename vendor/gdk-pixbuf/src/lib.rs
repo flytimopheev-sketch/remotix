@@ -9,8 +9,8 @@ pub use gio;
 pub use glib;
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::manual_c_str_literals)]
 #[allow(unused_imports)]
-#[allow(clippy::empty_line_after_outer_attr)]
 mod auto;
 
 pub mod subclass;

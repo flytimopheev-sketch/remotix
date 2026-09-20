@@ -7,11 +7,16 @@ use futures_io::{AsyncRead, AsyncWrite};
 use glib::prelude::*;
 
 use crate::{
-    IOStream, InputStreamAsyncRead, OutputStreamAsyncWrite, PollableInputStream,
-    PollableOutputStream, prelude::*,
+    prelude::*, IOStream, InputStreamAsyncRead, OutputStreamAsyncWrite, PollableInputStream,
+    PollableOutputStream,
 };
 
-pub trait IOStreamExtManual: Sized + IsA<IOStream> {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::IOStream>> Sealed for T {}
+}
+
+pub trait IOStreamExtManual: sealed::Sealed + Sized + IsA<IOStream> {
     fn into_async_read_write(self) -> Result<IOStreamAsyncReadWrite<Self>, Self> {
         let write = self
             .output_stream()

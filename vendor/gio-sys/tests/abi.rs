@@ -14,7 +14,7 @@ use std::process::{Command, Stdio};
 use std::str;
 use tempfile::Builder;
 
-static PACKAGES: &[&str] = &["gio-2.0"];
+static PACKAGES: &[&str] = &["gio-2.0", "gio-unix-2.0"];
 
 #[derive(Clone, Debug)]
 struct Compiler {
@@ -440,13 +440,6 @@ const RUST_LAYOUTS: &[(&str, Layout)] = &[
         },
     ),
     (
-        "GDBusActionGroupClass",
-        Layout {
-            size: size_of::<GDBusActionGroupClass>(),
-            alignment: align_of::<GDBusActionGroupClass>(),
-        },
-    ),
-    (
         "GDBusAnnotationInfo",
         Layout {
             size: size_of::<GDBusAnnotationInfo>(),
@@ -804,6 +797,20 @@ const RUST_LAYOUTS: &[(&str, Layout)] = &[
         },
     ),
     (
+        "GDesktopAppInfoClass",
+        Layout {
+            size: size_of::<GDesktopAppInfoClass>(),
+            alignment: align_of::<GDesktopAppInfoClass>(),
+        },
+    ),
+    (
+        "GDesktopAppInfoLookupIface",
+        Layout {
+            size: size_of::<GDesktopAppInfoLookupIface>(),
+            alignment: align_of::<GDesktopAppInfoLookupIface>(),
+        },
+    ),
+    (
         "GDriveIface",
         Layout {
             size: size_of::<GDriveIface>(),
@@ -843,20 +850,6 @@ const RUST_LAYOUTS: &[(&str, Layout)] = &[
         Layout {
             size: size_of::<GDtlsServerConnectionInterface>(),
             alignment: align_of::<GDtlsServerConnectionInterface>(),
-        },
-    ),
-    (
-        "GEcnCodePoint",
-        Layout {
-            size: size_of::<GEcnCodePoint>(),
-            alignment: align_of::<GEcnCodePoint>(),
-        },
-    ),
-    (
-        "GEmblemClass",
-        Layout {
-            size: size_of::<GEmblemClass>(),
-            alignment: align_of::<GEmblemClass>(),
         },
     ),
     (
@@ -927,6 +920,13 @@ const RUST_LAYOUTS: &[(&str, Layout)] = &[
         Layout {
             size: size_of::<GFileCreateFlags>(),
             alignment: align_of::<GFileCreateFlags>(),
+        },
+    ),
+    (
+        "GFileDescriptorBasedIface",
+        Layout {
+            size: size_of::<GFileDescriptorBasedIface>(),
+            alignment: align_of::<GFileDescriptorBasedIface>(),
         },
     ),
     (
@@ -1116,20 +1116,6 @@ const RUST_LAYOUTS: &[(&str, Layout)] = &[
         Layout {
             size: size_of::<GIOStreamSpliceFlags>(),
             alignment: align_of::<GIOStreamSpliceFlags>(),
-        },
-    ),
-    (
-        "GIPTosMessageClass",
-        Layout {
-            size: size_of::<GIPTosMessageClass>(),
-            alignment: align_of::<GIPTosMessageClass>(),
-        },
-    ),
-    (
-        "GIPv6TclassMessageClass",
-        Layout {
-            size: size_of::<GIPv6TclassMessageClass>(),
-            alignment: align_of::<GIPv6TclassMessageClass>(),
         },
     ),
     (
@@ -2148,6 +2134,48 @@ const RUST_LAYOUTS: &[(&str, Layout)] = &[
         },
     ),
     (
+        "GUnixFDMessage",
+        Layout {
+            size: size_of::<GUnixFDMessage>(),
+            alignment: align_of::<GUnixFDMessage>(),
+        },
+    ),
+    (
+        "GUnixFDMessageClass",
+        Layout {
+            size: size_of::<GUnixFDMessageClass>(),
+            alignment: align_of::<GUnixFDMessageClass>(),
+        },
+    ),
+    (
+        "GUnixInputStream",
+        Layout {
+            size: size_of::<GUnixInputStream>(),
+            alignment: align_of::<GUnixInputStream>(),
+        },
+    ),
+    (
+        "GUnixInputStreamClass",
+        Layout {
+            size: size_of::<GUnixInputStreamClass>(),
+            alignment: align_of::<GUnixInputStreamClass>(),
+        },
+    ),
+    (
+        "GUnixOutputStream",
+        Layout {
+            size: size_of::<GUnixOutputStream>(),
+            alignment: align_of::<GUnixOutputStream>(),
+        },
+    ),
+    (
+        "GUnixOutputStreamClass",
+        Layout {
+            size: size_of::<GUnixOutputStreamClass>(),
+            alignment: align_of::<GUnixOutputStreamClass>(),
+        },
+    ),
+    (
         "GUnixSocketAddress",
         Layout {
             size: size_of::<GUnixSocketAddress>(),
@@ -2430,6 +2458,10 @@ const RUST_CONSTANTS: &[(&str, &str)] = &[
         "G_DEBUG_CONTROLLER_EXTENSION_POINT_NAME",
         "gio-debug-controller",
     ),
+    (
+        "G_DESKTOP_APP_INFO_LOOKUP_EXTENSION_POINT_NAME",
+        "gio-desktop-app-info-lookup",
+    ),
     ("G_DRIVE_IDENTIFIER_KIND_UNIX_DEVICE", "unix-device"),
     ("(guint) G_DRIVE_START_NONE", "0"),
     ("(gint) G_DRIVE_START_STOP_TYPE_MULTIDISK", "3"),
@@ -2437,10 +2469,6 @@ const RUST_CONSTANTS: &[(&str, &str)] = &[
     ("(gint) G_DRIVE_START_STOP_TYPE_PASSWORD", "4"),
     ("(gint) G_DRIVE_START_STOP_TYPE_SHUTDOWN", "1"),
     ("(gint) G_DRIVE_START_STOP_TYPE_UNKNOWN", "0"),
-    ("(gint) G_ECN_ECT_0", "2"),
-    ("(gint) G_ECN_ECT_1", "1"),
-    ("(gint) G_ECN_ECT_CE", "3"),
-    ("(gint) G_ECN_NO_ECN", "0"),
     ("(gint) G_EMBLEM_ORIGIN_DEVICE", "1"),
     ("(gint) G_EMBLEM_ORIGIN_LIVEMETADATA", "2"),
     ("(gint) G_EMBLEM_ORIGIN_TAG", "3"),
@@ -2764,8 +2792,8 @@ const RUST_CONSTANTS: &[(&str, &str)] = &[
     ("(gint) G_IO_ERROR_WOULD_MERGE", "29"),
     ("(gint) G_IO_ERROR_WOULD_RECURSE", "25"),
     ("(gint) G_IO_ERROR_WRONG_ETAG", "23"),
-    ("(guint) G_IO_MODULE_SCOPE_BLOCK_DUPLICATES", "1"),
-    ("(guint) G_IO_MODULE_SCOPE_NONE", "0"),
+    ("(gint) G_IO_MODULE_SCOPE_BLOCK_DUPLICATES", "1"),
+    ("(gint) G_IO_MODULE_SCOPE_NONE", "0"),
     ("(guint) G_IO_STREAM_SPLICE_CLOSE_STREAM1", "1"),
     ("(guint) G_IO_STREAM_SPLICE_CLOSE_STREAM2", "2"),
     ("(guint) G_IO_STREAM_SPLICE_NONE", "0"),
@@ -2902,7 +2930,7 @@ const RUST_CONSTANTS: &[(&str, &str)] = &[
     ("(guint) G_TLS_CERTIFICATE_INSECURE", "32"),
     ("(guint) G_TLS_CERTIFICATE_NOT_ACTIVATED", "4"),
     ("(guint) G_TLS_CERTIFICATE_NO_FLAGS", "0"),
-    ("(guint) G_TLS_CERTIFICATE_REQUEST_NONE", "0"),
+    ("(gint) G_TLS_CERTIFICATE_REQUEST_NONE", "0"),
     ("(guint) G_TLS_CERTIFICATE_REVOKED", "16"),
     ("(guint) G_TLS_CERTIFICATE_UNKNOWN_CA", "1"),
     ("(guint) G_TLS_CERTIFICATE_VALIDATE_ALL", "127"),
@@ -2914,8 +2942,8 @@ const RUST_CONSTANTS: &[(&str, &str)] = &[
     ("(gint) G_TLS_CHANNEL_BINDING_TLS_EXPORTER", "2"),
     ("(gint) G_TLS_CHANNEL_BINDING_TLS_SERVER_END_POINT", "1"),
     ("(gint) G_TLS_CHANNEL_BINDING_TLS_UNIQUE", "0"),
-    ("(guint) G_TLS_DATABASE_LOOKUP_KEYPAIR", "1"),
-    ("(guint) G_TLS_DATABASE_LOOKUP_NONE", "0"),
+    ("(gint) G_TLS_DATABASE_LOOKUP_KEYPAIR", "1"),
+    ("(gint) G_TLS_DATABASE_LOOKUP_NONE", "0"),
     (
         "G_TLS_DATABASE_PURPOSE_AUTHENTICATE_CLIENT",
         "1.3.6.1.5.5.7.3.2",

@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{AsyncResult, Cancellable, Initable, NetworkConnectivity, SocketConnectable, ffi};
+use crate::{ffi, AsyncResult, Cancellable, Initable, NetworkConnectivity, SocketConnectable};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::{boxed::Box as Box_, pin::Pin};
@@ -31,7 +31,12 @@ impl NetworkMonitor {
     }
 }
 
-pub trait NetworkMonitorExt: IsA<NetworkMonitor> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::NetworkMonitor>> Sealed for T {}
+}
+
+pub trait NetworkMonitorExt: IsA<NetworkMonitor> + sealed::Sealed + 'static {
     #[doc(alias = "g_network_monitor_can_reach")]
     fn can_reach(
         &self,
@@ -81,19 +86,17 @@ pub trait NetworkMonitorExt: IsA<NetworkMonitor> + 'static {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                ffi::g_network_monitor_can_reach_finish(_source_object as *mut _, res, &mut error);
-                let result = if error.is_null() {
-                    Ok(())
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            ffi::g_network_monitor_can_reach_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(())
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = can_reach_async_trampoline::<P>;
         unsafe {
@@ -164,19 +167,17 @@ pub trait NetworkMonitorExt: IsA<NetworkMonitor> + 'static {
             network_available: glib::ffi::gboolean,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    NetworkMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    from_glib(network_available),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                NetworkMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                from_glib(network_available),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"network-changed".as_ptr(),
+                b"network-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     network_changed_trampoline::<Self, F> as *const (),
                 )),
@@ -195,16 +196,14 @@ pub trait NetworkMonitorExt: IsA<NetworkMonitor> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(NetworkMonitor::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(NetworkMonitor::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::connectivity".as_ptr(),
+                b"notify::connectivity\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_connectivity_trampoline::<Self, F> as *const (),
                 )),
@@ -223,16 +222,14 @@ pub trait NetworkMonitorExt: IsA<NetworkMonitor> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(NetworkMonitor::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(NetworkMonitor::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::network-available".as_ptr(),
+                b"notify::network-available\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_network_available_trampoline::<Self, F> as *const (),
                 )),
@@ -251,16 +248,14 @@ pub trait NetworkMonitorExt: IsA<NetworkMonitor> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(NetworkMonitor::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(NetworkMonitor::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::network-metered".as_ptr(),
+                b"notify::network-metered\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_network_metered_trampoline::<Self, F> as *const (),
                 )),

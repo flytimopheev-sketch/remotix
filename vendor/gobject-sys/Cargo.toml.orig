@@ -1,5 +1,5 @@
 [build-dependencies]
-system-deps = "9"
+system-deps = "7"
 
 [dependencies]
 libc = "0.2"
@@ -88,7 +88,7 @@ version = "2.74"
 version = "2.76"
 
 [package.metadata.system-deps.gobject_2_0.v2_78]
-version = "2.78"
+version = "2.77"
 
 [package.metadata.system-deps.gobject_2_0.v2_80]
 version = "2.80"
@@ -100,8 +100,9 @@ version = "2.82"
 version = "2.84"
 
 [package.metadata.system-deps.gobject_2_0.v2_86]
-version = "2.86"
+version = "2.85"
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
 all-features = true

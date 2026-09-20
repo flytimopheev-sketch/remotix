@@ -1,17 +1,16 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for implementing the [`PrintOperationPreview`] interface.
+//! Traits intended for implementing the
+//! [`PrintOperationPreview`](crate::PrintOperationPreview) interface.
 
 use glib::translate::*;
 
 use crate::{
-    PageSetup, PrintContext, PrintOperationPreview, ffi, prelude::*, subclass::prelude::*,
+    ffi, prelude::*, subclass::prelude::*, PageSetup, PrintContext, PrintOperationPreview,
 };
 
-pub trait PrintOperationPreviewImpl:
-    ObjectImpl + ObjectSubclass<Type: IsA<PrintOperationPreview>>
-{
+pub trait PrintOperationPreviewImpl: ObjectImpl {
     fn ready(&self, context: &PrintContext) {
         self.parent_ready(context)
     }
@@ -25,7 +24,12 @@ pub trait PrintOperationPreviewImpl:
     fn end_preview(&self);
 }
 
-pub trait PrintOperationPreviewImplExt: PrintOperationPreviewImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::PrintOperationPreviewImplExt> Sealed for T {}
+}
+
+pub trait PrintOperationPreviewImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_ready(&self, context: &PrintContext) {
         unsafe {
             let type_data = Self::type_data();
@@ -148,13 +152,11 @@ unsafe extern "C" fn print_operation_preview_ready<T: PrintOperationPreviewImpl>
     print_operation_preview: *mut ffi::GtkPrintOperationPreview,
     contextptr: *mut ffi::GtkPrintContext,
 ) {
-    unsafe {
-        let instance = &*(print_operation_preview as *mut T::Instance);
-        let imp = instance.imp();
-        let context: Borrowed<PrintContext> = from_glib_borrow(contextptr);
+    let instance = &*(print_operation_preview as *mut T::Instance);
+    let imp = instance.imp();
+    let context: Borrowed<PrintContext> = from_glib_borrow(contextptr);
 
-        imp.ready(&context)
-    }
+    imp.ready(&context)
 }
 
 unsafe extern "C" fn print_operation_preview_got_page_size<T: PrintOperationPreviewImpl>(
@@ -162,48 +164,40 @@ unsafe extern "C" fn print_operation_preview_got_page_size<T: PrintOperationPrev
     contextptr: *mut ffi::GtkPrintContext,
     setupptr: *mut ffi::GtkPageSetup,
 ) {
-    unsafe {
-        let instance = &*(print_operation_preview as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(print_operation_preview as *mut T::Instance);
+    let imp = instance.imp();
 
-        let context: Borrowed<PrintContext> = from_glib_borrow(contextptr);
-        let setup: Borrowed<PageSetup> = from_glib_borrow(setupptr);
+    let context: Borrowed<PrintContext> = from_glib_borrow(contextptr);
+    let setup: Borrowed<PageSetup> = from_glib_borrow(setupptr);
 
-        imp.got_page_size(&context, &setup)
-    }
+    imp.got_page_size(&context, &setup)
 }
 
 unsafe extern "C" fn print_operation_preview_render_page<T: PrintOperationPreviewImpl>(
     print_operation_preview: *mut ffi::GtkPrintOperationPreview,
     page_nr: i32,
 ) {
-    unsafe {
-        let instance = &*(print_operation_preview as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(print_operation_preview as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.render_page(page_nr)
-    }
+    imp.render_page(page_nr)
 }
 
 unsafe extern "C" fn print_operation_preview_is_selected<T: PrintOperationPreviewImpl>(
     print_operation_preview: *mut ffi::GtkPrintOperationPreview,
     page_nr: i32,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(print_operation_preview as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(print_operation_preview as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.is_selected(page_nr).into_glib()
-    }
+    imp.is_selected(page_nr).into_glib()
 }
 
 unsafe extern "C" fn print_operation_preview_end_preview<T: PrintOperationPreviewImpl>(
     print_operation_preview: *mut ffi::GtkPrintOperationPreview,
 ) {
-    unsafe {
-        let instance = &*(print_operation_preview as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(print_operation_preview as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.end_preview()
-    }
+    imp.end_preview()
 }

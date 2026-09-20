@@ -3,9 +3,9 @@
 use std::{boxed::Box as Box_, marker::PhantomData, pin::Pin};
 
 use futures_util::TryFutureExt;
-use glib::{Object, Type, object::IsClass, prelude::*};
+use glib::{object::IsClass, prelude::*, Object, Type};
 
-use crate::{AsyncInitable, Cancellable, prelude::*};
+use crate::{prelude::*, AsyncInitable, Cancellable};
 
 impl AsyncInitable {
     // rustdoc-stripper-ignore-next
@@ -189,8 +189,8 @@ impl AsyncInitable {
 
     // rustdoc-stripper-ignore-next
     /// Create a new object builder for a specific type.
-    pub fn builder<'a, O: IsA<Object> + IsClass + IsA<AsyncInitable>>()
-    -> AsyncInitableBuilder<'a, O> {
+    pub fn builder<'a, O: IsA<Object> + IsClass + IsA<AsyncInitable>>(
+    ) -> AsyncInitableBuilder<'a, O> {
         AsyncInitableBuilder::new(O::static_type())
     }
 

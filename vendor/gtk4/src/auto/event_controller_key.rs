@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{EventController, IMContext, PropagationLimit, PropagationPhase, Widget, ffi};
+use crate::{ffi, EventController, IMContext, PropagationLimit, PropagationPhase, Widget};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -79,16 +79,14 @@ impl EventControllerKey {
             this: *mut ffi::GtkEventControllerKey,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"im-update".as_ptr(),
+                b"im-update\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     im_update_trampoline::<F> as *const (),
                 )),
@@ -109,16 +107,14 @@ impl EventControllerKey {
             state: gdk::ffi::GdkModifierType,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), from_glib(state)).into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), from_glib(state)).into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"modifiers".as_ptr(),
+                b"modifiers\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     modifiers_trampoline::<F> as *const (),
                 )),

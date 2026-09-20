@@ -3,36 +3,21 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, Buildable, ColorChooser, ConstraintTarget, LayoutManager, Overflow,
-    Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, Buildable, ColorChooser, ConstraintTarget,
+    LayoutManager, Overflow, Widget,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkColorButton")]
     pub struct ColorButton(Object<ffi::GtkColorButton>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, ColorChooser;
-
-    match fn {
-        type_ => || ffi::gtk_color_button_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkColorButton")]
-    pub struct ColorButton(Object<ffi::GtkColorButton>) @extends Widget, @implements Buildable, ConstraintTarget, ColorChooser;
 
     match fn {
         type_ => || ffi::gtk_color_button_get_type(),
@@ -48,8 +33,6 @@ impl ColorButton {
         unsafe { Widget::from_glib_none(ffi::gtk_color_button_new()).unsafe_cast() }
     }
 
-    #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
-    #[allow(deprecated)]
     #[doc(alias = "gtk_color_button_new_with_rgba")]
     #[doc(alias = "new_with_rgba")]
     pub fn with_rgba(rgba: &gdk::RGBA) -> ColorButton {
@@ -123,16 +106,14 @@ impl ColorButton {
             this: *mut ffi::GtkColorButton,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"activate".as_ptr(),
+                b"activate\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     activate_trampoline::<F> as *const (),
                 )),
@@ -153,16 +134,14 @@ impl ColorButton {
             this: *mut ffi::GtkColorButton,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"color-set".as_ptr(),
+                b"color-set\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     color_set_trampoline::<F> as *const (),
                 )),
@@ -178,16 +157,14 @@ impl ColorButton {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::modal".as_ptr(),
+                b"notify::modal\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_modal_trampoline::<F> as *const (),
                 )),
@@ -203,16 +180,14 @@ impl ColorButton {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-editor".as_ptr(),
+                b"notify::show-editor\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_editor_trampoline::<F> as *const (),
                 )),
@@ -228,16 +203,14 @@ impl ColorButton {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::title".as_ptr(),
+                b"notify::title\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_title_trampoline::<F> as *const (),
                 )),

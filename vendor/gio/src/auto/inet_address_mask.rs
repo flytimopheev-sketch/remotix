@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{InetAddress, Initable, SocketFamily, ffi};
+use crate::{ffi, InetAddress, Initable, SocketFamily};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -62,7 +62,12 @@ impl std::fmt::Display for InetAddressMask {
 unsafe impl Send for InetAddressMask {}
 unsafe impl Sync for InetAddressMask {}
 
-pub trait InetAddressMaskExt: IsA<InetAddressMask> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::InetAddressMask>> Sealed for T {}
+}
+
+pub trait InetAddressMaskExt: IsA<InetAddressMask> + sealed::Sealed + 'static {
     #[doc(alias = "g_inet_address_mask_equal")]
     fn equal(&self, mask2: &impl IsA<InetAddressMask>) -> bool {
         unsafe {
@@ -140,16 +145,14 @@ pub trait InetAddressMaskExt: IsA<InetAddressMask> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddressMask::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddressMask::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::address".as_ptr(),
+                b"notify::address\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_address_trampoline::<Self, F> as *const (),
                 )),
@@ -168,16 +171,14 @@ pub trait InetAddressMaskExt: IsA<InetAddressMask> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddressMask::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddressMask::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::family".as_ptr(),
+                b"notify::family\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_family_trampoline::<Self, F> as *const (),
                 )),
@@ -196,16 +197,14 @@ pub trait InetAddressMaskExt: IsA<InetAddressMask> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddressMask::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddressMask::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::length".as_ptr(),
+                b"notify::length\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_length_trampoline::<Self, F> as *const (),
                 )),

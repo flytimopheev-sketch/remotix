@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Window, ffi};
+use crate::{ffi, Window};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -30,7 +30,12 @@ impl Default for WindowGroup {
     }
 }
 
-pub trait WindowGroupExt: IsA<WindowGroup> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::WindowGroup>> Sealed for T {}
+}
+
+pub trait WindowGroupExt: IsA<WindowGroup> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_window_group_add_window")]
     fn add_window(&self, window: &impl IsA<Window>) {
         unsafe {

@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{BoolError, TimeSpan, TimeZone, ffi, translate::*};
+use crate::{ffi, translate::*, BoolError, TimeSpan, TimeZone};
 
 crate::wrapper! {
     #[derive(Debug)]

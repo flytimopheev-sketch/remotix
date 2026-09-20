@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{DBusInterfaceInfo, DBusObject, ffi};
+use crate::{ffi, DBusInterfaceInfo, DBusObject};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -18,7 +18,12 @@ impl DBusInterface {
     pub const NONE: Option<&'static DBusInterface> = None;
 }
 
-pub trait DBusInterfaceExt: IsA<DBusInterface> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::DBusInterface>> Sealed for T {}
+}
+
+pub trait DBusInterfaceExt: IsA<DBusInterface> + sealed::Sealed + 'static {
     #[doc(alias = "g_dbus_interface_dup_object")]
     #[doc(alias = "dup_object")]
     fn get(&self) -> Option<DBusObject> {
@@ -31,7 +36,7 @@ pub trait DBusInterfaceExt: IsA<DBusInterface> + 'static {
 
     #[doc(alias = "g_dbus_interface_get_info")]
     #[doc(alias = "get_info")]
-    fn info(&self) -> Option<DBusInterfaceInfo> {
+    fn info(&self) -> DBusInterfaceInfo {
         unsafe {
             from_glib_none(ffi::g_dbus_interface_get_info(
                 self.as_ref().to_glib_none().0,

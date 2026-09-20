@@ -8,26 +8,8 @@ pub use self::at_context::ATContext;
 mod about_dialog;
 pub use self::about_dialog::AboutDialog;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 mod accessible;
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 pub use self::accessible::Accessible;
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod accessible_hyperlink;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::accessible_hyperlink::AccessibleHyperlink;
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod accessible_hypertext;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::accessible_hypertext::AccessibleHypertext;
 
 #[cfg(feature = "v4_10")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
@@ -376,20 +358,6 @@ pub use self::entry_buffer::EntryBuffer;
 mod entry_completion;
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 pub use self::entry_completion::EntryCompletion;
-
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-mod enum_list;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub use self::enum_list::EnumList;
-
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-mod enum_list_item;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub use self::enum_list_item::EnumListItem;
 
 mod event_controller;
 pub use self::event_controller::EventController;
@@ -768,13 +736,6 @@ pub use self::picture::Picture;
 mod popover;
 pub use self::popover::Popover;
 
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod popover_bin;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::popover_bin::PopoverBin;
-
 mod popover_menu;
 pub use self::popover_menu::PopoverMenu;
 
@@ -986,13 +947,6 @@ pub use self::style_context::StyleContext;
 mod style_provider;
 pub use self::style_provider::StyleProvider;
 
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod svg;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::svg::Svg;
-
 mod switch;
 pub use self::switch::Switch;
 
@@ -1091,13 +1045,6 @@ pub use self::tree_view::TreeView;
 mod tree_view_column;
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 pub use self::tree_view_column::TreeViewColumn;
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod try_expression;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::try_expression::TryExpression;
 
 #[cfg(feature = "v4_10")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
@@ -1205,15 +1152,12 @@ pub use self::enums::AccessibleTextContentChange;
 pub use self::enums::AccessibleTextGranularity;
 pub use self::enums::AccessibleTristate;
 pub use self::enums::ArrowType;
-#[allow(deprecated)]
 pub use self::enums::AssistantPageType;
 pub use self::enums::BaselinePosition;
 pub use self::enums::BorderStyle;
 pub use self::enums::BuilderError;
 pub use self::enums::ButtonsType;
-#[allow(deprecated)]
 pub use self::enums::CellRendererAccelMode;
-#[allow(deprecated)]
 pub use self::enums::CellRendererMode;
 #[cfg(feature = "v4_10")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
@@ -1237,7 +1181,6 @@ pub use self::enums::EditableProperties;
 pub use self::enums::EntryIconPosition;
 pub use self::enums::EventSequenceState;
 pub use self::enums::FileChooserAction;
-#[allow(deprecated)]
 pub use self::enums::FileChooserError;
 pub use self::enums::FilterChange;
 pub use self::enums::FilterMatch;
@@ -1252,19 +1195,12 @@ pub use self::enums::FontRendering;
 pub use self::enums::GraphicsOffloadEnabled;
 pub use self::enums::IconSize;
 pub use self::enums::IconThemeError;
-#[allow(deprecated)]
 pub use self::enums::IconViewDropPosition;
 pub use self::enums::ImageType;
 pub use self::enums::InputPurpose;
 #[cfg(feature = "v4_8")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_8")))]
 pub use self::enums::InscriptionOverflow;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub use self::enums::InterfaceColorScheme;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub use self::enums::InterfaceContrast;
 pub use self::enums::Justification;
 pub use self::enums::LevelBarMode;
 pub use self::enums::License;
@@ -1298,12 +1234,6 @@ pub use self::enums::PrintStatus;
 pub use self::enums::PropagationLimit;
 pub use self::enums::PropagationPhase;
 pub use self::enums::RecentManagerError;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::enums::ReducedMotion;
-#[cfg(feature = "v4_24")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-pub use self::enums::RestoreReason;
 pub use self::enums::RevealerTransitionType;
 pub use self::enums::ScrollStep;
 pub use self::enums::ScrollType;
@@ -1321,9 +1251,6 @@ pub use self::enums::SpinButtonUpdatePolicy;
 pub use self::enums::SpinType;
 pub use self::enums::StackTransitionType;
 pub use self::enums::StringFilterMatchMode;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::enums::SvgError;
 #[cfg(feature = "v4_6")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_6")))]
 pub use self::enums::SymbolicColor;
@@ -1332,28 +1259,19 @@ pub use self::enums::TextDirection;
 pub use self::enums::TextExtendSelection;
 pub use self::enums::TextViewLayer;
 pub use self::enums::TextWindowType;
-#[allow(deprecated)]
 pub use self::enums::TreeViewColumnSizing;
-#[allow(deprecated)]
 pub use self::enums::TreeViewDropPosition;
-#[allow(deprecated)]
 pub use self::enums::TreeViewGridLines;
 pub use self::enums::Unit;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub use self::enums::WindowGravity;
 pub use self::enums::WrapMode;
 
 mod flags;
 pub use self::flags::ApplicationInhibitFlags;
 pub use self::flags::BuilderClosureFlags;
-#[allow(deprecated)]
 pub use self::flags::CellRendererState;
 pub use self::flags::DebugFlags;
-#[allow(deprecated)]
 pub use self::flags::DialogFlags;
 pub use self::flags::EventControllerScrollFlags;
-#[allow(deprecated)]
 pub use self::flags::FontChooserLevel;
 pub use self::flags::IconLookupFlags;
 pub use self::flags::InputHints;
@@ -1368,9 +1286,6 @@ pub use self::flags::PrintCapabilities;
 pub use self::flags::ShortcutActionFlags;
 pub use self::flags::StateFlags;
 pub use self::flags::StyleContextPrintFlags;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::flags::SvgFeatures;
 #[cfg(feature = "v4_16")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
 pub use self::flags::TextBufferNotifyFlags;
@@ -1507,9 +1422,9 @@ pub use self::constants::PRINT_SETTINGS_DITHER;
 pub use self::constants::PRINT_SETTINGS_DUPLEX;
 pub use self::constants::PRINT_SETTINGS_FINISHINGS;
 pub use self::constants::PRINT_SETTINGS_MEDIA_TYPE;
-pub use self::constants::PRINT_SETTINGS_N_COPIES;
 pub use self::constants::PRINT_SETTINGS_NUMBER_UP;
 pub use self::constants::PRINT_SETTINGS_NUMBER_UP_LAYOUT;
+pub use self::constants::PRINT_SETTINGS_N_COPIES;
 pub use self::constants::PRINT_SETTINGS_ORIENTATION;
 pub use self::constants::PRINT_SETTINGS_OUTPUT_BASENAME;
 pub use self::constants::PRINT_SETTINGS_OUTPUT_BIN;
@@ -1521,9 +1436,9 @@ pub use self::constants::PRINT_SETTINGS_PAGE_SET;
 pub use self::constants::PRINT_SETTINGS_PAPER_FORMAT;
 pub use self::constants::PRINT_SETTINGS_PAPER_HEIGHT;
 pub use self::constants::PRINT_SETTINGS_PAPER_WIDTH;
-pub use self::constants::PRINT_SETTINGS_PRINT_PAGES;
 pub use self::constants::PRINT_SETTINGS_PRINTER;
 pub use self::constants::PRINT_SETTINGS_PRINTER_LPI;
+pub use self::constants::PRINT_SETTINGS_PRINT_PAGES;
 pub use self::constants::PRINT_SETTINGS_QUALITY;
 pub use self::constants::PRINT_SETTINGS_RESOLUTION;
 pub use self::constants::PRINT_SETTINGS_RESOLUTION_X;
@@ -1535,12 +1450,7 @@ pub use self::constants::PRINT_SETTINGS_WIN32_DRIVER_EXTRA;
 pub use self::constants::PRINT_SETTINGS_WIN32_DRIVER_VERSION;
 
 pub(crate) mod traits {
-    #[cfg(feature = "v4_10")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     pub use super::accessible::AccessibleExt;
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    pub use super::accessible_hypertext::AccessibleHypertextExt;
     #[cfg(feature = "v4_10")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     pub use super::accessible_range::AccessibleRangeExt;
@@ -1658,9 +1568,6 @@ pub(crate) mod traits {
 }
 pub(crate) mod builders {
     pub use super::about_dialog::AboutDialogBuilder;
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    pub use super::accessible_hyperlink::AccessibleHyperlinkBuilder;
     pub use super::action_bar::ActionBarBuilder;
     pub use super::adjustment::AdjustmentBuilder;
     #[cfg(feature = "v4_10")]
@@ -1729,7 +1636,6 @@ pub(crate) mod builders {
     pub use super::combo_box_text::ComboBoxTextBuilder;
     pub use super::constraint::ConstraintBuilder;
     pub use super::constraint_guide::ConstraintGuideBuilder;
-    pub use super::css_provider::CssProviderBuilder;
     #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
     pub use super::dialog::DialogBuilder;
     pub use super::drag_source::DragSourceBuilder;
@@ -1830,9 +1736,6 @@ pub(crate) mod builders {
     pub use super::password_entry_buffer::PasswordEntryBufferBuilder;
     pub use super::picture::PictureBuilder;
     pub use super::popover::PopoverBuilder;
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    pub use super::popover_bin::PopoverBinBuilder;
     pub use super::popover_menu::PopoverMenuBuilder;
     pub use super::popover_menu_bar::PopoverMenuBarBuilder;
     #[cfg(feature = "v4_14")]

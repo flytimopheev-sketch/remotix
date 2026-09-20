@@ -57,24 +57,16 @@ pub use self::display::Display;
 mod display_manager;
 pub use self::display_manager::DisplayManager;
 
-#[cfg(target_os = "linux")]
-#[cfg_attr(docsrs, doc(cfg(target_os = "linux")))]
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 mod dmabuf_texture;
-#[cfg(target_os = "linux")]
-#[cfg_attr(docsrs, doc(cfg(target_os = "linux")))]
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 pub use self::dmabuf_texture::DmabufTexture;
 
-#[cfg(target_os = "linux")]
-#[cfg_attr(docsrs, doc(cfg(target_os = "linux")))]
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 mod dmabuf_texture_builder;
-#[cfg(target_os = "linux")]
-#[cfg_attr(docsrs, doc(cfg(target_os = "linux")))]
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 pub use self::dmabuf_texture_builder::DmabufTextureBuilder;
@@ -189,13 +181,9 @@ pub use self::content_formats::ContentFormats;
 mod content_formats_builder;
 pub use self::content_formats_builder::ContentFormatsBuilder;
 
-#[cfg(target_os = "linux")]
-#[cfg_attr(docsrs, doc(cfg(target_os = "linux")))]
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 mod dmabuf_formats;
-#[cfg(target_os = "linux")]
-#[cfg_attr(docsrs, doc(cfg(target_os = "linux")))]
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 pub use self::dmabuf_formats::DmabufFormats;
@@ -237,16 +225,11 @@ pub use self::enums::AxisUse;
 #[cfg(feature = "v4_16")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
 pub use self::enums::CicpRange;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-pub use self::enums::ColorChannel;
 pub use self::enums::CrossingMode;
 pub use self::enums::DevicePadFeature;
 pub use self::enums::DeviceToolType;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
-#[cfg_attr(docsrs, doc(cfg(target_os = "linux")))]
 pub use self::enums::DmabufError;
 pub use self::enums::DragCancelReason;
 pub use self::enums::EventType;
@@ -258,9 +241,6 @@ pub use self::enums::KeyMatch;
 pub use self::enums::MemoryFormat;
 pub use self::enums::NotifyType;
 pub use self::enums::ScrollDirection;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub use self::enums::ScrollRelativeDirection;
 #[cfg(feature = "v4_8")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_8")))]
 pub use self::enums::ScrollUnit;
@@ -280,16 +260,13 @@ pub use self::flags::AnchorHints;
 pub use self::flags::AxisFlags;
 pub use self::flags::DragAction;
 pub use self::flags::FrameClockPhase;
-#[cfg(feature = "v4_6")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_6")))]
-pub use self::flags::GLAPI;
 pub use self::flags::ModifierType;
 pub use self::flags::PaintableFlags;
 pub use self::flags::SeatCapabilities;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-pub use self::flags::ToplevelCapabilities;
 pub use self::flags::ToplevelState;
+#[cfg(feature = "v4_6")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v4_6")))]
+pub use self::flags::GLAPI;
 
 pub(crate) mod functions;
 

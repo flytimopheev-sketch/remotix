@@ -1,18 +1,18 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`TreeView`].
+//! Traits intended for subclassing [`TreeView`](crate::TreeView).
 
 use glib::translate::*;
 
 use crate::{
-    MovementStep, Scrollable, TreeIter, TreePath, TreeView, TreeViewColumn, ffi, prelude::*,
-    subclass::prelude::*,
+    ffi, prelude::*, subclass::prelude::*, MovementStep, TreeIter, TreePath, TreeView,
+    TreeViewColumn,
 };
 
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait TreeViewImpl: WidgetImpl + ObjectSubclass<Type: IsA<TreeView> + IsA<Scrollable>> {
+pub trait TreeViewImpl: TreeViewImplExt + WidgetImpl {
     fn columns_changed(&self) {
         self.parent_columns_changed()
     }
@@ -74,9 +74,14 @@ pub trait TreeViewImpl: WidgetImpl + ObjectSubclass<Type: IsA<TreeView> + IsA<Sc
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::TreeViewImplExt> Sealed for T {}
+}
+
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait TreeViewImplExt: TreeViewImpl {
+pub trait TreeViewImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_columns_changed(&self) {
         unsafe {
             let data = Self::type_data();
@@ -337,21 +342,17 @@ unsafe impl<T: TreeViewImpl> IsSubclassable<T> for TreeView {
 }
 
 unsafe extern "C" fn tree_view_columns_changed<T: TreeViewImpl>(ptr: *mut ffi::GtkTreeView) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.columns_changed()
-    }
+    imp.columns_changed()
 }
 
 unsafe extern "C" fn tree_view_cursor_changed<T: TreeViewImpl>(ptr: *mut ffi::GtkTreeView) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.cursor_changed()
-    }
+    imp.cursor_changed()
 }
 
 unsafe extern "C" fn tree_view_expand_collapse_cursor_row<T: TreeViewImpl>(
@@ -360,13 +361,11 @@ unsafe extern "C" fn tree_view_expand_collapse_cursor_row<T: TreeViewImpl>(
     expand: glib::ffi::gboolean,
     open_all: glib::ffi::gboolean,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.expand_collapse_cursor_row(from_glib(logical), from_glib(expand), from_glib(open_all))
-            .into_glib()
-    }
+    imp.expand_collapse_cursor_row(from_glib(logical), from_glib(expand), from_glib(open_all))
+        .into_glib()
 }
 
 unsafe extern "C" fn tree_view_move_cursor<T: TreeViewImpl>(
@@ -376,13 +375,11 @@ unsafe extern "C" fn tree_view_move_cursor<T: TreeViewImpl>(
     extend: glib::ffi::gboolean,
     modify: glib::ffi::gboolean,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.move_cursor(from_glib(step), count, from_glib(extend), from_glib(modify))
-            .into_glib()
-    }
+    imp.move_cursor(from_glib(step), count, from_glib(extend), from_glib(modify))
+        .into_glib()
 }
 
 unsafe extern "C" fn tree_view_row_activated<T: TreeViewImpl>(
@@ -390,14 +387,12 @@ unsafe extern "C" fn tree_view_row_activated<T: TreeViewImpl>(
     pathptr: *mut ffi::GtkTreePath,
     columnptr: *mut ffi::GtkTreeViewColumn,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let path: Borrowed<TreePath> = from_glib_borrow(pathptr);
-        let column: Borrowed<TreeViewColumn> = from_glib_borrow(columnptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let path: Borrowed<TreePath> = from_glib_borrow(pathptr);
+    let column: Borrowed<TreeViewColumn> = from_glib_borrow(columnptr);
 
-        imp.row_activated(&path, &column)
-    }
+    imp.row_activated(&path, &column)
 }
 
 unsafe extern "C" fn tree_view_row_collapsed<T: TreeViewImpl>(
@@ -405,14 +400,12 @@ unsafe extern "C" fn tree_view_row_collapsed<T: TreeViewImpl>(
     iterptr: *mut ffi::GtkTreeIter,
     pathptr: *mut ffi::GtkTreePath,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let path: Borrowed<TreePath> = from_glib_borrow(pathptr);
-        let iter: Borrowed<TreeIter> = from_glib_borrow(iterptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let path: Borrowed<TreePath> = from_glib_borrow(pathptr);
+    let iter: Borrowed<TreeIter> = from_glib_borrow(iterptr);
 
-        imp.row_collapsed(&iter, &path)
-    }
+    imp.row_collapsed(&iter, &path)
 }
 
 unsafe extern "C" fn tree_view_row_expanded<T: TreeViewImpl>(
@@ -420,59 +413,49 @@ unsafe extern "C" fn tree_view_row_expanded<T: TreeViewImpl>(
     iterptr: *mut ffi::GtkTreeIter,
     pathptr: *mut ffi::GtkTreePath,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let path: Borrowed<TreePath> = from_glib_borrow(pathptr);
-        let iter: Borrowed<TreeIter> = from_glib_borrow(iterptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let path: Borrowed<TreePath> = from_glib_borrow(pathptr);
+    let iter: Borrowed<TreeIter> = from_glib_borrow(iterptr);
 
-        imp.row_expanded(&iter, &path)
-    }
+    imp.row_expanded(&iter, &path)
 }
 
 unsafe extern "C" fn tree_view_select_all<T: TreeViewImpl>(
     ptr: *mut ffi::GtkTreeView,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.select_all().into_glib()
-    }
+    imp.select_all().into_glib()
 }
 
 unsafe extern "C" fn tree_view_select_cursor_parent<T: TreeViewImpl>(
     ptr: *mut ffi::GtkTreeView,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.select_cursor_parent().into_glib()
-    }
+    imp.select_cursor_parent().into_glib()
 }
 
 unsafe extern "C" fn tree_view_select_cursor_row<T: TreeViewImpl>(
     ptr: *mut ffi::GtkTreeView,
     start_editing: glib::ffi::gboolean,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.select_cursor_row(from_glib(start_editing)).into_glib()
-    }
+    imp.select_cursor_row(from_glib(start_editing)).into_glib()
 }
 
 unsafe extern "C" fn tree_view_start_interactive_search<T: TreeViewImpl>(
     ptr: *mut ffi::GtkTreeView,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.start_interactive_search().into_glib()
-    }
+    imp.start_interactive_search().into_glib()
 }
 
 unsafe extern "C" fn tree_view_test_collapse_row<T: TreeViewImpl>(
@@ -480,14 +463,12 @@ unsafe extern "C" fn tree_view_test_collapse_row<T: TreeViewImpl>(
     iterptr: *mut ffi::GtkTreeIter,
     pathptr: *mut ffi::GtkTreePath,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let path: Borrowed<TreePath> = from_glib_borrow(pathptr);
-        let iter: Borrowed<TreeIter> = from_glib_borrow(iterptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let path: Borrowed<TreePath> = from_glib_borrow(pathptr);
+    let iter: Borrowed<TreeIter> = from_glib_borrow(iterptr);
 
-        imp.test_collapse_row(&iter, &path).into_glib()
-    }
+    imp.test_collapse_row(&iter, &path).into_glib()
 }
 
 unsafe extern "C" fn tree_view_test_expand_row<T: TreeViewImpl>(
@@ -495,34 +476,28 @@ unsafe extern "C" fn tree_view_test_expand_row<T: TreeViewImpl>(
     iterptr: *mut ffi::GtkTreeIter,
     pathptr: *mut ffi::GtkTreePath,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let path: Borrowed<TreePath> = from_glib_borrow(pathptr);
-        let iter: Borrowed<TreeIter> = from_glib_borrow(iterptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let path: Borrowed<TreePath> = from_glib_borrow(pathptr);
+    let iter: Borrowed<TreeIter> = from_glib_borrow(iterptr);
 
-        imp.test_expand_row(&iter, &path).into_glib()
-    }
+    imp.test_expand_row(&iter, &path).into_glib()
 }
 
 unsafe extern "C" fn tree_view_toggle_cursor_row<T: TreeViewImpl>(
     ptr: *mut ffi::GtkTreeView,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.toggle_cursor_row().into_glib()
-    }
+    imp.toggle_cursor_row().into_glib()
 }
 
 unsafe extern "C" fn tree_view_unselect_all<T: TreeViewImpl>(
     ptr: *mut ffi::GtkTreeView,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.unselect_all().into_glib()
-    }
+    imp.unselect_all().into_glib()
 }

@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{AskPasswordFlags, MountOperationResult, PasswordSave, ffi};
+use crate::{ffi, AskPasswordFlags, MountOperationResult, PasswordSave};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -35,7 +35,12 @@ impl Default for MountOperation {
     }
 }
 
-pub trait MountOperationExt: IsA<MountOperation> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::MountOperation>> Sealed for T {}
+}
+
+pub trait MountOperationExt: IsA<MountOperation> + sealed::Sealed + 'static {
     #[doc(alias = "g_mount_operation_get_anonymous")]
     #[doc(alias = "get_anonymous")]
     #[doc(alias = "anonymous")]
@@ -240,16 +245,14 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             this: *mut ffi::GMountOperation,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"aborted".as_ptr(),
+                b"aborted\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     aborted_trampoline::<Self, F> as *const (),
                 )),
@@ -274,22 +277,20 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             flags: ffi::GAskPasswordFlags,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    MountOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    &glib::GString::from_glib_borrow(message),
-                    &glib::GString::from_glib_borrow(default_user),
-                    &glib::GString::from_glib_borrow(default_domain),
-                    from_glib(flags),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                MountOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                &glib::GString::from_glib_borrow(message),
+                &glib::GString::from_glib_borrow(default_user),
+                &glib::GString::from_glib_borrow(default_domain),
+                from_glib(flags),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"ask-password".as_ptr(),
+                b"ask-password\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     ask_password_trampoline::<Self, F> as *const (),
                 )),
@@ -313,19 +314,17 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             result: ffi::GMountOperationResult,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    MountOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    from_glib(result),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                MountOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                from_glib(result),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"reply".as_ptr(),
+                b"reply\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     reply_trampoline::<Self, F> as *const (),
                 )),
@@ -355,21 +354,19 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             bytes_left: i64,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    MountOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    &glib::GString::from_glib_borrow(message),
-                    time_left,
-                    bytes_left,
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                MountOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                &glib::GString::from_glib_borrow(message),
+                time_left,
+                bytes_left,
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"show-unmount-progress".as_ptr(),
+                b"show-unmount-progress\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     show_unmount_progress_trampoline::<Self, F> as *const (),
                 )),
@@ -388,16 +385,14 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::anonymous".as_ptr(),
+                b"notify::anonymous\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_anonymous_trampoline::<Self, F> as *const (),
                 )),
@@ -416,16 +411,14 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::choice".as_ptr(),
+                b"notify::choice\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_choice_trampoline::<Self, F> as *const (),
                 )),
@@ -444,16 +437,14 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::domain".as_ptr(),
+                b"notify::domain\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_domain_trampoline::<Self, F> as *const (),
                 )),
@@ -477,16 +468,14 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-tcrypt-hidden-volume".as_ptr(),
+                b"notify::is-tcrypt-hidden-volume\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_tcrypt_hidden_volume_trampoline::<Self, F> as *const (),
                 )),
@@ -510,16 +499,14 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-tcrypt-system-volume".as_ptr(),
+                b"notify::is-tcrypt-system-volume\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_tcrypt_system_volume_trampoline::<Self, F> as *const (),
                 )),
@@ -538,16 +525,14 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::password".as_ptr(),
+                b"notify::password\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_password_trampoline::<Self, F> as *const (),
                 )),
@@ -566,16 +551,14 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::password-save".as_ptr(),
+                b"notify::password-save\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_password_save_trampoline::<Self, F> as *const (),
                 )),
@@ -593,16 +576,14 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::pim".as_ptr(),
+                b"notify::pim\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_pim_trampoline::<Self, F> as *const (),
                 )),
@@ -621,16 +602,14 @@ pub trait MountOperationExt: IsA<MountOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(MountOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::username".as_ptr(),
+                b"notify::username\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_username_trampoline::<Self, F> as *const (),
                 )),

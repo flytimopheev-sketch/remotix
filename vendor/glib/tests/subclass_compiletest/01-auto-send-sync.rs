@@ -3,7 +3,6 @@ mod imp {
 
     #[derive(Default)]
     pub struct TestObject {
-        #[allow(unused)]
         s: String,
     }
 

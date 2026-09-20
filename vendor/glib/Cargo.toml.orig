@@ -19,27 +19,27 @@ name = "glib"
 [dependencies]
 libc.workspace = true
 bitflags.workspace = true
-futures-core = { version = "0.3", default-features = false, optional = true }
-futures-task = { version = "0.3", default-features = false, optional = true }
-futures-executor = { version = "0.3", optional = true }
-futures-channel = { version = "0.3", optional = true }
-futures-util = { version = "0.3", optional = true }
+futures-core = { version = "0.3", default-features = false }
+futures-task = { version = "0.3", default-features = false }
+futures-executor = "0.3"
+futures-channel = "0.3"
+futures-util = "0.3"
 glib-sys.workspace = true
 gobject-sys.workspace = true
-glib-macros = { workspace = true, default-features = false }
+glib-macros.workspace = true
 rs-log = { package = "log", version = "0.4", optional = true }
-smallvec = { version = "1.15", features = ["union", "const_generics", "const_new"] }
+smallvec = { version = "1.13", features = ["union", "const_generics", "const_new"] }
 gio-sys = { workspace = true, optional = true }
-memchr = "2.8.0"
+memchr = "2.7.4"
 
 [dev-dependencies]
 tempfile = "3"
 gir-format-check.workspace = true
-trybuild = "1"
-criterion = "0.8.2"
+trybuild2 = "1"
+criterion = "0.5.1"
 
 [features]
-default = ["gio", "futures"]
+default = ["gio"]
 v2_58 = ["glib-sys/v2_58", "gobject-sys/v2_58"]
 v2_60 = ["v2_58", "glib-sys/v2_60"]
 v2_62 = ["v2_60", "glib-sys/v2_62", "gobject-sys/v2_62"]
@@ -55,21 +55,13 @@ v2_80 = ["v2_78", "glib-sys/v2_80", "gobject-sys/v2_80"]
 v2_82 = ["v2_80", "glib-sys/v2_82", "gobject-sys/v2_82"]
 v2_84 = ["v2_82", "glib-sys/v2_84", "gobject-sys/v2_84"]
 v2_86 = ["v2_84", "glib-sys/v2_86", "gobject-sys/v2_86"]
-v2_88 = ["v2_86", "glib-sys/v2_88"]
-v2_90 = ["v2_88", "glib-sys/v2_90"]
 log = ["rs-log"]
-log_kv = ["log", "rs-log/kv"]
 log_macros = ["log"]
 compiletests = []
-gio = ["gio-sys", "futures"]
-futures = ["futures-core", "futures-task", "futures-executor", "futures-channel", "futures-util"]
+gio = ["gio-sys"]
 
 [[test]]
 name = "subclass_compiletest"
-required-features = ["compiletests"]
-
-[[test]]
-name = "regex_compiletest"
 required-features = ["compiletests"]
 
 [[bench]]
@@ -78,4 +70,5 @@ harness = false
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]

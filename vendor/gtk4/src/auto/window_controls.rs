@@ -2,35 +2,20 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, Buildable, ConstraintTarget, LayoutManager, Overflow, PackType, Widget,
-    ffi,
+    ffi, Accessible, AccessibleRole, Align, Buildable, ConstraintTarget, LayoutManager, Overflow,
+    PackType, Widget,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkWindowControls")]
     pub struct WindowControls(Object<ffi::GtkWindowControls, ffi::GtkWindowControlsClass>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget;
-
-    match fn {
-        type_ => || ffi::gtk_window_controls_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkWindowControls")]
-    pub struct WindowControls(Object<ffi::GtkWindowControls, ffi::GtkWindowControlsClass>) @extends Widget, @implements Buildable, ConstraintTarget;
 
     match fn {
         type_ => || ffi::gtk_window_controls_get_type(),
@@ -78,19 +63,6 @@ impl WindowControls {
         unsafe { from_glib(ffi::gtk_window_controls_get_side(self.to_glib_none().0)) }
     }
 
-    #[cfg(feature = "v4_18")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_18")))]
-    #[doc(alias = "gtk_window_controls_get_use_native_controls")]
-    #[doc(alias = "get_use_native_controls")]
-    #[doc(alias = "use-native-controls")]
-    pub fn uses_native_controls(&self) -> bool {
-        unsafe {
-            from_glib(ffi::gtk_window_controls_get_use_native_controls(
-                self.to_glib_none().0,
-            ))
-        }
-    }
-
     #[doc(alias = "gtk_window_controls_set_decoration_layout")]
     #[doc(alias = "decoration-layout")]
     pub fn set_decoration_layout(&self, layout: Option<&str>) {
@@ -110,19 +82,6 @@ impl WindowControls {
         }
     }
 
-    #[cfg(feature = "v4_18")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_18")))]
-    #[doc(alias = "gtk_window_controls_set_use_native_controls")]
-    #[doc(alias = "use-native-controls")]
-    pub fn set_use_native_controls(&self, setting: bool) {
-        unsafe {
-            ffi::gtk_window_controls_set_use_native_controls(
-                self.to_glib_none().0,
-                setting.into_glib(),
-            );
-        }
-    }
-
     #[doc(alias = "decoration-layout")]
     pub fn connect_decoration_layout_notify<F: Fn(&Self) + 'static>(
         &self,
@@ -135,16 +94,14 @@ impl WindowControls {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::decoration-layout".as_ptr(),
+                b"notify::decoration-layout\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_decoration_layout_trampoline::<F> as *const (),
                 )),
@@ -160,16 +117,14 @@ impl WindowControls {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::empty".as_ptr(),
+                b"notify::empty\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_empty_trampoline::<F> as *const (),
                 )),
@@ -185,50 +140,16 @@ impl WindowControls {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::side".as_ptr(),
+                b"notify::side\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_side_trampoline::<F> as *const (),
-                )),
-                Box_::into_raw(f),
-            )
-        }
-    }
-
-    #[cfg(feature = "v4_18")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_18")))]
-    #[doc(alias = "use-native-controls")]
-    pub fn connect_use_native_controls_notify<F: Fn(&Self) + 'static>(
-        &self,
-        f: F,
-    ) -> SignalHandlerId {
-        unsafe extern "C" fn notify_use_native_controls_trampoline<
-            F: Fn(&WindowControls) + 'static,
-        >(
-            this: *mut ffi::GtkWindowControls,
-            _param_spec: glib::ffi::gpointer,
-            f: glib::ffi::gpointer,
-        ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"notify::use-native-controls".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    notify_use_native_controls_trampoline::<F> as *const (),
                 )),
                 Box_::into_raw(f),
             )
@@ -269,16 +190,6 @@ impl WindowControlsBuilder {
     pub fn side(self, side: PackType) -> Self {
         Self {
             builder: self.builder.property("side", side),
-        }
-    }
-
-    #[cfg(feature = "v4_18")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_18")))]
-    pub fn use_native_controls(self, use_native_controls: bool) -> Self {
-        Self {
-            builder: self
-                .builder
-                .property("use-native-controls", use_native_controls),
         }
     }
 

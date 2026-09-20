@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Buildable, Filter, ffi};
+use crate::{ffi, Buildable, Filter};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -18,7 +18,12 @@ impl MultiFilter {
     pub const NONE: Option<&'static MultiFilter> = None;
 }
 
-pub trait MultiFilterExt: IsA<MultiFilter> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::MultiFilter>> Sealed for T {}
+}
+
+pub trait MultiFilterExt: IsA<MultiFilter> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_multi_filter_append")]
     fn append(&self, filter: impl IsA<Filter>) {
         unsafe {

@@ -45,7 +45,7 @@ use std::{
     error,
     ffi::CStr,
     fmt, mem,
-    num::{NonZeroI8, NonZeroI32, NonZeroI64, NonZeroU8, NonZeroU32, NonZeroU64},
+    num::{NonZeroI32, NonZeroI64, NonZeroI8, NonZeroU32, NonZeroU64, NonZeroU8},
     ops::Deref,
     path::{Path, PathBuf},
     ptr,
@@ -54,11 +54,12 @@ use std::{
 use libc::{c_char, c_void};
 
 use crate::{
-    GStr, ffi, gobject_ffi,
+    ffi, gobject_ffi,
     gstring::GString,
     prelude::*,
     translate::*,
     types::{Pointee, Pointer, Type},
+    GStr,
 };
 
 // rustdoc-stripper-ignore-next
@@ -341,15 +342,13 @@ where
 
     #[inline]
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe {
-            match T::Checker::check(value) {
-                Err(ValueTypeMismatchOrNoneError::UnexpectedNone) => None,
-                Err(ValueTypeMismatchOrNoneError::WrongValueType(_err)) => {
-                    // This should've been caught by the caller already.
-                    unreachable!();
-                }
-                Ok(_) => Some(T::from_value(value)),
+        match T::Checker::check(value) {
+            Err(ValueTypeMismatchOrNoneError::UnexpectedNone) => None,
+            Err(ValueTypeMismatchOrNoneError::WrongValueType(_err)) => {
+                // This should've been caught by the caller already.
+                unreachable!();
             }
+            Ok(_) => Some(T::from_value(value)),
         }
     }
 }
@@ -444,45 +443,34 @@ impl<T: ToValueOptional + StaticType + ?Sized> ToValueOptional for &T {
 
 #[inline]
 unsafe fn copy_value(value: *const gobject_ffi::GValue) -> *mut gobject_ffi::GValue {
-    unsafe {
-        let copy =
-            ffi::g_malloc0(mem::size_of::<gobject_ffi::GValue>()) as *mut gobject_ffi::GValue;
-        copy_into_value(copy, value);
-        copy
-    }
+    let copy = ffi::g_malloc0(mem::size_of::<gobject_ffi::GValue>()) as *mut gobject_ffi::GValue;
+    copy_into_value(copy, value);
+    copy
 }
 
 #[inline]
 unsafe fn free_value(value: *mut gobject_ffi::GValue) {
-    unsafe {
-        clear_value(value);
-        ffi::g_free(value as *mut _);
-    }
+    clear_value(value);
+    ffi::g_free(value as *mut _);
 }
 
 #[inline]
 unsafe fn init_value(value: *mut gobject_ffi::GValue) {
-    unsafe {
-        ptr::write(value, mem::zeroed());
-    }
+    ptr::write(value, mem::zeroed());
 }
 
 #[inline]
 unsafe fn copy_into_value(dest: *mut gobject_ffi::GValue, src: *const gobject_ffi::GValue) {
-    unsafe {
-        gobject_ffi::g_value_init(dest, (*src).g_type);
-        gobject_ffi::g_value_copy(src, dest);
-    }
+    gobject_ffi::g_value_init(dest, (*src).g_type);
+    gobject_ffi::g_value_copy(src, dest);
 }
 
 #[inline]
 unsafe fn clear_value(value: *mut gobject_ffi::GValue) {
-    unsafe {
-        // Before GLib 2.48, unsetting a zeroed GValue would give critical warnings
-        // https://bugzilla.gnome.org/show_bug.cgi?id=755766
-        if (*value).g_type != gobject_ffi::G_TYPE_INVALID {
-            gobject_ffi::g_value_unset(value);
-        }
+    // Before GLib 2.48, unsetting a zeroed GValue would give critical warnings
+    // https://bugzilla.gnome.org/show_bug.cgi?id=755766
+    if (*value).g_type != gobject_ffi::G_TYPE_INVALID {
+        gobject_ffi::g_value_unset(value);
     }
 }
 
@@ -703,7 +691,7 @@ impl Value {
     /// The type of the value contained in `self` must be `Send`.
     #[inline]
     pub unsafe fn into_send_value(self) -> SendValue {
-        unsafe { SendValue::unsafe_from(self.into_raw()) }
+        SendValue::unsafe_from(self.into_raw())
     }
 
     fn content_debug_string(&self) -> GString {
@@ -893,10 +881,8 @@ unsafe impl<'a> FromValue<'a> for &'a str {
 
     #[inline]
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe {
-            let ptr = gobject_ffi::g_value_get_string(value.to_glib_none().0);
-            CStr::from_ptr(ptr).to_str().expect("Invalid UTF-8")
-        }
+        let ptr = gobject_ffi::g_value_get_string(value.to_glib_none().0);
+        CStr::from_ptr(ptr).to_str().expect("Invalid UTF-8")
     }
 }
 
@@ -947,7 +933,7 @@ unsafe impl<'a> FromValue<'a> for String {
     type Checker = GenericValueTypeOrNoneChecker<Self>;
 
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe { String::from(<&str>::from_value(value)) }
+        String::from(<&str>::from_value(value))
     }
 }
 
@@ -984,7 +970,7 @@ unsafe impl<'a> FromValue<'a> for Box<str> {
     type Checker = GenericValueTypeOrNoneChecker<Self>;
 
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe { Box::<str>::from(<&str>::from_value(value)) }
+        Box::<str>::from(<&str>::from_value(value))
     }
 }
 
@@ -1025,11 +1011,8 @@ unsafe impl<'a> FromValue<'a> for Vec<String> {
     type Checker = GenericValueTypeChecker<Self>;
 
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe {
-            let ptr =
-                gobject_ffi::g_value_get_boxed(value.to_glib_none().0) as *const *const c_char;
-            FromGlibPtrContainer::from_glib_none(ptr)
-        }
+        let ptr = gobject_ffi::g_value_get_boxed(value.to_glib_none().0) as *const *const c_char;
+        FromGlibPtrContainer::from_glib_none(ptr)
     }
 }
 
@@ -1132,7 +1115,7 @@ unsafe impl<'a> FromValue<'a> for PathBuf {
     type Checker = GenericValueTypeOrNoneChecker<Self>;
 
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe { from_glib_none(gobject_ffi::g_value_get_string(value.to_glib_none().0)) }
+        from_glib_none(gobject_ffi::g_value_get_string(value.to_glib_none().0))
     }
 }
 
@@ -1168,7 +1151,7 @@ unsafe impl<'a> FromValue<'a> for bool {
 
     #[inline]
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe { from_glib(gobject_ffi::g_value_get_boolean(value.to_glib_none().0)) }
+        from_glib(gobject_ffi::g_value_get_boolean(value.to_glib_none().0))
     }
 }
 
@@ -1204,7 +1187,7 @@ unsafe impl<'a> FromValue<'a> for Pointer {
 
     #[inline]
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe { gobject_ffi::g_value_get_pointer(value.to_glib_none().0) }
+        gobject_ffi::g_value_get_pointer(value.to_glib_none().0)
     }
 }
 
@@ -1240,7 +1223,7 @@ unsafe impl<'a> FromValue<'a> for ptr::NonNull<Pointee> {
 
     #[inline]
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe { ptr::NonNull::new_unchecked(Pointer::from_value(value)) }
+        ptr::NonNull::new_unchecked(Pointer::from_value(value))
     }
 }
 
@@ -1282,7 +1265,7 @@ macro_rules! numeric {
             #[inline]
             #[allow(clippy::redundant_closure_call)]
             unsafe fn from_value(value: &'a Value) -> Self {
-                unsafe { $get(value.to_glib_none().0) }
+                $get(value.to_glib_none().0)
             }
         }
 
@@ -1324,10 +1307,8 @@ macro_rules! not_zero {
 
             #[inline]
             unsafe fn from_value(value: &'a Value) -> Self {
-                unsafe {
-                    let res = <$num>::from_value(value);
-                    Self::try_from(res).unwrap()
-                }
+                let res = <$num>::from_value(value);
+                Self::try_from(res).unwrap()
             }
         }
 
@@ -1427,11 +1408,9 @@ unsafe impl<'a> FromValue<'a> for char {
 
     #[inline]
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe {
-            let res: u32 = gobject_ffi::g_value_get_uint(value.to_glib_none().0);
-            // safe because the check is done by `Self::Checker`
-            char::from_u32_unchecked(res)
-        }
+        let res: u32 = gobject_ffi::g_value_get_uint(value.to_glib_none().0);
+        // safe because the check is done by `Self::Checker`
+        char::from_u32_unchecked(res)
     }
 }
 
@@ -1482,10 +1461,8 @@ unsafe impl<'a> FromValue<'a> for BoxedValue {
 
     #[inline]
     unsafe fn from_value(value: &'a Value) -> Self {
-        unsafe {
-            let ptr = gobject_ffi::g_value_get_boxed(value.to_glib_none().0);
-            BoxedValue(from_glib_none(ptr as *const gobject_ffi::GValue))
-        }
+        let ptr = gobject_ffi::g_value_get_boxed(value.to_glib_none().0);
+        BoxedValue(from_glib_none(ptr as *const gobject_ffi::GValue))
     }
 }
 

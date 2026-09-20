@@ -2,9 +2,7 @@
 
 use glib::{prelude::*, translate::*};
 
-#[cfg(feature = "v4_16")]
-use crate::ColorState;
-use crate::{GLContext, GLTextureBuilder, MemoryFormat, Texture, ffi};
+use crate::{ffi, GLContext, GLTextureBuilder, MemoryFormat, Texture};
 
 #[cfg(not(feature = "gl"))]
 pub type GLsync = *const libc::c_void;
@@ -17,13 +15,11 @@ impl GLTextureBuilder {
     #[must_use = "The builder must be built to be used"]
     #[allow(clippy::missing_safety_doc)]
     pub unsafe fn build(self) -> Texture {
-        unsafe {
-            from_glib_full(ffi::gdk_gl_texture_builder_build(
-                self.to_glib_none().0,
-                None,
-                std::ptr::null_mut(),
-            ))
-        }
+        from_glib_full(ffi::gdk_gl_texture_builder_build(
+            self.to_glib_none().0,
+            None,
+            std::ptr::null_mut(),
+        ))
     }
 
     #[doc(alias = "gdk_gl_texture_builder_build")]
@@ -33,37 +29,18 @@ impl GLTextureBuilder {
         self,
         release_func: F,
     ) -> Texture {
-        unsafe {
-            unsafe extern "C" fn destroy_closure<F: FnOnce() + Send + 'static>(
-                func: glib::ffi::gpointer,
-            ) {
-                unsafe {
-                    let released_func = Box::<F>::from_raw(func as *mut _);
-                    released_func();
-                }
-            }
-            let released_func = Box::new(release_func);
-            from_glib_full(ffi::gdk_gl_texture_builder_build(
-                self.to_glib_none().0,
-                Some(destroy_closure::<F>),
-                Box::into_raw(released_func) as glib::ffi::gpointer,
-            ))
+        unsafe extern "C" fn destroy_closure<F: FnOnce() + Send + 'static>(
+            func: glib::ffi::gpointer,
+        ) {
+            let released_func = Box::<F>::from_raw(func as *mut _);
+            released_func();
         }
-    }
-
-    #[cfg(feature = "v4_16")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
-    #[doc(alias = "gdk_gl_texture_builder_set_color_state")]
-    #[doc(alias = "color-state")]
-    pub fn set_color_state(self, color_state: &ColorState) -> Self {
-        unsafe {
-            ffi::gdk_gl_texture_builder_set_color_state(
-                self.to_glib_none().0,
-                color_state.to_glib_none().0,
-            );
-        }
-
-        self
+        let released_func = Box::new(release_func);
+        from_glib_full(ffi::gdk_gl_texture_builder_build(
+            self.to_glib_none().0,
+            Some(destroy_closure::<F>),
+            Box::into_raw(released_func) as glib::ffi::gpointer,
+        ))
     }
 
     #[doc(alias = "gdk_gl_texture_builder_set_context")]
@@ -154,7 +131,11 @@ impl GLTextureBuilder {
     #[doc(alias = "get_sync")]
     pub fn sync(&self) -> Option<GLsync> {
         let ptr = unsafe { ffi::gdk_gl_texture_builder_get_sync(self.to_glib_none().0) };
-        if ptr.is_null() { None } else { Some(ptr as _) }
+        if ptr.is_null() {
+            None
+        } else {
+            Some(ptr as _)
+        }
     }
 
     #[doc(alias = "gdk_gl_texture_builder_set_sync")]

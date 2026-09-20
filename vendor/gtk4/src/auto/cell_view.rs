@@ -3,35 +3,21 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, Buildable, CellArea, CellAreaContext, CellLayout, ConstraintTarget,
-    LayoutManager, Orientable, Orientation, Overflow, TreeModel, TreePath, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, Buildable, CellArea, CellAreaContext, CellLayout,
+    ConstraintTarget, LayoutManager, Orientable, Orientation, Overflow, TreeModel, TreePath,
+    Widget,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkCellView")]
     pub struct CellView(Object<ffi::GtkCellView>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, CellLayout, Orientable;
-
-    match fn {
-        type_ => || ffi::gtk_cell_view_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkCellView")]
-    pub struct CellView(Object<ffi::GtkCellView>) @extends Widget, @implements Buildable, ConstraintTarget, CellLayout, Orientable;
 
     match fn {
         type_ => || ffi::gtk_cell_view_get_type(),
@@ -210,16 +196,14 @@ impl CellView {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::draw-sensitive".as_ptr(),
+                b"notify::draw-sensitive\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_draw_sensitive_trampoline::<F> as *const (),
                 )),
@@ -235,16 +219,14 @@ impl CellView {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::fit-model".as_ptr(),
+                b"notify::fit-model\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_fit_model_trampoline::<F> as *const (),
                 )),
@@ -260,16 +242,14 @@ impl CellView {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::model".as_ptr(),
+                b"notify::model\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_model_trampoline::<F> as *const (),
                 )),

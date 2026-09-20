@@ -13,7 +13,7 @@ mod util;
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use syn::{DeriveInput, Error, parse_macro_input};
+use syn::{parse_macro_input, DeriveInput, Error};
 
 /// That macro includes and compiles blueprint file by path relative to project
 /// rood
@@ -57,7 +57,7 @@ pub fn include_blueprint(input: TokenStream) -> TokenStream {
         Err(err) => {
             return Error::new(Span::call_site(), err)
                 .into_compile_error()
-                .into();
+                .into()
         }
     };
 
@@ -132,9 +132,7 @@ pub fn include_blueprint(input: TokenStream) -> TokenStream {
 /// }
 ///
 /// glib::wrapper! {
-///     pub struct MyWidget(ObjectSubclass<imp::MyWidget>)
-///     @extends gtk::Widget, gtk::Box,
-///     @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
+///     pub struct MyWidget(ObjectSubclass<imp::MyWidget>) @extends gtk::Widget, gtk::Box;
 /// }
 ///
 /// impl MyWidget {
@@ -144,7 +142,7 @@ pub fn include_blueprint(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// The [`CompositeTemplate`] macro can also be used with [Blueprint](https://gnome.pages.gitlab.gnome.org/blueprint-compiler/)
+/// The [`CompositeTemplate`] macro can also be used with [Blueprint](https://jwestman.pages.gitlab.gnome.org/blueprint-compiler/)
 /// if the feature `blueprint` is enabled.
 /// you can use `string` or `file` relative to the project directory but not
 /// `resource`
@@ -158,8 +156,7 @@ pub fn include_blueprint(input: TokenStream) -> TokenStream {
 ///
 ///     #[derive(Debug, Default, gtk::CompositeTemplate)]
 ///     #[template(string = "
-///     using Gtk 4.0;
-///     template $MyWidget : Widget {
+///     template MyWidget : Widget {
 ///         Label label {
 ///             label: 'foobar';
 ///         }
@@ -200,9 +197,7 @@ pub fn include_blueprint(input: TokenStream) -> TokenStream {
 /// }
 ///
 /// glib::wrapper! {
-///     pub struct MyWidget(ObjectSubclass<imp::MyWidget>)
-///     @extends gtk::Widget,
-///     @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
+///     pub struct MyWidget(ObjectSubclass<imp::MyWidget>) @extends gtk::Widget;
 /// }
 /// ```
 #[proc_macro_derive(CompositeTemplate, attributes(template, template_child))]
@@ -356,9 +351,7 @@ pub fn composite_template_derive(input: TokenStream) -> TokenStream {
 /// }
 ///
 /// glib::wrapper! {
-///     pub struct MyWidget(ObjectSubclass<imp::MyWidget>)
-///     @extends gtk::Widget, gtk::Box,
-///     @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
+///     pub struct MyWidget(ObjectSubclass<imp::MyWidget>) @extends gtk::Widget, gtk::Box;
 /// }
 ///
 /// #[gtk::template_callbacks]

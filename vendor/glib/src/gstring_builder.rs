@@ -2,7 +2,7 @@
 
 use std::{cmp, fmt, hash, mem, ops, ptr, slice, str};
 
-use crate::{GStr, ffi, translate::*};
+use crate::{ffi, translate::*, GStr};
 
 wrapper! {
     // rustdoc-stripper-ignore-next
@@ -14,7 +14,7 @@ wrapper! {
     match fn {
         copy => |ptr| ffi::g_string_new_len((*ptr).str, (*ptr).len as isize),
         free => |ptr| ffi::g_string_free(ptr, ffi::GTRUE),
-        init => |ptr| {
+        init => |ptr| unsafe {
             let inner = ffi::GString {
                 str: ffi::g_malloc(64) as *mut _,
                 len: 0,
@@ -29,7 +29,7 @@ wrapper! {
             let allocated_len = (*src).allocated_len;
             let inner = ffi::GString {
                 str: ffi::g_malloc(allocated_len) as *mut _,
-                len: (*src).len,
+                len: 0,
                 allocated_len,
             };
             // +1 to also copy the NUL-terminator
@@ -363,18 +363,5 @@ mod tests {
         let mut s = crate::GStringBuilder::default();
         write!(&mut s, "bla bla {} bla", 123).unwrap();
         assert_eq!(&*s, "bla bla 123 bla");
-    }
-
-    #[test]
-    fn ptr() {
-        use crate::{
-            ffi,
-            translate::{FromGlibPtrFull, IntoGlibPtr},
-        };
-
-        let s: crate::GStringBuilder = crate::GStringBuilder::new("This is a string.");
-        let s: *const ffi::GString = s.into_glib_ptr();
-        let s = unsafe { crate::GStringBuilder::from_glib_full(s) };
-        assert_eq!(&*s, "This is a string.");
     }
 }

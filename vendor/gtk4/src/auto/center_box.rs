@@ -2,35 +2,20 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, BaselinePosition, Buildable, ConstraintTarget, LayoutManager,
-    Orientable, Orientation, Overflow, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, BaselinePosition, Buildable, ConstraintTarget,
+    LayoutManager, Orientable, Orientation, Overflow, Widget,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkCenterBox")]
     pub struct CenterBox(Object<ffi::GtkCenterBox, ffi::GtkCenterBoxClass>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, Orientable;
-
-    match fn {
-        type_ => || ffi::gtk_center_box_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkCenterBox")]
-    pub struct CenterBox(Object<ffi::GtkCenterBox, ffi::GtkCenterBoxClass>) @extends Widget, @implements Buildable, ConstraintTarget, Orientable;
 
     match fn {
         type_ => || ffi::gtk_center_box_get_type(),
@@ -161,16 +146,14 @@ impl CenterBox {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::baseline-position".as_ptr(),
+                b"notify::baseline-position\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_baseline_position_trampoline::<F> as *const (),
                 )),
@@ -188,16 +171,14 @@ impl CenterBox {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::center-widget".as_ptr(),
+                b"notify::center-widget\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_center_widget_trampoline::<F> as *const (),
                 )),
@@ -215,16 +196,14 @@ impl CenterBox {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::end-widget".as_ptr(),
+                b"notify::end-widget\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_end_widget_trampoline::<F> as *const (),
                 )),
@@ -245,16 +224,14 @@ impl CenterBox {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::shrink-center-last".as_ptr(),
+                b"notify::shrink-center-last\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_shrink_center_last_trampoline::<F> as *const (),
                 )),
@@ -272,16 +249,14 @@ impl CenterBox {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::start-widget".as_ptr(),
+                b"notify::start-widget\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_start_widget_trampoline::<F> as *const (),
                 )),

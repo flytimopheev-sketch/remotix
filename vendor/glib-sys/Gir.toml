@@ -74,10 +74,6 @@ status = "generate"
     # see https://gitlab.gnome.org/GNOME/glib/-/issues/3231 + majority of those are available through std
     ignore = true
     [[object.function]]
-    name = "atomic_int_get"
-    # generates a type using *const volatile instead of *const gint or so.
-    manual = true
-    [[object.function]]
     name = "unix_get_passwd_entry"
     cfg_condition = "unix"
     [[object.function]]
@@ -101,27 +97,13 @@ name = "GLib.PollFD"
 status = "manual"
 
 [[object]]
-name = "GLib.RegexCompileFlags"
-status = "generate"
-    [[object.member]]
-    name = "default"
-    version = "2.0"
-
-[[object]]
-name = "GLib.RegexMatchFlags"
-status = "generate"
-    [[object.member]]
-    name = "default"
-    version = "2.0"
-
-[[object]]
 name = "GLib.UnixPipe"
-status = "ignore"
+status = "generate"
 cfg_condition = "unix"
 
 [[object]]
 name = "GLib.UnixPipeEnd"
-status = "ignore"
+status = "generate"
 cfg_condition = "unix"
 
 [[object]]

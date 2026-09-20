@@ -48,7 +48,6 @@ freetype = []
 script = []
 xcb = []
 use_glib = ["glib-sys"]
-quartz-surface = []
 win32-surface = ["windows-sys"]
 
 [dependencies]
@@ -59,16 +58,17 @@ optional = true
 workspace = true
 
 [dependencies.x11]
-package = "x11-dl"
 optional = true
 version = "2.16"
+features = ["xlib"]
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = ">=0.52, <=0.61", features = ["Win32_Graphics_Gdi"], optional = true }
+windows-sys = { version = ">=0.52, <=0.59", features = ["Win32_Graphics_Gdi"], optional = true }
 
 [build-dependencies]
-system-deps = "9"
+system-deps = "7"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]

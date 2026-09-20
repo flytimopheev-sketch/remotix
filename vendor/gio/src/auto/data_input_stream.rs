@@ -3,12 +3,12 @@
 // DO NOT EDIT
 
 use crate::{
-    AsyncResult, BufferedInputStream, Cancellable, DataStreamByteOrder, DataStreamNewlineType,
-    FilterInputStream, InputStream, Seekable, ffi,
+    ffi, AsyncResult, BufferedInputStream, Cancellable, DataStreamByteOrder, DataStreamNewlineType,
+    FilterInputStream, InputStream, Seekable,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -107,7 +107,12 @@ impl DataInputStreamBuilder {
     }
 }
 
-pub trait DataInputStreamExt: IsA<DataInputStream> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::DataInputStream>> Sealed for T {}
+}
+
+pub trait DataInputStreamExt: IsA<DataInputStream> + sealed::Sealed + 'static {
     #[doc(alias = "g_data_input_stream_get_byte_order")]
     #[doc(alias = "get_byte_order")]
     #[doc(alias = "byte-order")]
@@ -281,16 +286,14 @@ pub trait DataInputStreamExt: IsA<DataInputStream> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(DataInputStream::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(DataInputStream::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::byte-order".as_ptr(),
+                b"notify::byte-order\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_byte_order_trampoline::<Self, F> as *const (),
                 )),
@@ -309,16 +312,14 @@ pub trait DataInputStreamExt: IsA<DataInputStream> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(DataInputStream::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(DataInputStream::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::newline-type".as_ptr(),
+                b"notify::newline-type\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_newline_type_trampoline::<Self, F> as *const (),
                 )),

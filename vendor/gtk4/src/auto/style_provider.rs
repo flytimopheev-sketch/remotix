@@ -6,7 +6,7 @@ use crate::ffi;
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -24,7 +24,12 @@ impl StyleProvider {
     pub const NONE: Option<&'static StyleProvider> = None;
 }
 
-pub trait StyleProviderExt: IsA<StyleProvider> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::StyleProvider>> Sealed for T {}
+}
+
+pub trait StyleProviderExt: IsA<StyleProvider> + sealed::Sealed + 'static {
     #[doc(alias = "gtk-private-changed")]
     fn connect_gtk_private_changed<F: Fn(&Self) + 'static>(&self, f: F) -> SignalHandlerId {
         unsafe extern "C" fn gtk_private_changed_trampoline<
@@ -34,16 +39,14 @@ pub trait StyleProviderExt: IsA<StyleProvider> + 'static {
             this: *mut ffi::GtkStyleProvider,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(StyleProvider::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(StyleProvider::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"gtk-private-changed".as_ptr(),
+                b"gtk-private-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     gtk_private_changed_trampoline::<Self, F> as *const (),
                 )),

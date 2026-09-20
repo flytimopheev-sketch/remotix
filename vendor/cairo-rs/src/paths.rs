@@ -2,7 +2,7 @@
 
 use std::{iter::FusedIterator, ptr};
 
-use crate::{PathDataType, ffi};
+use crate::{ffi, PathDataType};
 
 #[derive(Debug)]
 #[doc(alias = "cairo_path_t")]
@@ -16,10 +16,8 @@ impl Path {
 
     #[inline]
     pub unsafe fn from_raw_full(pointer: *mut ffi::cairo_path_t) -> Path {
-        unsafe {
-            debug_assert!(!pointer.is_null());
-            Path(ptr::NonNull::new_unchecked(pointer))
-        }
+        debug_assert!(!pointer.is_null());
+        Path(ptr::NonNull::new_unchecked(pointer))
     }
 
     pub fn iter(&self) -> PathSegments<'_> {

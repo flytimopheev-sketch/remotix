@@ -4,7 +4,7 @@ use std::{fmt, ops};
 
 use glib::translate::*;
 
-use crate::{Vec3, ffi};
+use crate::{ffi, Vec3};
 
 impl Vec3 {
     #[doc(alias = "graphene_vec3_init")]

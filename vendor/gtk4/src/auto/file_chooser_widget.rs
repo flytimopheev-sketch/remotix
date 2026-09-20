@@ -3,36 +3,21 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, Buildable, ConstraintTarget, FileChooser, FileChooserAction, FileFilter,
-    LayoutManager, Overflow, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, Buildable, ConstraintTarget, FileChooser,
+    FileChooserAction, FileFilter, LayoutManager, Overflow, Widget,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkFileChooserWidget")]
     pub struct FileChooserWidget(Object<ffi::GtkFileChooserWidget>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, FileChooser;
-
-    match fn {
-        type_ => || ffi::gtk_file_chooser_widget_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkFileChooserWidget")]
-    pub struct FileChooserWidget(Object<ffi::GtkFileChooserWidget>) @extends Widget, @implements Buildable, ConstraintTarget, FileChooser;
 
     match fn {
         type_ => || ffi::gtk_file_chooser_widget_get_type(),
@@ -86,16 +71,14 @@ impl FileChooserWidget {
             this: *mut ffi::GtkFileChooserWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"desktop-folder".as_ptr(),
+                b"desktop-folder\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     desktop_folder_trampoline::<F> as *const (),
                 )),
@@ -114,16 +97,14 @@ impl FileChooserWidget {
             this: *mut ffi::GtkFileChooserWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"down-folder".as_ptr(),
+                b"down-folder\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     down_folder_trampoline::<F> as *const (),
                 )),
@@ -142,16 +123,14 @@ impl FileChooserWidget {
             this: *mut ffi::GtkFileChooserWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"home-folder".as_ptr(),
+                b"home-folder\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     home_folder_trampoline::<F> as *const (),
                 )),
@@ -173,19 +152,17 @@ impl FileChooserWidget {
             path: *mut std::ffi::c_char,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    &from_glib_borrow(this),
-                    &glib::GString::from_glib_borrow(path),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                &from_glib_borrow(this),
+                &glib::GString::from_glib_borrow(path),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"location-popup".as_ptr(),
+                b"location-popup\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     location_popup_trampoline::<F> as *const (),
                 )),
@@ -206,16 +183,14 @@ impl FileChooserWidget {
             this: *mut ffi::GtkFileChooserWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"location-popup-on-paste".as_ptr(),
+                b"location-popup-on-paste\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     location_popup_on_paste_trampoline::<F> as *const (),
                 )),
@@ -236,16 +211,14 @@ impl FileChooserWidget {
             this: *mut ffi::GtkFileChooserWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"location-toggle-popup".as_ptr(),
+                b"location-toggle-popup\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     location_toggle_popup_trampoline::<F> as *const (),
                 )),
@@ -264,16 +237,14 @@ impl FileChooserWidget {
             this: *mut ffi::GtkFileChooserWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"places-shortcut".as_ptr(),
+                b"places-shortcut\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     places_shortcut_trampoline::<F> as *const (),
                 )),
@@ -293,16 +264,14 @@ impl FileChooserWidget {
             bookmark_index: std::ffi::c_int,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), bookmark_index)
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), bookmark_index)
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"quick-bookmark".as_ptr(),
+                b"quick-bookmark\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     quick_bookmark_trampoline::<F> as *const (),
                 )),
@@ -321,16 +290,14 @@ impl FileChooserWidget {
             this: *mut ffi::GtkFileChooserWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"recent-shortcut".as_ptr(),
+                b"recent-shortcut\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     recent_shortcut_trampoline::<F> as *const (),
                 )),
@@ -349,16 +316,14 @@ impl FileChooserWidget {
             this: *mut ffi::GtkFileChooserWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"search-shortcut".as_ptr(),
+                b"search-shortcut\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     search_shortcut_trampoline::<F> as *const (),
                 )),
@@ -377,16 +342,14 @@ impl FileChooserWidget {
             this: *mut ffi::GtkFileChooserWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"show-hidden".as_ptr(),
+                b"show-hidden\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     show_hidden_trampoline::<F> as *const (),
                 )),
@@ -405,16 +368,14 @@ impl FileChooserWidget {
             this: *mut ffi::GtkFileChooserWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"up-folder".as_ptr(),
+                b"up-folder\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     up_folder_trampoline::<F> as *const (),
                 )),
@@ -434,16 +395,14 @@ impl FileChooserWidget {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::search-mode".as_ptr(),
+                b"notify::search-mode\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_search_mode_trampoline::<F> as *const (),
                 )),
@@ -461,16 +420,14 @@ impl FileChooserWidget {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-time".as_ptr(),
+                b"notify::show-time\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_time_trampoline::<F> as *const (),
                 )),
@@ -486,16 +443,14 @@ impl FileChooserWidget {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::subtitle".as_ptr(),
+                b"notify::subtitle\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_subtitle_trampoline::<F> as *const (),
                 )),

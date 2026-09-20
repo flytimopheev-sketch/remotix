@@ -1,5 +1,6 @@
 [build-dependencies]
-system-deps = "9"
+pkg-config = "0.3.29"
+system-deps = "7"
 
 [dependencies]
 libc = "0.2"
@@ -48,12 +49,9 @@ workspace = true
 name = "graphene-gobject-1.0"
 version = "1.10"
 
-[package.metadata.system-deps.graphene_gobject_1_0.v1_12]
-version = "1.11"
-
 [package.metadata.docs.rs]
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
 all-features = true
 
 [features]
-v1_12 = []

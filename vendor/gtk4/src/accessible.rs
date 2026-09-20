@@ -1,12 +1,17 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
-use glib::{Value, translate::*};
+use glib::{translate::*, Value};
 
 use crate::{
-    Accessible, AccessibleAutocomplete, AccessibleInvalidState, AccessibleProperty,
-    AccessibleRelation, AccessibleSort, AccessibleState, AccessibleTristate, Orientation, ffi,
-    prelude::*,
+    ffi, prelude::*, Accessible, AccessibleAutocomplete, AccessibleInvalidState,
+    AccessibleProperty, AccessibleRelation, AccessibleSort, AccessibleState, AccessibleTristate,
+    Orientation,
 };
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Accessible>> Sealed for T {}
+}
+
 // rustdoc-stripper-ignore-next
 /// Trait containing manually implemented methods of
 /// [`Accessible`](crate::Accessible).
@@ -25,7 +30,7 @@ use crate::{
 ///     gtk::AccessibleInvalidState::Grammar,
 /// )]);
 /// ```
-pub trait AccessibleExtManual: IsA<Accessible> {
+pub trait AccessibleExtManual: sealed::Sealed + IsA<Accessible> {
     #[doc(alias = "gtk_accessible_update_property")]
     #[doc(alias = "gtk_accessible_update_property_value")]
     fn update_property(&self, properties: &[Property]) {

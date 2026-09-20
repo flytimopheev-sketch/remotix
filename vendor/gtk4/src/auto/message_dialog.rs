@@ -3,38 +3,20 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-use crate::WindowGravity;
 use crate::{
-    AccessibleRole, Align, Application, Buildable, ButtonsType, ConstraintTarget, Dialog,
-    LayoutManager, MessageType, Native, Overflow, Root, ShortcutManager, Widget, Window, ffi,
+    ffi, Accessible, AccessibleRole, Align, Application, Buildable, ButtonsType, ConstraintTarget,
+    Dialog, LayoutManager, MessageType, Native, Overflow, Root, ShortcutManager, Widget, Window,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkMessageDialog")]
     pub struct MessageDialog(Object<ffi::GtkMessageDialog, ffi::GtkMessageDialogClass>) @extends Dialog, Window, Widget, @implements Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager;
-
-    match fn {
-        type_ => || ffi::gtk_message_dialog_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkMessageDialog")]
-    pub struct MessageDialog(Object<ffi::GtkMessageDialog, ffi::GtkMessageDialogClass>) @extends Dialog, Window, Widget, @implements Buildable, ConstraintTarget, Native, Root, ShortcutManager;
 
     match fn {
         type_ => || ffi::gtk_message_dialog_get_type(),
@@ -127,16 +109,14 @@ impl MessageDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::message-area".as_ptr(),
+                b"notify::message-area\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_message_area_trampoline::<F> as *const (),
                 )),
@@ -152,16 +132,14 @@ impl MessageDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::message-type".as_ptr(),
+                b"notify::message-type\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_message_type_trampoline::<F> as *const (),
                 )),
@@ -177,16 +155,14 @@ impl MessageDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::secondary-text".as_ptr(),
+                b"notify::secondary-text\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_secondary_text_trampoline::<F> as *const (),
                 )),
@@ -207,16 +183,14 @@ impl MessageDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::secondary-use-markup".as_ptr(),
+                b"notify::secondary-use-markup\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_secondary_use_markup_trampoline::<F> as *const (),
                 )),
@@ -232,16 +206,14 @@ impl MessageDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::text".as_ptr(),
+                b"notify::text\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_text_trampoline::<F> as *const (),
                 )),
@@ -257,16 +229,14 @@ impl MessageDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::use-markup".as_ptr(),
+                b"notify::use-markup\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_use_markup_trampoline::<F> as *const (),
                 )),
@@ -416,14 +386,6 @@ impl MessageDialogBuilder {
     pub fn fullscreened(self, fullscreened: bool) -> Self {
         Self {
             builder: self.builder.property("fullscreened", fullscreened),
-        }
-    }
-
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gravity(self, gravity: WindowGravity) -> Self {
-        Self {
-            builder: self.builder.property("gravity", gravity),
         }
     }
 

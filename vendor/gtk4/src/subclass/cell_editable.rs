@@ -1,15 +1,16 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for implementing the [`CellEditable`] interface.
+//! Traits intended for implementing the [`CellEditable`](crate::CellEditable)
+//! interface.
 
 use glib::translate::*;
 
-use crate::{CellEditable, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, CellEditable};
 
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait CellEditableImpl: WidgetImpl + ObjectSubclass<Type: IsA<CellEditable>> {
+pub trait CellEditableImpl: ObjectImpl {
     fn editing_done(&self) {
         self.parent_editing_done()
     }
@@ -23,9 +24,14 @@ pub trait CellEditableImpl: WidgetImpl + ObjectSubclass<Type: IsA<CellEditable>>
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::CellEditableImplExt> Sealed for T {}
+}
+
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait CellEditableImplExt: CellEditableImpl {
+pub trait CellEditableImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_editing_done(&self) {
         unsafe {
             let type_data = Self::type_data();
@@ -94,33 +100,27 @@ unsafe impl<T: CellEditableImpl> IsImplementable<T> for CellEditable {
 unsafe extern "C" fn cell_editable_editing_done<T: CellEditableImpl>(
     cell_editable: *mut ffi::GtkCellEditable,
 ) {
-    unsafe {
-        let instance = &*(cell_editable as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(cell_editable as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.editing_done()
-    }
+    imp.editing_done()
 }
 
 unsafe extern "C" fn cell_editable_remove_widget<T: CellEditableImpl>(
     cell_editable: *mut ffi::GtkCellEditable,
 ) {
-    unsafe {
-        let instance = &*(cell_editable as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(cell_editable as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.remove_widget()
-    }
+    imp.remove_widget()
 }
 
 unsafe extern "C" fn cell_editable_start_editing<T: CellEditableImpl>(
     cell_editable: *mut ffi::GtkCellEditable,
     eventptr: *mut gdk::ffi::GdkEvent,
 ) {
-    unsafe {
-        let instance = &*(cell_editable as *mut T::Instance);
-        let imp = instance.imp();
-        let event: Borrowed<Option<gdk::Event>> = from_glib_borrow(eventptr);
-        imp.start_editing(event.as_ref().as_ref())
-    }
+    let instance = &*(cell_editable as *mut T::Instance);
+    let imp = instance.imp();
+    let event: Borrowed<Option<gdk::Event>> = from_glib_borrow(eventptr);
+    imp.start_editing(event.as_ref().as_ref())
 }

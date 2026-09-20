@@ -1,11 +1,11 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 use crate::{
-    InterfaceInfo, TypeFlags, TypeInfo, TypePlugin,
     enums::{EnumValues, FlagsValues},
     gobject_ffi,
     prelude::*,
     translate::*,
+    InterfaceInfo, TypeFlags, TypeInfo, TypePlugin,
 };
 
 crate::wrapper! {
@@ -21,7 +21,12 @@ impl TypeModule {
     pub const NONE: Option<&'static TypeModule> = None;
 }
 
-pub trait TypeModuleExt: IsA<TypeModule> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TypeModule>> Sealed for T {}
+}
+
+pub trait TypeModuleExt: IsA<TypeModule> + sealed::Sealed + 'static {
     #[doc(alias = "g_type_module_add_interface")]
     fn add_interface(
         &self,

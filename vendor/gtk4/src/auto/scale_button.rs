@@ -4,15 +4,15 @@
 
 #[cfg(feature = "v4_10")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::{Accessible, AccessibleRange};
+use crate::AccessibleRange;
 use crate::{
-    AccessibleRole, Adjustment, Align, Buildable, Button, ConstraintTarget, LayoutManager,
-    Orientable, Orientation, Overflow, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Adjustment, Align, Buildable, Button, ConstraintTarget,
+    LayoutManager, Orientable, Orientation, Overflow, Widget,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -28,10 +28,10 @@ glib::wrapper! {
     }
 }
 
-#[cfg(not(feature = "v4_10"))]
+#[cfg(not(any(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkScaleButton")]
-    pub struct ScaleButton(Object<ffi::GtkScaleButton, ffi::GtkScaleButtonClass>) @extends Widget, @implements Buildable, ConstraintTarget, Orientable;
+    pub struct ScaleButton(Object<ffi::GtkScaleButton, ffi::GtkScaleButtonClass>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, Orientable;
 
     match fn {
         type_ => || ffi::gtk_scale_button_get_type(),
@@ -321,7 +321,12 @@ impl ScaleButtonBuilder {
     }
 }
 
-pub trait ScaleButtonExt: IsA<ScaleButton> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::ScaleButton>> Sealed for T {}
+}
+
+pub trait ScaleButtonExt: IsA<ScaleButton> + sealed::Sealed + 'static {
     #[cfg(feature = "v4_10")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     #[doc(alias = "gtk_scale_button_get_active")]
@@ -444,16 +449,14 @@ pub trait ScaleButtonExt: IsA<ScaleButton> + 'static {
             this: *mut ffi::GtkScaleButton,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"popdown".as_ptr(),
+                b"popdown\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     popdown_trampoline::<Self, F> as *const (),
                 )),
@@ -472,16 +475,14 @@ pub trait ScaleButtonExt: IsA<ScaleButton> + 'static {
             this: *mut ffi::GtkScaleButton,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"popup".as_ptr(),
+                b"popup\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     popup_trampoline::<Self, F> as *const (),
                 )),
@@ -504,16 +505,14 @@ pub trait ScaleButtonExt: IsA<ScaleButton> + 'static {
             value: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref(), value)
-            }
+            let f: &F = &*(f as *const F);
+            f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref(), value)
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"value-changed".as_ptr(),
+                b"value-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     value_changed_trampoline::<Self, F> as *const (),
                 )),
@@ -531,16 +530,14 @@ pub trait ScaleButtonExt: IsA<ScaleButton> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::active".as_ptr(),
+                b"notify::active\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_active_trampoline::<Self, F> as *const (),
                 )),
@@ -559,16 +556,14 @@ pub trait ScaleButtonExt: IsA<ScaleButton> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::adjustment".as_ptr(),
+                b"notify::adjustment\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_adjustment_trampoline::<Self, F> as *const (),
                 )),
@@ -589,16 +584,14 @@ pub trait ScaleButtonExt: IsA<ScaleButton> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::has-frame".as_ptr(),
+                b"notify::has-frame\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_has_frame_trampoline::<Self, F> as *const (),
                 )),
@@ -614,16 +607,14 @@ pub trait ScaleButtonExt: IsA<ScaleButton> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::icons".as_ptr(),
+                b"notify::icons\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_icons_trampoline::<Self, F> as *const (),
                 )),
@@ -639,16 +630,14 @@ pub trait ScaleButtonExt: IsA<ScaleButton> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ScaleButton::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::value".as_ptr(),
+                b"notify::value\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_value_trampoline::<Self, F> as *const (),
                 )),

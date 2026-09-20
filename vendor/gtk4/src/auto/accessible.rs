@@ -5,13 +5,13 @@
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 use crate::AccessibleAnnouncementPriority;
-use crate::{
-    ATContext, AccessiblePlatformState, AccessibleProperty, AccessibleRelation, AccessibleRole,
-    AccessibleState, ffi,
-};
+use crate::{ffi, AccessibleProperty, AccessibleRelation, AccessibleRole, AccessibleState};
+#[cfg(feature = "v4_10")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
+use crate::{ATContext, AccessiblePlatformState};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -29,7 +29,12 @@ impl Accessible {
     pub const NONE: Option<&'static Accessible> = None;
 }
 
-pub trait AccessibleExt: IsA<Accessible> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Accessible>> Sealed for T {}
+}
+
+pub trait AccessibleExt: IsA<Accessible> + sealed::Sealed + 'static {
     #[cfg(feature = "v4_14")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
     #[doc(alias = "gtk_accessible_announce")]
@@ -43,18 +48,8 @@ pub trait AccessibleExt: IsA<Accessible> + 'static {
         }
     }
 
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    #[doc(alias = "gtk_accessible_get_accessible_id")]
-    #[doc(alias = "get_accessible_id")]
-    fn accessible_id(&self) -> Option<glib::GString> {
-        unsafe {
-            from_glib_full(ffi::gtk_accessible_get_accessible_id(
-                self.as_ref().to_glib_none().0,
-            ))
-        }
-    }
-
+    #[cfg(feature = "v4_10")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     #[doc(alias = "gtk_accessible_get_accessible_parent")]
     #[doc(alias = "get_accessible_parent")]
     #[must_use]
@@ -77,6 +72,8 @@ pub trait AccessibleExt: IsA<Accessible> + 'static {
         }
     }
 
+    #[cfg(feature = "v4_10")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     #[doc(alias = "gtk_accessible_get_at_context")]
     #[doc(alias = "get_at_context")]
     fn at_context(&self) -> ATContext {
@@ -87,6 +84,8 @@ pub trait AccessibleExt: IsA<Accessible> + 'static {
         }
     }
 
+    #[cfg(feature = "v4_10")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     #[doc(alias = "gtk_accessible_get_bounds")]
     #[doc(alias = "get_bounds")]
     fn bounds(&self) -> Option<(i32, i32, i32, i32)> {
@@ -115,6 +114,8 @@ pub trait AccessibleExt: IsA<Accessible> + 'static {
         }
     }
 
+    #[cfg(feature = "v4_10")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     #[doc(alias = "gtk_accessible_get_first_accessible_child")]
     #[doc(alias = "get_first_accessible_child")]
     #[must_use]
@@ -126,6 +127,8 @@ pub trait AccessibleExt: IsA<Accessible> + 'static {
         }
     }
 
+    #[cfg(feature = "v4_10")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     #[doc(alias = "gtk_accessible_get_next_accessible_sibling")]
     #[doc(alias = "get_next_accessible_sibling")]
     #[must_use]
@@ -137,6 +140,8 @@ pub trait AccessibleExt: IsA<Accessible> + 'static {
         }
     }
 
+    #[cfg(feature = "v4_10")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     #[doc(alias = "gtk_accessible_get_platform_state")]
     #[doc(alias = "get_platform_state")]
     fn platform_state(&self, state: AccessiblePlatformState) -> bool {
@@ -175,6 +180,8 @@ pub trait AccessibleExt: IsA<Accessible> + 'static {
         }
     }
 
+    #[cfg(feature = "v4_10")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     #[doc(alias = "gtk_accessible_set_accessible_parent")]
     fn set_accessible_parent(
         &self,
@@ -190,6 +197,8 @@ pub trait AccessibleExt: IsA<Accessible> + 'static {
         }
     }
 
+    #[cfg(feature = "v4_10")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     #[doc(alias = "gtk_accessible_update_next_accessible_sibling")]
     fn update_next_accessible_sibling(&self, new_sibling: Option<&impl IsA<Accessible>>) {
         unsafe {
@@ -212,13 +221,6 @@ pub trait AccessibleExt: IsA<Accessible> + 'static {
         }
     }
 
-    #[cfg(not(feature = "v4_10"))]
-    #[cfg_attr(docsrs, doc(cfg(not(feature = "v4_10"))))]
-    #[doc(alias = "accessible-role")]
-    fn accessible_role(&self) -> AccessibleRole {
-        ObjectExt::property(self.as_ref(), "accessible-role")
-    }
-
     #[doc(alias = "accessible-role")]
     fn set_accessible_role(&self, accessible_role: AccessibleRole) {
         ObjectExt::set_property(self.as_ref(), "accessible-role", accessible_role)
@@ -234,16 +236,14 @@ pub trait AccessibleExt: IsA<Accessible> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Accessible::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Accessible::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::accessible-role".as_ptr(),
+                b"notify::accessible-role\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_accessible_role_trampoline::<Self, F> as *const (),
                 )),

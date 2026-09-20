@@ -10,7 +10,7 @@ use std::{
 use crate::ffi;
 use libc::{c_uint, c_void};
 
-use crate::{Error, ImageSurface, IoError, Surface, utils::status_to_result};
+use crate::{utils::status_to_result, Error, ImageSurface, IoError, Surface};
 
 struct ReadEnv<'a, R: 'a + Read> {
     reader: &'a mut R,
@@ -23,31 +23,28 @@ unsafe extern "C" fn read_func<R: Read>(
     data: *mut u8,
     len: c_uint,
 ) -> crate::ffi::cairo_status_t {
-    unsafe {
-        let read_env: &mut ReadEnv<R> = &mut *(closure as *mut ReadEnv<R>);
+    let read_env: &mut ReadEnv<R> = &mut *(closure as *mut ReadEnv<R>);
 
-        // Don’t attempt another read, if a previous one errored or panicked:
-        if read_env.io_error.is_some() || read_env.unwind_payload.is_some() {
-            return Error::ReadError.into();
+    // Don’t attempt another read, if a previous one errored or panicked:
+    if read_env.io_error.is_some() || read_env.unwind_payload.is_some() {
+        return Error::ReadError.into();
+    }
+
+    let buffer = if data.is_null() || len == 0 {
+        &mut []
+    } else {
+        slice::from_raw_parts_mut(data, len as usize)
+    };
+    let result = std::panic::catch_unwind(AssertUnwindSafe(|| read_env.reader.read_exact(buffer)));
+    match result {
+        Ok(Ok(())) => ffi::STATUS_SUCCESS,
+        Ok(Err(error)) => {
+            read_env.io_error = Some(error);
+            Error::ReadError.into()
         }
-
-        let buffer = if data.is_null() || len == 0 {
-            &mut []
-        } else {
-            slice::from_raw_parts_mut(data, len as usize)
-        };
-        let result =
-            std::panic::catch_unwind(AssertUnwindSafe(|| read_env.reader.read_exact(buffer)));
-        match result {
-            Ok(Ok(())) => ffi::STATUS_SUCCESS,
-            Ok(Err(error)) => {
-                read_env.io_error = Some(error);
-                Error::ReadError.into()
-            }
-            Err(payload) => {
-                read_env.unwind_payload = Some(payload);
-                Error::ReadError.into()
-            }
+        Err(payload) => {
+            read_env.unwind_payload = Some(payload);
+            Error::ReadError.into()
         }
     }
 }
@@ -60,34 +57,31 @@ struct WriteEnv<'a, W: 'a + Write> {
 
 unsafe extern "C" fn write_func<W: Write>(
     closure: *mut c_void,
-    data: *const u8,
+    data: *mut u8,
     len: c_uint,
 ) -> crate::ffi::cairo_status_t {
-    unsafe {
-        let write_env: &mut WriteEnv<W> = &mut *(closure as *mut WriteEnv<W>);
+    let write_env: &mut WriteEnv<W> = &mut *(closure as *mut WriteEnv<W>);
 
-        // Don’t attempt another write, if a previous one errored or panicked:
-        if write_env.io_error.is_some() || write_env.unwind_payload.is_some() {
-            return Error::WriteError.into();
+    // Don’t attempt another write, if a previous one errored or panicked:
+    if write_env.io_error.is_some() || write_env.unwind_payload.is_some() {
+        return Error::WriteError.into();
+    }
+
+    let buffer = if data.is_null() || len == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(data, len as usize)
+    };
+    let result = std::panic::catch_unwind(AssertUnwindSafe(|| write_env.writer.write_all(buffer)));
+    match result {
+        Ok(Ok(())) => ffi::STATUS_SUCCESS,
+        Ok(Err(error)) => {
+            write_env.io_error = Some(error);
+            Error::WriteError.into()
         }
-
-        let buffer = if data.is_null() || len == 0 {
-            &[]
-        } else {
-            slice::from_raw_parts(data, len as usize)
-        };
-        let result =
-            std::panic::catch_unwind(AssertUnwindSafe(|| write_env.writer.write_all(buffer)));
-        match result {
-            Ok(Ok(())) => ffi::STATUS_SUCCESS,
-            Ok(Err(error)) => {
-                write_env.io_error = Some(error);
-                Error::WriteError.into()
-            }
-            Err(payload) => {
-                write_env.unwind_payload = Some(payload);
-                Error::WriteError.into()
-            }
+        Err(payload) => {
+            write_env.unwind_payload = Some(payload);
+            Error::WriteError.into()
         }
     }
 }
@@ -158,6 +152,8 @@ impl Surface {
 
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
+
     use super::*;
     use crate::enums::Format;
 
@@ -166,7 +162,7 @@ mod tests {
     // A reader that always returns an error
     impl Read for IoErrorReader {
         fn read(&mut self, _: &mut [u8]) -> Result<usize, io::Error> {
-            Err(io::Error::other("yikes!"))
+            Err(io::Error::new(ErrorKind::Other, "yikes!"))
         }
     }
 

@@ -13,4 +13,4 @@ pub mod slist;
 pub use slist::SList;
 
 pub mod strv;
-pub use strv::{StrV, StrVRef};
+pub use strv::StrV;

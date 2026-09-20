@@ -3,7 +3,9 @@
 mod async_test;
 mod boxed_derive;
 mod clone;
+mod clone_old;
 mod closure;
+mod closure_old;
 mod derived_properties_attribute;
 mod downgrade_derive;
 mod enum_derive;
@@ -18,10 +20,10 @@ mod variant_derive;
 mod utils;
 
 use flags_attribute::AttrInput;
-use proc_macro::TokenStream;
+use proc_macro::{TokenStream, TokenTree};
 use proc_macro2::Span;
-use syn::{DeriveInput, parse_macro_input};
-use utils::{NestedMetaItem, parse_nested_meta_items_from_stream};
+use syn::{parse_macro_input, DeriveInput};
+use utils::{parse_nested_meta_items_from_stream, NestedMetaItem};
 
 /// Macro for passing variables as strong or weak references into a closure.
 ///
@@ -334,7 +336,18 @@ use utils::{NestedMetaItem, parse_nested_meta_items_from_stream};
 /// ```
 #[proc_macro]
 pub fn clone(item: TokenStream) -> TokenStream {
-    clone::clone_inner(item)
+    // Check if this is an old-style clone macro invocation.
+    // These always start with an '@' punctuation.
+    let Some(first) = item.clone().into_iter().next() else {
+        return syn::Error::new(Span::call_site(), "expected a closure or async block")
+            .to_compile_error()
+            .into();
+    };
+
+    match first {
+        TokenTree::Punct(ref p) if p.to_string() == "@" => clone_old::clone_inner(item),
+        _ => clone::clone_inner(item),
+    }
 }
 
 /// Macro for creating a [`Closure`] object. This is a wrapper around [`Closure::new`] that
@@ -492,7 +505,18 @@ pub fn clone(item: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro]
 pub fn closure(item: TokenStream) -> TokenStream {
-    closure::closure_inner(item, "new")
+    // Check if this is an old-style closure macro invocation.
+    // These always start with an '@' punctuation.
+    let Some(first) = item.clone().into_iter().next() else {
+        return syn::Error::new(Span::call_site(), "expected a closure")
+            .to_compile_error()
+            .into();
+    };
+
+    match first {
+        TokenTree::Punct(ref p) if p.to_string() == "@" => closure_old::closure_inner(item, "new"),
+        _ => closure::closure_inner(item, "new"),
+    }
 }
 
 /// The same as [`closure!`](crate::closure!) but uses [`Closure::new_local`] as a constructor.
@@ -502,7 +526,20 @@ pub fn closure(item: TokenStream) -> TokenStream {
 /// [`Closure::new_local`]: ../glib/closure/struct.Closure.html#method.new_local
 #[proc_macro]
 pub fn closure_local(item: TokenStream) -> TokenStream {
-    closure::closure_inner(item, "new_local")
+    // Check if this is an old-style closure macro invocation.
+    // These always start with an '@' punctuation.
+    let Some(first) = item.clone().into_iter().next() else {
+        return syn::Error::new(Span::call_site(), "expected a closure")
+            .to_compile_error()
+            .into();
+    };
+
+    match first {
+        TokenTree::Punct(ref p) if p.to_string() == "@" => {
+            closure_old::closure_inner(item, "new_local")
+        }
+        _ => closure::closure_inner(item, "new_local"),
+    }
 }
 
 /// Derive macro to register a Rust enum in the GLib type system and derive the
@@ -525,12 +562,9 @@ pub fn closure_local(item: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// When using the [`Properties`] macro with enums that derive [`Enum`], the
-/// default value can be explicitly set via the `builder` parameter of the
-/// `#[property]` attribute. If the enum implements or derives
-/// `Default`, you can specify that should be the default value
-/// via the `default` parameter. See [here](Properties#supported-types) for
-/// details.
+/// When using the [`Properties`] macro with enums that derive [`Enum`], the default value must be
+/// explicitly set via the `builder` parameter of the `#[property]` attribute. See
+/// [here](Properties#supported-types) for details.
 ///
 /// An enum can be registered as a dynamic type by setting the derive macro
 /// helper attribute `enum_dynamic`:
@@ -1336,8 +1370,7 @@ pub fn cstr_bytes(item: TokenStream) -> TokenStream {
 /// | `construct` | Specify that the property is construct property. Ensures that the property is always set during construction (if not explicitly then the default value is used). The use of a custom internal setter is supported. | | `#[property(get, construct)]` or `#[property(get, set = set_prop, construct)]` |
 /// | `construct_only` | Specify that the property is construct only. This will not generate a public setter and only allow the property to be set during object construction. The use of a custom internal setter is supported. | | `#[property(get, construct_only)]` or `#[property(get, set = set_prop, construct_only)]` |
 /// | `builder(<required-params>)[.ident]*` | Used to input required params or add optional Param Spec builder fields | | `#[property(builder(SomeEnum::default()))]`, `#[builder().default_value(1).minimum(0).maximum(5)]`, etc.  |
-/// | `default` | Sets the param spec builder field to the default value | | `#[property(default)]` |
-/// | `default = expr` | Sets the `default_value` field of the Param Spec builder | | `#[property(default = 1)]` |
+/// | `default` | Sets the `default_value` field of the Param Spec builder | | `#[property(default = 1)]` |
 /// | `<optional-pspec-builder-fields> = expr` | Used to add optional Param Spec builder fields | | `#[property(minimum = 0)` , `#[property(minimum = 0, maximum = 1)]`, etc. |
 /// | `<optional-pspec-builder-fields>` | Used to add optional Param Spec builder fields | | `#[property(explicit_notify)]` , `#[property(construct_only)]`, etc. |
 ///
@@ -1414,7 +1447,7 @@ pub fn cstr_bytes(item: TokenStream) -> TokenStream {
 ///
 /// #[derive(Debug, Copy, Clone, PartialEq, Eq, glib::Enum, Default)]
 /// #[enum_type(name = "MyEnum")]
-/// enum MyEnum {
+/// pub enum MyEnum {
 ///     #[default]
 ///     Val,
 ///     OtherVal
@@ -1447,8 +1480,6 @@ pub fn cstr_bytes(item: TokenStream) -> TokenStream {
 ///         smart_pointer: Rc<RefCell<String>>,
 ///         #[property(get, set, builder(MyEnum::Val))]
 ///         my_enum: Cell<MyEnum>,
-///         #[property(get, set, default)]
-///         my_enum_with_default: Cell<MyEnum>,
 ///         /// # Getter
 ///         ///
 ///         /// Get the value of the property `extra_comments`

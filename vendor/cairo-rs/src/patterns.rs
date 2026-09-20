@@ -5,8 +5,8 @@ use std::{ops::Deref, ptr};
 use libc::{c_double, c_int, c_uint};
 
 use crate::{
-    Error, Extend, Filter, Matrix, MeshCorner, Path, PatternType, Surface, ffi,
-    utils::status_to_result,
+    ffi, utils::status_to_result, Error, Extend, Filter, Matrix, MeshCorner, Path, PatternType,
+    Surface,
 };
 
 // See https://cairographics.org/manual/bindings-patterns.html for more info
@@ -28,10 +28,8 @@ impl Pattern {
 
     #[inline]
     pub unsafe fn from_raw_none(pointer: *mut ffi::cairo_pattern_t) -> Pattern {
-        unsafe {
-            ffi::cairo_pattern_reference(pointer);
-            Self::from_raw_full(pointer)
-        }
+        ffi::cairo_pattern_reference(pointer);
+        Self::from_raw_full(pointer)
     }
 
     #[inline]

@@ -2,7 +2,7 @@
 
 use glib::{translate::*, value::FromValue};
 
-use crate::{ConstantExpression, ffi, prelude::*};
+use crate::{ffi, prelude::*, ConstantExpression};
 
 define_expression!(ConstantExpression, ffi::GtkConstantExpression);
 

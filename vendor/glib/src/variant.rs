@@ -106,14 +106,13 @@ use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
     fmt,
-    fmt::Display,
     hash::{BuildHasher, Hash, Hasher},
     mem, ptr, slice, str,
 };
 
 use crate::{
-    Bytes, Type, VariantIter, VariantStrIter, VariantTy, VariantType, ffi, gobject_ffi, prelude::*,
-    translate::*,
+    ffi, gobject_ffi, prelude::*, translate::*, Bytes, Type, VariantIter, VariantStrIter,
+    VariantTy, VariantType,
 };
 
 wrapper! {
@@ -150,11 +149,9 @@ unsafe impl<'a> crate::value::FromValue<'a> for Variant {
     type Checker = crate::value::GenericValueTypeOrNoneChecker<Self>;
 
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe {
-            let ptr = gobject_ffi::g_value_dup_variant(value.to_glib_none().0);
-            debug_assert!(!ptr.is_null());
-            from_glib_full(ptr)
-        }
+        let ptr = gobject_ffi::g_value_dup_variant(value.to_glib_none().0);
+        debug_assert!(!ptr.is_null());
+        from_glib_full(ptr)
     }
 }
 
@@ -621,13 +618,13 @@ impl Variant {
     /// on bytes which are not guaranteed to have come from serialising another
     /// Variant.  The caller is responsible for ensuring bad data is not passed in.
     pub unsafe fn from_bytes_trusted<T: StaticVariantType>(bytes: &Bytes) -> Self {
-        unsafe { Variant::from_bytes_with_type_trusted(bytes, &T::static_variant_type()) }
+        Variant::from_bytes_with_type_trusted(bytes, &T::static_variant_type())
     }
 
     // rustdoc-stripper-ignore-next
     /// Constructs a new serialized-mode GVariant instance.
     #[doc(alias = "g_variant_new_from_data")]
-    pub fn from_data<T: StaticVariantType, A: AsRef<[u8]> + 'static>(data: A) -> Self {
+    pub fn from_data<T: StaticVariantType, A: AsRef<[u8]>>(data: A) -> Self {
         Variant::from_data_with_type(data, &T::static_variant_type())
     }
 
@@ -644,10 +641,8 @@ impl Variant {
     /// Since the data is not validated, this is potentially dangerous if called
     /// on bytes which are not guaranteed to have come from serialising another
     /// Variant.  The caller is responsible for ensuring bad data is not passed in.
-    pub unsafe fn from_data_trusted<T: StaticVariantType, A: AsRef<[u8]> + 'static>(
-        data: A,
-    ) -> Self {
-        unsafe { Variant::from_data_with_type_trusted(data, &T::static_variant_type()) }
+    pub unsafe fn from_data_trusted<T: StaticVariantType, A: AsRef<[u8]>>(data: A) -> Self {
+        Variant::from_data_with_type_trusted(data, &T::static_variant_type())
     }
 
     // rustdoc-stripper-ignore-next
@@ -677,19 +672,17 @@ impl Variant {
     /// on bytes which are not guaranteed to have come from serialising another
     /// Variant.  The caller is responsible for ensuring bad data is not passed in.
     pub unsafe fn from_bytes_with_type_trusted(bytes: &Bytes, type_: &VariantTy) -> Self {
-        unsafe {
-            from_glib_none(ffi::g_variant_new_from_bytes(
-                type_.as_ptr() as *const _,
-                bytes.to_glib_none().0,
-                true.into_glib(),
-            ))
-        }
+        from_glib_none(ffi::g_variant_new_from_bytes(
+            type_.as_ptr() as *const _,
+            bytes.to_glib_none().0,
+            true.into_glib(),
+        ))
     }
 
     // rustdoc-stripper-ignore-next
     /// Constructs a new serialized-mode GVariant instance with a given type.
     #[doc(alias = "g_variant_new_from_data")]
-    pub fn from_data_with_type<A: AsRef<[u8]> + 'static>(data: A, type_: &VariantTy) -> Self {
+    pub fn from_data_with_type<A: AsRef<[u8]>>(data: A, type_: &VariantTy) -> Self {
         unsafe {
             let data = Box::new(data);
             let (data_ptr, len) = {
@@ -698,9 +691,7 @@ impl Variant {
             };
 
             unsafe extern "C" fn free_data<A: AsRef<[u8]>>(ptr: ffi::gpointer) {
-                unsafe {
-                    let _ = Box::from_raw(ptr as *mut A);
-                }
+                let _ = Box::from_raw(ptr as *mut A);
             }
 
             from_glib_none(ffi::g_variant_new_from_data(
@@ -727,32 +718,25 @@ impl Variant {
     /// Since the data is not validated, this is potentially dangerous if called
     /// on bytes which are not guaranteed to have come from serialising another
     /// Variant.  The caller is responsible for ensuring bad data is not passed in.
-    pub unsafe fn from_data_with_type_trusted<A: AsRef<[u8]> + 'static>(
-        data: A,
-        type_: &VariantTy,
-    ) -> Self {
-        unsafe {
-            let data = Box::new(data);
-            let (data_ptr, len) = {
-                let data = (*data).as_ref();
-                (data.as_ptr(), data.len())
-            };
+    pub unsafe fn from_data_with_type_trusted<A: AsRef<[u8]>>(data: A, type_: &VariantTy) -> Self {
+        let data = Box::new(data);
+        let (data_ptr, len) = {
+            let data = (*data).as_ref();
+            (data.as_ptr(), data.len())
+        };
 
-            unsafe extern "C" fn free_data<A: AsRef<[u8]>>(ptr: ffi::gpointer) {
-                unsafe {
-                    let _ = Box::from_raw(ptr as *mut A);
-                }
-            }
-
-            from_glib_none(ffi::g_variant_new_from_data(
-                type_.as_ptr() as *const _,
-                data_ptr as ffi::gconstpointer,
-                len,
-                true.into_glib(),
-                Some(free_data::<A>),
-                Box::into_raw(data) as ffi::gpointer,
-            ))
+        unsafe extern "C" fn free_data<A: AsRef<[u8]>>(ptr: ffi::gpointer) {
+            let _ = Box::from_raw(ptr as *mut A);
         }
+
+        from_glib_none(ffi::g_variant_new_from_data(
+            type_.as_ptr() as *const _,
+            data_ptr as ffi::gconstpointer,
+            len,
+            true.into_glib(),
+            Some(free_data::<A>),
+            Box::into_raw(data) as ffi::gpointer,
+        ))
     }
 
     // rustdoc-stripper-ignore-next
@@ -1133,7 +1117,11 @@ impl From<()> for Variant {
 
 impl FromVariant for () {
     fn from_variant(variant: &Variant) -> Option<Self> {
-        if variant.is::<Self>() { Some(()) } else { None }
+        if variant.is::<Self>() {
+            Some(())
+        } else {
+            None
+        }
     }
 }
 
@@ -1393,8 +1381,10 @@ impl<T: FromVariant> FromVariant for Vec<T> {
         let mut vec = Vec::with_capacity(variant.n_children());
 
         for i in 0..variant.n_children() {
-            let child = variant.child_value(i).get()?;
-            vec.push(child)
+            match variant.child_value(i).get() {
+                Some(child) => vec.push(child),
+                None => return None,
+            }
         }
 
         Some(vec)
@@ -1957,9 +1947,7 @@ impl<A: AsRef<[T]>, T: FixedSizeVariantType> From<FixedSizeVariantArray<A, T>> f
             unsafe extern "C" fn free_data<A: AsRef<[T]>, T: FixedSizeVariantType>(
                 ptr: ffi::gpointer,
             ) {
-                unsafe {
-                    let _ = Box::from_raw(ptr as *mut A);
-                }
+                let _ = Box::from_raw(ptr as *mut A);
             }
 
             from_glib_none(ffi::g_variant_new_from_data(
@@ -2030,12 +2018,6 @@ pub struct ObjectPath(String);
 impl ObjectPath {
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-}
-
-impl Display for ObjectPath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
     }
 }
 

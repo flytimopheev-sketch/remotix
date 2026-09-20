@@ -7,7 +7,7 @@ of [gtk4-rs](https://github.com/gtk-rs/gtk4-rs/).
 
 ## Minimum supported Rust version
 
-Currently, the minimum supported Rust version is `1.83`.
+Currently, the minimum supported Rust version is `1.70`.
 
 ## Documentation
 
@@ -40,8 +40,6 @@ gdk = { git = "https://github.com/gtk-rs/gtk4-rs.git", package = "gdk4" }
 
 | Feature | Description |
 | ---     | ----------- |
-| `v4_22` | Enable the new APIs part of GTK 4.22 |
-| `v4_20` | Enable the new APIs part of GTK 4.20 |
 | `v4_18` | Enable the new APIs part of GTK 4.18 |
 | `v4_16` | Enable the new APIs part of GTK 4.16 |
 | `v4_14` | Enable the new APIs part of GTK 4.14 |

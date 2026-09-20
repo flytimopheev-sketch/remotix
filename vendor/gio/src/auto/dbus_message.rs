@@ -6,12 +6,12 @@
 #[cfg_attr(docsrs, doc(cfg(unix)))]
 use crate::UnixFDList;
 use crate::{
-    DBusCapabilityFlags, DBusMessageByteOrder, DBusMessageFlags, DBusMessageHeaderField,
-    DBusMessageType, ffi,
+    ffi, DBusCapabilityFlags, DBusMessageByteOrder, DBusMessageFlags, DBusMessageHeaderField,
+    DBusMessageType,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -70,11 +70,6 @@ impl DBusMessage {
             ))
         }
     }
-
-    //#[doc(alias = "g_dbus_message_new_method_error")]
-    //pub fn new_method_error(method_call_message: &DBusMessage, error_name: &str, error_message_format: &str, : /*Unknown conversion*//*Unimplemented*/Basic: VarArgs) -> DBusMessage {
-    //    unsafe { TODO: call ffi:g_dbus_message_new_method_error() }
-    //}
 
     #[doc(alias = "g_dbus_message_new_signal")]
     pub fn new_signal(path: &str, interface_: &str, signal: &str) -> DBusMessage {
@@ -233,6 +228,12 @@ impl DBusMessage {
         }
     }
 
+    //#[doc(alias = "g_dbus_message_new_method_error")]
+    //#[must_use]
+    //pub fn new_method_error(&self, error_name: &str, error_message_format: &str, : /*Unknown conversion*//*Unimplemented*/Basic: VarArgs) -> DBusMessage {
+    //    unsafe { TODO: call ffi:g_dbus_message_new_method_error() }
+    //}
+
     #[doc(alias = "g_dbus_message_new_method_error_literal")]
     #[must_use]
     pub fn new_method_error_literal(&self, error_name: &str, error_message: &str) -> DBusMessage {
@@ -284,7 +285,7 @@ impl DBusMessage {
     }
 
     #[doc(alias = "g_dbus_message_set_error_name")]
-    pub fn set_error_name(&self, value: Option<&str>) {
+    pub fn set_error_name(&self, value: &str) {
         unsafe {
             ffi::g_dbus_message_set_error_name(self.to_glib_none().0, value.to_glib_none().0);
         }
@@ -442,16 +443,14 @@ impl DBusMessage {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::locked".as_ptr(),
+                b"notify::locked\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_locked_trampoline::<F> as *const (),
                 )),

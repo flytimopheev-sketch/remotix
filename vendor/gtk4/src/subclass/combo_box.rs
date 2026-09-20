@@ -1,17 +1,15 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`ComboBox`].
+//! Traits intended for subclassing [`ComboBox`](crate::ComboBox).
 
-use glib::{GString, translate::*};
+use glib::{translate::*, GString};
 
-use crate::{CellEditable, CellLayout, ComboBox, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, ComboBox};
 
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait ComboBoxImpl:
-    WidgetImpl + ObjectSubclass<Type: IsA<ComboBox> + IsA<CellEditable> + IsA<CellLayout>>
-{
+pub trait ComboBoxImpl: ComboBoxImplExt + WidgetImpl {
     #[cfg(feature = "v4_6")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_6")))]
     fn activate(&self) {
@@ -25,9 +23,14 @@ pub trait ComboBoxImpl:
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::ComboBoxImplExt> Sealed for T {}
+}
+
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait ComboBoxImplExt: ComboBoxImpl {
+pub trait ComboBoxImplExt: sealed::Sealed + ObjectSubclass {
     #[cfg(feature = "v4_6")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_6")))]
     fn parent_activate(&self) {
@@ -81,34 +84,28 @@ unsafe impl<T: ComboBoxImpl> IsSubclassable<T> for ComboBox {
 }
 
 unsafe extern "C" fn combo_box_changed<T: ComboBoxImpl>(ptr: *mut ffi::GtkComboBox) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.changed()
-    }
+    imp.changed()
 }
 
 unsafe extern "C" fn combo_box_format_entry_text<T: ComboBoxImpl>(
     ptr: *mut ffi::GtkComboBox,
     pathptr: *const libc::c_char,
 ) -> *mut libc::c_char {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let path: Borrowed<GString> = from_glib_borrow(pathptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let path: Borrowed<GString> = from_glib_borrow(pathptr);
 
-        imp.format_entry_text(path.as_str()).into_glib_ptr()
-    }
+    imp.format_entry_text(path.as_str()).into_glib_ptr()
 }
 
 #[cfg(feature = "v4_6")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_6")))]
 unsafe extern "C" fn combo_box_activate<T: ComboBoxImpl>(ptr: *mut ffi::GtkComboBox) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.activate()
-    }
+    imp.activate()
 }

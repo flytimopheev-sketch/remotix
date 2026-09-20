@@ -2,7 +2,7 @@
 
 use std::{fmt, io, os::raw::c_char, path::PathBuf, ptr};
 
-use crate::{ConvertError, Error, GString, NormalizeMode, Slice, ffi, translate::*};
+use crate::{ffi, translate::*, ConvertError, Error, GString, NormalizeMode, Slice};
 
 // rustdoc-stripper-ignore-next
 /// A wrapper for [`ConvertError`](crate::ConvertError) that can hold an offset into the input
@@ -167,7 +167,7 @@ impl IConv {
                 ffi::g_iconv_open(to_codeset.to_glib_none().0, from_codeset.to_glib_none().0)
             })
         });
-        (iconv.addr() as isize != -1).then(|| Self(iconv))
+        (iconv as isize != -1).then(|| Self(iconv))
     }
     #[doc(alias = "g_convert_with_iconv")]
     pub fn convert(&mut self, str_: &[u8]) -> Result<(Slice<u8>, usize), CvtError> {

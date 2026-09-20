@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Drive, Mount, Volume, ffi};
+use crate::{ffi, Drive, Mount, Volume};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -29,7 +29,12 @@ impl VolumeMonitor {
     }
 }
 
-pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::VolumeMonitor>> Sealed for T {}
+}
+
+pub trait VolumeMonitorExt: IsA<VolumeMonitor> + sealed::Sealed + 'static {
     #[doc(alias = "g_volume_monitor_get_connected_drives")]
     #[doc(alias = "get_connected_drives")]
     fn connected_drives(&self) -> Vec<Drive> {
@@ -92,19 +97,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             drive: *mut ffi::GDrive,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(drive),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(drive),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drive-changed".as_ptr(),
+                b"drive-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drive_changed_trampoline::<Self, F> as *const (),
                 )),
@@ -123,19 +126,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             drive: *mut ffi::GDrive,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(drive),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(drive),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drive-connected".as_ptr(),
+                b"drive-connected\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drive_connected_trampoline::<Self, F> as *const (),
                 )),
@@ -154,19 +155,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             drive: *mut ffi::GDrive,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(drive),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(drive),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drive-disconnected".as_ptr(),
+                b"drive-disconnected\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drive_disconnected_trampoline::<Self, F> as *const (),
                 )),
@@ -185,19 +184,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             drive: *mut ffi::GDrive,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(drive),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(drive),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drive-eject-button".as_ptr(),
+                b"drive-eject-button\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drive_eject_button_trampoline::<Self, F> as *const (),
                 )),
@@ -216,19 +213,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             drive: *mut ffi::GDrive,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(drive),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(drive),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drive-stop-button".as_ptr(),
+                b"drive-stop-button\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drive_stop_button_trampoline::<Self, F> as *const (),
                 )),
@@ -247,19 +242,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             mount: *mut ffi::GMount,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(mount),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(mount),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"mount-added".as_ptr(),
+                b"mount-added\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     mount_added_trampoline::<Self, F> as *const (),
                 )),
@@ -278,19 +271,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             mount: *mut ffi::GMount,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(mount),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(mount),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"mount-changed".as_ptr(),
+                b"mount-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     mount_changed_trampoline::<Self, F> as *const (),
                 )),
@@ -309,19 +300,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             mount: *mut ffi::GMount,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(mount),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(mount),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"mount-pre-unmount".as_ptr(),
+                b"mount-pre-unmount\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     mount_pre_unmount_trampoline::<Self, F> as *const (),
                 )),
@@ -340,19 +329,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             mount: *mut ffi::GMount,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(mount),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(mount),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"mount-removed".as_ptr(),
+                b"mount-removed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     mount_removed_trampoline::<Self, F> as *const (),
                 )),
@@ -371,19 +358,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             volume: *mut ffi::GVolume,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(volume),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(volume),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"volume-added".as_ptr(),
+                b"volume-added\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     volume_added_trampoline::<Self, F> as *const (),
                 )),
@@ -402,19 +387,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             volume: *mut ffi::GVolume,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(volume),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(volume),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"volume-changed".as_ptr(),
+                b"volume-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     volume_changed_trampoline::<Self, F> as *const (),
                 )),
@@ -433,19 +416,17 @@ pub trait VolumeMonitorExt: IsA<VolumeMonitor> + 'static {
             volume: *mut ffi::GVolume,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(volume),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                VolumeMonitor::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(volume),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"volume-removed".as_ptr(),
+                b"volume-removed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     volume_removed_trampoline::<Self, F> as *const (),
                 )),

@@ -2,11 +2,9 @@
 
 use glib::{prelude::*, subclass::prelude::*, translate::*};
 
-use crate::{SocketControlMessage, ffi};
+use crate::{ffi, SocketControlMessage};
 
-pub trait SocketControlMessageImpl:
-    ObjectImpl + ObjectSubclass<Type: IsA<SocketControlMessage>>
-{
+pub trait SocketControlMessageImpl: ObjectImpl + SocketControlMessageImplExt {
     fn level(&self) -> i32 {
         self.parent_level()
     }
@@ -28,7 +26,12 @@ pub trait SocketControlMessageImpl:
     }
 }
 
-pub trait SocketControlMessageImplExt: SocketControlMessageImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::SocketControlMessageImplExt> Sealed for T {}
+}
+
+pub trait SocketControlMessageImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_level(&self) -> i32 {
         unsafe {
             let data = Self::type_data();
@@ -128,48 +131,40 @@ unsafe impl<T: SocketControlMessageImpl> IsSubclassable<T> for SocketControlMess
 unsafe extern "C" fn socket_control_message_get_level<T: SocketControlMessageImpl>(
     ptr: *mut ffi::GSocketControlMessage,
 ) -> i32 {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.level()
-    }
+    imp.level()
 }
 
 unsafe extern "C" fn socket_control_message_get_type<T: SocketControlMessageImpl>(
     ptr: *mut ffi::GSocketControlMessage,
 ) -> i32 {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.msg_type()
-    }
+    imp.msg_type()
 }
 
 unsafe extern "C" fn socket_control_message_get_size<T: SocketControlMessageImpl>(
     ptr: *mut ffi::GSocketControlMessage,
 ) -> usize {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.size()
-    }
+    imp.size()
 }
 
 unsafe extern "C" fn socket_control_message_serialize<T: SocketControlMessageImpl>(
     ptr: *mut ffi::GSocketControlMessage,
     data: glib::ffi::gpointer,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        let data = std::slice::from_raw_parts_mut(data as *mut u8, imp.size());
+    let data = std::slice::from_raw_parts_mut(data as *mut u8, imp.size());
 
-        imp.serialize(data);
-    }
+    imp.serialize(data);
 }
 
 unsafe extern "C" fn socket_control_message_deserialize<T: SocketControlMessageImpl>(
@@ -178,11 +173,9 @@ unsafe extern "C" fn socket_control_message_deserialize<T: SocketControlMessageI
     size: usize,
     data: glib::ffi::gpointer,
 ) -> *mut ffi::GSocketControlMessage {
-    unsafe {
-        let data = std::slice::from_raw_parts(data as *mut u8, size);
+    let data = std::slice::from_raw_parts(data as *mut u8, size);
 
-        T::deserialize(level, type_, data).into_glib_ptr()
-    }
+    T::deserialize(level, type_, data).into_glib_ptr()
 }
 
 #[cfg(test)]

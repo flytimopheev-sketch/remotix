@@ -2,35 +2,20 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, BaselinePosition, Buildable, ConstraintTarget, LayoutManager,
-    Orientable, Orientation, Overflow, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, BaselinePosition, Buildable, ConstraintTarget,
+    LayoutManager, Orientable, Orientation, Overflow, Widget,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkBox")]
     pub struct Box(Object<ffi::GtkBox, ffi::GtkBoxClass>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, Orientable;
-
-    match fn {
-        type_ => || ffi::gtk_box_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkBox")]
-    pub struct Box(Object<ffi::GtkBox, ffi::GtkBoxClass>) @extends Widget, @implements Buildable, ConstraintTarget, Orientable;
 
     match fn {
         type_ => || ffi::gtk_box_get_type(),
@@ -314,7 +299,12 @@ impl BoxBuilder {
     }
 }
 
-pub trait BoxExt: IsA<Box> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Box>> Sealed for T {}
+}
+
+pub trait BoxExt: IsA<Box> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_box_append")]
     fn append(&self, child: &impl IsA<Widget>) {
         unsafe {
@@ -446,16 +436,14 @@ pub trait BoxExt: IsA<Box> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Box::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Box::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::baseline-child".as_ptr(),
+                b"notify::baseline-child\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_baseline_child_trampoline::<Self, F> as *const (),
                 )),
@@ -474,16 +462,14 @@ pub trait BoxExt: IsA<Box> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Box::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Box::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::baseline-position".as_ptr(),
+                b"notify::baseline-position\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_baseline_position_trampoline::<Self, F> as *const (),
                 )),
@@ -499,16 +485,14 @@ pub trait BoxExt: IsA<Box> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Box::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Box::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::homogeneous".as_ptr(),
+                b"notify::homogeneous\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_homogeneous_trampoline::<Self, F> as *const (),
                 )),
@@ -524,16 +508,14 @@ pub trait BoxExt: IsA<Box> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Box::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Box::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::spacing".as_ptr(),
+                b"notify::spacing\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_spacing_trampoline::<Self, F> as *const (),
                 )),

@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.92"
+edition = "2021"
+rust-version = "1.70"
 name = "gdk-pixbuf-sys"
-version = "0.22.9"
+version = "0.20.10"
 authors = ["The gtk-rs Project Developers"]
 build = "build.rs"
 exclude = ["gir-files/*"]
@@ -34,6 +34,18 @@ keywords = [
 license = "MIT"
 repository = "https://github.com/gtk-rs/gtk-rs-core"
 
+[package.metadata.docs.rs]
+all-features = true
+rustc-args = [
+    "--cfg",
+    "docsrs",
+]
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+    "--generate-link-to-definition",
+]
+
 [package.metadata.system-deps.gdk_pixbuf_2_0]
 name = "gdk-pixbuf-2.0"
 version = "2.36.8"
@@ -44,17 +56,9 @@ version = "2.40"
 [package.metadata.system-deps.gdk_pixbuf_2_0.v2_42]
 version = "2.42"
 
-[package.metadata.system-deps.gdk_pixbuf_2_0.v2_44]
-version = "2.43"
-
-[package.metadata.docs.rs]
-rustdoc-args = ["--generate-link-to-definition"]
-all-features = true
-
 [features]
 v2_40 = []
 v2_42 = ["v2_40"]
-v2_44 = ["v2_42"]
 
 [lib]
 name = "gdk_pixbuf_sys"
@@ -65,13 +69,13 @@ name = "abi"
 path = "tests/abi.rs"
 
 [dependencies.gio-sys]
-version = "0.22.0"
+version = "0.20.6"
 
 [dependencies.glib-sys]
-version = "0.22.0"
+version = "0.20.6"
 
 [dependencies.gobject-sys]
-version = "0.22.0"
+version = "0.20"
 
 [dependencies.libc]
 version = "0.2"
@@ -83,4 +87,4 @@ version = "1.0.0"
 version = "3"
 
 [build-dependencies.system-deps]
-version = "9"
+version = "7"

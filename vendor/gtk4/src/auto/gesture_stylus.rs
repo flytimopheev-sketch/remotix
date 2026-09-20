@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{EventController, Gesture, GestureSingle, PropagationLimit, PropagationPhase, ffi};
+use crate::{ffi, EventController, Gesture, GestureSingle, PropagationLimit, PropagationPhase};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -45,7 +45,11 @@ impl GestureStylus {
                 axis.into_glib(),
                 value.as_mut_ptr(),
             ));
-            if ret { Some(value.assume_init()) } else { None }
+            if ret {
+                Some(value.assume_init())
+            } else {
+                None
+            }
         }
     }
 
@@ -112,16 +116,14 @@ impl GestureStylus {
             y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), x, y)
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), x, y)
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"down".as_ptr(),
+                b"down\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     down_trampoline::<F> as *const (),
                 )),
@@ -138,16 +140,14 @@ impl GestureStylus {
             y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), x, y)
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), x, y)
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"motion".as_ptr(),
+                b"motion\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     motion_trampoline::<F> as *const (),
                 )),
@@ -164,16 +164,14 @@ impl GestureStylus {
             y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), x, y)
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), x, y)
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"proximity".as_ptr(),
+                b"proximity\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     proximity_trampoline::<F> as *const (),
                 )),
@@ -190,16 +188,14 @@ impl GestureStylus {
             y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), x, y)
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), x, y)
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"up".as_ptr(),
+                b"up\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     up_trampoline::<F> as *const (),
                 )),
@@ -217,16 +213,14 @@ impl GestureStylus {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::stylus-only".as_ptr(),
+                b"notify::stylus-only\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_stylus_only_trampoline::<F> as *const (),
                 )),

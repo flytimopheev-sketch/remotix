@@ -2,9 +2,9 @@
 
 use std::{marker::PhantomData, ptr};
 
-use glib::{GString, Type, translate::*};
+use glib::{translate::*, GString, Type};
 
-use crate::{IOExtension, ffi};
+use crate::{ffi, IOExtension};
 
 // rustdoc-stripper-ignore-next
 /// Builder for extension points.
@@ -56,10 +56,8 @@ pub struct IOExtensionPoint(ptr::NonNull<ffi::GIOExtensionPoint>);
 impl FromGlibPtrNone<*mut ffi::GIOExtensionPoint> for IOExtensionPoint {
     #[inline]
     unsafe fn from_glib_none(ptr: *mut ffi::GIOExtensionPoint) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            IOExtensionPoint(ptr::NonNull::new_unchecked(ptr))
-        }
+        debug_assert!(!ptr.is_null());
+        IOExtensionPoint(ptr::NonNull::new_unchecked(ptr))
     }
 }
 

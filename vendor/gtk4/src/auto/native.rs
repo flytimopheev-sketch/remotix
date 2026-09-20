@@ -2,27 +2,12 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
-use crate::{Buildable, ConstraintTarget, Widget, ffi};
+use crate::{ffi, Accessible, Buildable, ConstraintTarget, Widget};
 use glib::{prelude::*, translate::*};
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkNative")]
     pub struct Native(Interface<ffi::GtkNative, ffi::GtkNativeInterface>) @requires Widget, Accessible, Buildable, ConstraintTarget;
-
-    match fn {
-        type_ => || ffi::gtk_native_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkNative")]
-    pub struct Native(Interface<ffi::GtkNative, ffi::GtkNativeInterface>) @requires Widget, Buildable, ConstraintTarget;
 
     match fn {
         type_ => || ffi::gtk_native_get_type(),
@@ -44,7 +29,12 @@ impl Native {
     }
 }
 
-pub trait NativeExt: IsA<Native> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Native>> Sealed for T {}
+}
+
+pub trait NativeExt: IsA<Native> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_native_get_renderer")]
     #[doc(alias = "get_renderer")]
     fn renderer(&self) -> Option<gsk::Renderer> {

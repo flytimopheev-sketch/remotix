@@ -2,12 +2,9 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, Buildable, ConstraintTarget, Editable, LayoutManager, Overflow, Widget,
-    ffi,
+    ffi, Accessible, AccessibleRole, Align, Buildable, ConstraintTarget, Editable, LayoutManager,
+    Overflow, Widget,
 };
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
@@ -15,26 +12,14 @@ use crate::{InputHints, InputPurpose};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkSearchEntry")]
     pub struct SearchEntry(Object<ffi::GtkSearchEntry>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, Editable;
-
-    match fn {
-        type_ => || ffi::gtk_search_entry_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkSearchEntry")]
-    pub struct SearchEntry(Object<ffi::GtkSearchEntry>) @extends Widget, @implements Buildable, ConstraintTarget, Editable;
 
     match fn {
         type_ => || ffi::gtk_search_entry_get_type(),
@@ -80,7 +65,6 @@ impl SearchEntry {
 
     #[doc(alias = "gtk_search_entry_get_key_capture_widget")]
     #[doc(alias = "get_key_capture_widget")]
-    #[doc(alias = "key-capture-widget")]
     pub fn key_capture_widget(&self) -> Option<Widget> {
         unsafe {
             from_glib_none(ffi::gtk_search_entry_get_key_capture_widget(
@@ -119,7 +103,6 @@ impl SearchEntry {
     }
 
     #[doc(alias = "gtk_search_entry_set_key_capture_widget")]
-    #[doc(alias = "key-capture-widget")]
     pub fn set_key_capture_widget(&self, widget: Option<&impl IsA<Widget>>) {
         unsafe {
             ffi::gtk_search_entry_set_key_capture_widget(
@@ -165,16 +148,14 @@ impl SearchEntry {
             this: *mut ffi::GtkSearchEntry,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"activate".as_ptr(),
+                b"activate\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     activate_trampoline::<F> as *const (),
                 )),
@@ -193,16 +174,14 @@ impl SearchEntry {
             this: *mut ffi::GtkSearchEntry,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"next-match".as_ptr(),
+                b"next-match\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     next_match_trampoline::<F> as *const (),
                 )),
@@ -221,16 +200,14 @@ impl SearchEntry {
             this: *mut ffi::GtkSearchEntry,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"previous-match".as_ptr(),
+                b"previous-match\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     previous_match_trampoline::<F> as *const (),
                 )),
@@ -249,16 +226,14 @@ impl SearchEntry {
             this: *mut ffi::GtkSearchEntry,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"search-changed".as_ptr(),
+                b"search-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     search_changed_trampoline::<F> as *const (),
                 )),
@@ -273,16 +248,14 @@ impl SearchEntry {
             this: *mut ffi::GtkSearchEntry,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"search-started".as_ptr(),
+                b"search-started\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     search_started_trampoline::<F> as *const (),
                 )),
@@ -297,16 +270,14 @@ impl SearchEntry {
             this: *mut ffi::GtkSearchEntry,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"stop-search".as_ptr(),
+                b"stop-search\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     stop_search_trampoline::<F> as *const (),
                 )),
@@ -329,16 +300,14 @@ impl SearchEntry {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::activates-default".as_ptr(),
+                b"notify::activates-default\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_activates_default_trampoline::<F> as *const (),
                 )),
@@ -356,16 +325,14 @@ impl SearchEntry {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::input-hints".as_ptr(),
+                b"notify::input-hints\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_input_hints_trampoline::<F> as *const (),
                 )),
@@ -383,48 +350,16 @@ impl SearchEntry {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::input-purpose".as_ptr(),
+                b"notify::input-purpose\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_input_purpose_trampoline::<F> as *const (),
-                )),
-                Box_::into_raw(f),
-            )
-        }
-    }
-
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    #[doc(alias = "key-capture-widget")]
-    pub fn connect_key_capture_widget_notify<F: Fn(&Self) + 'static>(
-        &self,
-        f: F,
-    ) -> SignalHandlerId {
-        unsafe extern "C" fn notify_key_capture_widget_trampoline<F: Fn(&SearchEntry) + 'static>(
-            this: *mut ffi::GtkSearchEntry,
-            _param_spec: glib::ffi::gpointer,
-            f: glib::ffi::gpointer,
-        ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"notify::key-capture-widget".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    notify_key_capture_widget_trampoline::<F> as *const (),
                 )),
                 Box_::into_raw(f),
             )
@@ -438,16 +373,14 @@ impl SearchEntry {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::placeholder-text".as_ptr(),
+                b"notify::placeholder-text\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_placeholder_text_trampoline::<F> as *const (),
                 )),
@@ -465,16 +398,14 @@ impl SearchEntry {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::search-delay".as_ptr(),
+                b"notify::search-delay\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_search_delay_trampoline::<F> as *const (),
                 )),
@@ -527,16 +458,6 @@ impl SearchEntryBuilder {
     pub fn input_purpose(self, input_purpose: InputPurpose) -> Self {
         Self {
             builder: self.builder.property("input-purpose", input_purpose),
-        }
-    }
-
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    pub fn key_capture_widget(self, key_capture_widget: &impl IsA<Widget>) -> Self {
-        Self {
-            builder: self
-                .builder
-                .property("key-capture-widget", key_capture_widget.clone().upcast()),
         }
     }
 

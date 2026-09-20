@@ -19,7 +19,6 @@ name = "gdk_pixbuf"
 [features]
 v2_40 = ["gdk-pixbuf-sys/v2_40"]
 v2_42 = ["v2_40", "gdk-pixbuf-sys/v2_42"]
-v2_44 = ["v2_42", "gdk-pixbuf-sys/v2_44"]
 
 [dependencies]
 gdk-pixbuf-sys.workspace = true
@@ -32,4 +31,5 @@ gir-format-check.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]

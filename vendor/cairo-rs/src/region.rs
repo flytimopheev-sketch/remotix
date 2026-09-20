@@ -7,7 +7,7 @@ use std::ptr;
 #[cfg(feature = "use_glib")]
 use glib::translate::*;
 
-use crate::{Error, RectangleInt, RegionOverlap, ffi, utils::status_to_result};
+use crate::{ffi, utils::status_to_result, Error, RectangleInt, RegionOverlap};
 
 #[derive(Debug)]
 #[repr(transparent)]
@@ -17,7 +17,7 @@ pub struct Region(ptr::NonNull<ffi::cairo_region_t>);
 #[cfg(feature = "use_glib")]
 impl IntoGlibPtr<*mut ffi::cairo_region_t> for Region {
     #[inline]
-    fn into_glib_ptr(self) -> *mut ffi::cairo_region_t {
+    unsafe fn into_glib_ptr(self) -> *mut ffi::cairo_region_t {
         (&*std::mem::ManuallyDrop::new(self)).to_glib_none().0
     }
 }
@@ -56,7 +56,7 @@ impl<'a> ToGlibPtrMut<'a, *mut ffi::cairo_region_t> for Region {
 impl FromGlibPtrNone<*mut ffi::cairo_region_t> for Region {
     #[inline]
     unsafe fn from_glib_none(ptr: *mut ffi::cairo_region_t) -> Region {
-        unsafe { Self::from_raw_none(ptr) }
+        Self::from_raw_none(ptr)
     }
 }
 
@@ -65,7 +65,7 @@ impl FromGlibPtrNone<*mut ffi::cairo_region_t> for Region {
 impl FromGlibPtrBorrow<*mut ffi::cairo_region_t> for Region {
     #[inline]
     unsafe fn from_glib_borrow(ptr: *mut ffi::cairo_region_t) -> crate::Borrowed<Region> {
-        unsafe { Self::from_raw_borrow(ptr) }
+        Self::from_raw_borrow(ptr)
     }
 }
 
@@ -74,7 +74,7 @@ impl FromGlibPtrBorrow<*mut ffi::cairo_region_t> for Region {
 impl FromGlibPtrFull<*mut ffi::cairo_region_t> for Region {
     #[inline]
     unsafe fn from_glib_full(ptr: *mut ffi::cairo_region_t) -> Region {
-        unsafe { Self::from_raw_full(ptr) }
+        Self::from_raw_full(ptr)
     }
 }
 
@@ -114,27 +114,21 @@ impl Eq for Region {}
 impl Region {
     #[inline]
     pub unsafe fn from_raw_none(ptr: *mut ffi::cairo_region_t) -> Region {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            ffi::cairo_region_reference(ptr);
-            Region(ptr::NonNull::new_unchecked(ptr))
-        }
+        debug_assert!(!ptr.is_null());
+        ffi::cairo_region_reference(ptr);
+        Region(ptr::NonNull::new_unchecked(ptr))
     }
 
     #[inline]
     pub unsafe fn from_raw_borrow(ptr: *mut ffi::cairo_region_t) -> crate::Borrowed<Region> {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            crate::Borrowed::new(Region(ptr::NonNull::new_unchecked(ptr)))
-        }
+        debug_assert!(!ptr.is_null());
+        crate::Borrowed::new(Region(ptr::NonNull::new_unchecked(ptr)))
     }
 
     #[inline]
     pub unsafe fn from_raw_full(ptr: *mut ffi::cairo_region_t) -> Region {
-        unsafe {
-            debug_assert!(!ptr.is_null());
-            Region(ptr::NonNull::new_unchecked(ptr))
-        }
+        debug_assert!(!ptr.is_null());
+        Region(ptr::NonNull::new_unchecked(ptr))
     }
 
     #[inline]
@@ -182,8 +176,6 @@ impl Region {
     #[doc(alias = "get_rectangle")]
     #[doc(alias = "cairo_region_get_rectangle")]
     pub fn rectangle(&self, nth: i32) -> RectangleInt {
-        let total_rectangles = self.num_rectangles();
-        assert!(nth >= 0 && nth < total_rectangles, "nth is out of range");
         unsafe {
             let rectangle: RectangleInt = ::std::mem::zeroed();
             ffi::cairo_region_get_rectangle(self.0.as_ptr(), nth, rectangle.to_raw_none());

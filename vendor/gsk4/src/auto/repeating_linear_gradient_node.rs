@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{ColorStop, ffi};
+use crate::{ffi, ColorStop};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {

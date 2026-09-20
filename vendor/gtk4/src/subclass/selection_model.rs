@@ -1,13 +1,14 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for implementing the [`SelectionModel`] interface.
+//! Traits intended for implementing the
+//! [`SelectionModel`](crate::SelectionModel) interface.
 
 use glib::translate::*;
 
-use crate::{Bitset, SelectionModel, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, Bitset, SelectionModel};
 
-pub trait SelectionModelImpl: ListModelImpl + ObjectSubclass<Type: IsA<SelectionModel>> {
+pub trait SelectionModelImpl: ListModelImpl {
     #[doc(alias = "get_selection_in_range")]
     fn selection_in_range(&self, position: u32, n_items: u32) -> Bitset {
         self.parent_selection_in_range(position, n_items)
@@ -46,7 +47,12 @@ pub trait SelectionModelImpl: ListModelImpl + ObjectSubclass<Type: IsA<Selection
     }
 }
 
-pub trait SelectionModelImplExt: SelectionModelImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::SelectionModelImplExt> Sealed for T {}
+}
+
+pub trait SelectionModelImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_selection_in_range(&self, position: u32, n_items: u32) -> Bitset {
         unsafe {
             let type_data = Self::type_data();
@@ -257,35 +263,29 @@ unsafe extern "C" fn model_get_selection_in_range<T: SelectionModelImpl>(
     position: u32,
     n_items: u32,
 ) -> *mut ffi::GtkBitset {
-    unsafe {
-        let instance = &*(model as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(model as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.selection_in_range(position, n_items).into_glib_ptr()
-    }
+    imp.selection_in_range(position, n_items).into_glib_ptr()
 }
 
 unsafe extern "C" fn model_is_selected<T: SelectionModelImpl>(
     model: *mut ffi::GtkSelectionModel,
     position: u32,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(model as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(model as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.is_selected(position).into_glib()
-    }
+    imp.is_selected(position).into_glib()
 }
 
 unsafe extern "C" fn model_select_all<T: SelectionModelImpl>(
     model: *mut ffi::GtkSelectionModel,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(model as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(model as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.select_all().into_glib()
-    }
+    imp.select_all().into_glib()
 }
 
 unsafe extern "C" fn model_select_item<T: SelectionModelImpl>(
@@ -293,13 +293,11 @@ unsafe extern "C" fn model_select_item<T: SelectionModelImpl>(
     position: u32,
     unselect_rest: glib::ffi::gboolean,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(model as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(model as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.select_item(position, from_glib(unselect_rest))
-            .into_glib()
-    }
+    imp.select_item(position, from_glib(unselect_rest))
+        .into_glib()
 }
 
 unsafe extern "C" fn model_select_range<T: SelectionModelImpl>(
@@ -308,13 +306,11 @@ unsafe extern "C" fn model_select_range<T: SelectionModelImpl>(
     n_items: u32,
     unselect_rest: glib::ffi::gboolean,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(model as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(model as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.select_range(position, n_items, from_glib(unselect_rest))
-            .into_glib()
-    }
+    imp.select_range(position, n_items, from_glib(unselect_rest))
+        .into_glib()
 }
 
 unsafe extern "C" fn model_set_selection<T: SelectionModelImpl>(
@@ -322,38 +318,32 @@ unsafe extern "C" fn model_set_selection<T: SelectionModelImpl>(
     selected_ptr: *mut ffi::GtkBitset,
     mask_ptr: *mut ffi::GtkBitset,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(model as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(model as *mut T::Instance);
+    let imp = instance.imp();
 
-        let selected = from_glib_borrow(selected_ptr);
-        let mask = from_glib_borrow(mask_ptr);
+    let selected = from_glib_borrow(selected_ptr);
+    let mask = from_glib_borrow(mask_ptr);
 
-        imp.set_selection(&selected, &mask).into_glib()
-    }
+    imp.set_selection(&selected, &mask).into_glib()
 }
 
 unsafe extern "C" fn model_unselect_all<T: SelectionModelImpl>(
     model: *mut ffi::GtkSelectionModel,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(model as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(model as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.unselect_all().into_glib()
-    }
+    imp.unselect_all().into_glib()
 }
 
 unsafe extern "C" fn model_unselect_item<T: SelectionModelImpl>(
     model: *mut ffi::GtkSelectionModel,
     position: u32,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(model as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(model as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.unselect_item(position).into_glib()
-    }
+    imp.unselect_item(position).into_glib()
 }
 
 unsafe extern "C" fn model_unselect_range<T: SelectionModelImpl>(
@@ -361,10 +351,8 @@ unsafe extern "C" fn model_unselect_range<T: SelectionModelImpl>(
     position: u32,
     n_items: u32,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(model as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(model as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.unselect_range(position, n_items).into_glib()
-    }
+    imp.unselect_range(position, n_items).into_glib()
 }

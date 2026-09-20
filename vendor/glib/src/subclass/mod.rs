@@ -54,15 +54,12 @@
 //!     }
 //! }
 //!
-//!
-//! // Implementing a GObject subclass requires two Rust types
-//! // working closely in tandem.
 //! mod imp {
 //!     use super::*;
 //!
 //!     // This is the struct containing all state carried with
-//!     // the new type. It will be stored in the GType's instance-private data.
-//!     // Generally this has to make use of interior mutability.
+//!     // the new type. Generally this has to make use of
+//!     // interior mutability.
 //!     // If it implements the `Default` trait, then `Self::default()`
 //!     // will be called every time a new instance is created.
 //!     #[derive(Default)]
@@ -75,10 +72,7 @@
 //!
 //!     // ObjectSubclass is the trait that defines the new type and
 //!     // contains all information needed by the GObject type system,
-//!     // including the new type's name, parent type, etc. The implementation
-//!     // struct is mapped to the type's instance-private data. This information is
-//!     // registered with the Glib runtime in the `register_type()` function.
-//!
+//!     // including the new type's name, parent type, etc.
 //!     // If you do not want to implement `Default`, you can provide
 //!     // a `new()` method.
 //!     #[glib::object_subclass]
@@ -86,9 +80,6 @@
 //!         // This type name must be unique per process.
 //!         const NAME: &'static str = "SimpleObject";
 //!
-//!         // The wrapper around the raw GType instance struct
-//!         // (of type `ObjectSubclass::Instance`) providing memory management functionality
-//!         // and defining class relationships in terms of Rust types
 //!         type Type = super::SimpleObject;
 //!
 //!         // The parent type this one is inheriting from.
@@ -100,14 +91,7 @@
 //!         type Interfaces = ();
 //!     }
 //!
-//!     // Trait used to override virtual methods of glib::Object. It requires
-//!     // that the associated `Type` implements the `IsA<Object>` trait declaring that
-//!     // it can be upcasted to glib::Object, ensuring that virtual methods defined by
-//!     // a class can only be overridden by its subclasses.
-//!     //
-//!     // The Rust bindings for GObject generate function wrappers proxying these
-//!     // methods of the private instance struct and initialize the subclass's vtable
-//!     // with those wrappers during object instantiation.
+//!     // Trait that is used to override virtual methods of glib::Object.
 //!     impl ObjectImpl for SimpleObject {
 //!         // Called once in the very beginning to list all properties of this class.
 //!         fn properties() -> &'static [glib::ParamSpec] {
@@ -182,19 +166,7 @@
 //!     }
 //! }
 //!
-//!
-//! // Create a type implementing:
-//! // - the basic traits to support Rust memory management functionality on the
-//! //   raw GType instance pointer defined above
-//! // - the core `IsA<Object>` trait declaring that `SimpleObject` is a subclass of `Object`
-//! // - any public methods on the subclass
-//!
-//! // This type provides the external interface to the `SimpleObject` class. It is
-//! // analogous to an opaque C pointer `SimpleObject*` that would be declared
-//! // in the public header file simpleobject.h if one were to define `SimpleObject`
-//! // in simpleobject.c. The methods defined here correspond to the functions
-//! // declared in simpleobject.h.
-//! //
+//! // Optionally, define a wrapper type to make it more ergonomic to use from Rust
 //! glib::wrapper! {
 //!     pub struct SimpleObject(ObjectSubclass<imp::SimpleObject>);
 //! }
@@ -206,39 +178,10 @@
 //!     }
 //! }
 //!
-//! // This is the Rust analog of a C declaration like
-//! //
-//! // /* simpleobject.h */
-//! // #include <glib-object.h>
-//! // G_DECLARE_FINAL_TYPE (SimpleObject, simple_object, ...)
-//! // SimpleObject* simple_object_new();
-//! //
-//!
-//! // The Rust structs defined above produce roughly the following instance memory layout:
-//! //
-//! //       vtable populated with functions proxying imp::SimpleObject::ObjectImpl
-//! //       during class_init (see `unsafe impl<T: ObjectImpl>IsSubclassable<T> for Object`)
-//! //                                      |
-//! //                                     ffi::GObjectClass
-//! //                                      ^
-//! //                                      |
-//! //                                     ffi::GObject (first member of instance struct)
-//! //                                      |
-//! // |--private data (imp::SimpleObject)--|--instance struct (basic::InstanceStruct)--|
-//! //                                      ^
-//! //                                      |
-//! //                                      |
-//! //                                 SimpleObject
-//!
 //! pub fn main() {
 //!     let obj = SimpleObject::new();
 //!
 //!     // Get the name property and change its value.
-//!     // The `ObjectExt` trait provides implementations of
-//!     // `glib::Object`'s public methods on the (wrappers of)
-//!     // GObject subclasses. These invoke the corresponding GObject
-//!     // virtual methods across the FFI interface, which in turn proxy
-//!     // the `ObjectImpl` methods on the private instance struct above.
 //!     assert_eq!(obj.property::<Option<String>>("name"), None);
 //!     obj.set_property("name", "test");
 //!     assert_eq!(&obj.property::<String>("name"), "test");
@@ -520,5 +463,5 @@ pub use self::{
     signal::{
         Signal, SignalClassHandlerToken, SignalId, SignalInvocationHint, SignalQuery, SignalType,
     },
-    types::{InitializingObject, InitializingType, TypeData, register_dynamic_type, register_type},
+    types::{register_dynamic_type, register_type, InitializingObject, InitializingType, TypeData},
 };

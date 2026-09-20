@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{AppInfoCreateFlags, AppLaunchContext, AsyncResult, Cancellable, File, Icon, ffi};
+use crate::{ffi, AppInfoCreateFlags, AppLaunchContext, AsyncResult, Cancellable, File, Icon};
 use glib::{prelude::*, translate::*};
 use std::{boxed::Box as Box_, pin::Pin};
 
@@ -96,19 +96,17 @@ impl AppInfo {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::g_app_info_get_default_for_type_finish(res, &mut error);
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::g_app_info_get_default_for_type_finish(res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = default_for_type_async_trampoline::<P>;
         unsafe {
@@ -182,19 +180,17 @@ impl AppInfo {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::g_app_info_get_default_for_uri_scheme_finish(res, &mut error);
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::g_app_info_get_default_for_uri_scheme_finish(res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = default_for_uri_scheme_async_trampoline::<P>;
         unsafe {
@@ -290,19 +286,17 @@ impl AppInfo {
             res: *mut crate::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                ffi::g_app_info_launch_default_for_uri_finish(res, &mut error);
-                let result = if error.is_null() {
-                    Ok(())
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            ffi::g_app_info_launch_default_for_uri_finish(res, &mut error);
+            let result = if error.is_null() {
+                Ok(())
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = launch_default_for_uri_async_trampoline::<P>;
         unsafe {
@@ -345,7 +339,12 @@ impl AppInfo {
     }
 }
 
-pub trait AppInfoExt: IsA<AppInfo> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::AppInfo>> Sealed for T {}
+}
+
+pub trait AppInfoExt: IsA<AppInfo> + sealed::Sealed + 'static {
     #[doc(alias = "g_app_info_add_supports_type")]
     fn add_supports_type(&self, content_type: &str) -> Result<(), glib::Error> {
         unsafe {

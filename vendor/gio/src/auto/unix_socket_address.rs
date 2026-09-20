@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{SocketAddress, SocketConnectable, UnixSocketAddressType, ffi};
+use crate::{ffi, SocketAddress, SocketConnectable, UnixSocketAddressType};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -37,7 +37,12 @@ impl UnixSocketAddress {
 unsafe impl Send for UnixSocketAddress {}
 unsafe impl Sync for UnixSocketAddress {}
 
-pub trait UnixSocketAddressExt: IsA<UnixSocketAddress> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::UnixSocketAddress>> Sealed for T {}
+}
+
+pub trait UnixSocketAddressExt: IsA<UnixSocketAddress> + sealed::Sealed + 'static {
     #[doc(alias = "g_unix_socket_address_get_address_type")]
     #[doc(alias = "get_address_type")]
     #[doc(alias = "address-type")]

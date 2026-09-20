@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{RenderNodeType, ffi};
+use crate::{ffi, RenderNodeType};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -47,24 +47,6 @@ impl RenderNode {
         }
     }
 
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    #[doc(alias = "gsk_render_node_get_children")]
-    #[doc(alias = "get_children")]
-    pub fn children(&self) -> Vec<RenderNode> {
-        unsafe {
-            let mut n_children = std::mem::MaybeUninit::uninit();
-            let ret = FromGlibContainer::from_glib_none_num(
-                ffi::gsk_render_node_get_children(
-                    self.as_ref().to_glib_none().0,
-                    n_children.as_mut_ptr(),
-                ),
-                n_children.assume_init() as _,
-            );
-            ret
-        }
-    }
-
     #[doc(alias = "gsk_render_node_get_node_type")]
     #[doc(alias = "get_node_type")]
     pub fn node_type(&self) -> RenderNodeType {
@@ -86,7 +68,11 @@ impl RenderNode {
                 self.as_ref().to_glib_none().0,
                 out_opaque.to_glib_none_mut().0,
             ));
-            if ret { Some(out_opaque) } else { None }
+            if ret {
+                Some(out_opaque)
+            } else {
+                None
+            }
         }
     }
 

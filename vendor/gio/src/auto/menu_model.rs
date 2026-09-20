@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{MenuAttributeIter, MenuLinkIter, ffi};
+use crate::{ffi, MenuAttributeIter, MenuLinkIter};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -24,7 +24,12 @@ impl MenuModel {
     pub const NONE: Option<&'static MenuModel> = None;
 }
 
-pub trait MenuModelExt: IsA<MenuModel> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::MenuModel>> Sealed for T {}
+}
+
+pub trait MenuModelExt: IsA<MenuModel> + sealed::Sealed + 'static {
     //#[doc(alias = "g_menu_model_get_item_attribute")]
     //#[doc(alias = "get_item_attribute")]
     //fn is_item_attribute(&self, item_index: i32, attribute: &str, format_string: &str, : /*Unknown conversion*//*Unimplemented*/Basic: VarArgs) -> bool {
@@ -120,21 +125,19 @@ pub trait MenuModelExt: IsA<MenuModel> + 'static {
             added: std::ffi::c_int,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    MenuModel::from_glib_borrow(this).unsafe_cast_ref(),
-                    position,
-                    removed,
-                    added,
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                MenuModel::from_glib_borrow(this).unsafe_cast_ref(),
+                position,
+                removed,
+                added,
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"items-changed".as_ptr(),
+                b"items-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     items_changed_trampoline::<Self, F> as *const (),
                 )),

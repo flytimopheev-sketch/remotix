@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Accessible, ffi};
+use crate::{ffi, Accessible};
 use glib::prelude::*;
 
 glib::wrapper! {
@@ -18,6 +18,11 @@ impl AccessibleRange {
     pub const NONE: Option<&'static AccessibleRange> = None;
 }
 
-pub trait AccessibleRangeExt: IsA<AccessibleRange> + 'static {}
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::AccessibleRange>> Sealed for T {}
+}
+
+pub trait AccessibleRangeExt: IsA<AccessibleRange> + sealed::Sealed + 'static {}
 
 impl<O: IsA<AccessibleRange>> AccessibleRangeExt for O {}

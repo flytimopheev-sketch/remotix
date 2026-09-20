@@ -4,7 +4,7 @@ use std::fmt;
 
 use glib::translate::*;
 
-use crate::{Renderer, ffi, prelude::*};
+use crate::{ffi, prelude::*, Renderer};
 
 glib::wrapper! {
     #[doc(alias = "GskNglRenderer")]

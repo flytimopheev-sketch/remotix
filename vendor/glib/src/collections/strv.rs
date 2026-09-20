@@ -2,7 +2,7 @@
 
 use std::{ffi::c_char, fmt, marker::PhantomData, mem, ptr};
 
-use crate::{GStr, GString, GStringPtr, ffi, gobject_ffi, prelude::*, translate::*};
+use crate::{ffi, gobject_ffi, prelude::*, translate::*, GStr, GString, GStringPtr};
 
 // rustdoc-stripper-ignore-next
 /// Minimum size of the `StrV` allocation.
@@ -65,10 +65,6 @@ impl std::hash::Hash for StrV {
 
 impl PartialEq<[&'_ str]> for StrV {
     fn eq(&self, other: &[&'_ str]) -> bool {
-        if self.len() != other.len() {
-            return false;
-        }
-
         for (a, b) in Iterator::zip(self.iter(), other.iter()) {
             if a != b {
                 return false;
@@ -118,26 +114,12 @@ impl std::borrow::Borrow<[GStringPtr]> for StrV {
     }
 }
 
-impl AsRef<StrVRef> for StrV {
-    #[inline]
-    fn as_ref(&self) -> &StrVRef {
-        self.into()
-    }
-}
-
-impl std::borrow::Borrow<StrVRef> for StrV {
-    #[inline]
-    fn borrow(&self) -> &StrVRef {
-        self.into()
-    }
-}
-
 impl std::ops::Deref for StrV {
-    type Target = StrVRef;
+    type Target = [GStringPtr];
 
     #[inline]
-    fn deref(&self) -> &StrVRef {
-        self.into()
+    fn deref(&self) -> &[GStringPtr] {
+        self.as_slice()
     }
 }
 
@@ -437,22 +419,6 @@ impl From<&'_ [&'_ GStr]> for StrV {
     }
 }
 
-impl From<crate::PtrSlice<GStringPtr>> for StrV {
-    #[inline]
-    fn from(value: crate::PtrSlice<GStringPtr>) -> Self {
-        let len = value.len();
-        unsafe { Self::from_glib_full_num(value.into_glib_ptr(), len, true) }
-    }
-}
-
-impl From<StrV> for crate::PtrSlice<GStringPtr> {
-    #[inline]
-    fn from(value: StrV) -> Self {
-        let len = value.len();
-        unsafe { Self::from_glib_full_num(value.into_glib_ptr(), len, true) }
-    }
-}
-
 impl Clone for StrV {
     #[inline]
     fn clone(&self) -> Self {
@@ -473,15 +439,13 @@ impl StrV {
     /// Borrows a C array.
     #[inline]
     pub unsafe fn from_glib_borrow<'a>(ptr: *const *const c_char) -> &'a [GStringPtr] {
-        unsafe {
-            let mut len = 0;
-            if !ptr.is_null() {
-                while !(*ptr.add(len)).is_null() {
-                    len += 1;
-                }
+        let mut len = 0;
+        if !ptr.is_null() {
+            while !(*ptr.add(len)).is_null() {
+                len += 1;
             }
-            Self::from_glib_borrow_num(ptr, len)
         }
+        Self::from_glib_borrow_num(ptr, len)
     }
 
     // rustdoc-stripper-ignore-next
@@ -491,14 +455,12 @@ impl StrV {
         ptr: *const *const c_char,
         len: usize,
     ) -> &'a [GStringPtr] {
-        unsafe {
-            debug_assert!(!ptr.is_null() || len == 0);
+        debug_assert!(!ptr.is_null() || len == 0);
 
-            if len == 0 {
-                &[]
-            } else {
-                std::slice::from_raw_parts(ptr as *const GStringPtr, len)
-            }
+        if len == 0 {
+            &[]
+        } else {
+            std::slice::from_raw_parts(ptr as *const GStringPtr, len)
         }
     }
 
@@ -510,31 +472,29 @@ impl StrV {
         len: usize,
         _null_terminated: bool,
     ) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null() || len == 0);
+        debug_assert!(!ptr.is_null() || len == 0);
 
-            if len == 0 {
-                StrV::default()
-            } else {
-                // Allocate space for len + 1 pointers, one pointer for each string and a trailing
-                // null pointer.
-                let new_ptr =
-                    ffi::g_malloc(mem::size_of::<*mut c_char>() * (len + 1)) as *mut *mut c_char;
+        if len == 0 {
+            StrV::default()
+        } else {
+            // Allocate space for len + 1 pointers, one pointer for each string and a trailing
+            // null pointer.
+            let new_ptr =
+                ffi::g_malloc(mem::size_of::<*mut c_char>() * (len + 1)) as *mut *mut c_char;
 
-                // Need to clone every item because we don't own it here
-                for i in 0..len {
-                    let p = ptr.add(i) as *mut *const c_char;
-                    let q = new_ptr.add(i) as *mut *const c_char;
-                    *q = ffi::g_strdup(*p);
-                }
+            // Need to clone every item because we don't own it here
+            for i in 0..len {
+                let p = ptr.add(i) as *mut *const c_char;
+                let q = new_ptr.add(i) as *mut *const c_char;
+                *q = ffi::g_strdup(*p);
+            }
 
-                *new_ptr.add(len) = ptr::null_mut();
+            *new_ptr.add(len) = ptr::null_mut();
 
-                StrV {
-                    ptr: ptr::NonNull::new_unchecked(new_ptr),
-                    len,
-                    capacity: len + 1,
-                }
+            StrV {
+                ptr: ptr::NonNull::new_unchecked(new_ptr),
+                len,
+                capacity: len + 1,
             }
         }
     }
@@ -547,22 +507,20 @@ impl StrV {
         len: usize,
         null_terminated: bool,
     ) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null() || len == 0);
+        debug_assert!(!ptr.is_null() || len == 0);
 
-            if len == 0 {
-                ffi::g_free(ptr as ffi::gpointer);
-                StrV::default()
-            } else {
-                // Need to clone every item because we don't own it here
-                for i in 0..len {
-                    let p = ptr.add(i);
-                    *p = ffi::g_strdup(*p);
-                }
-
-                // And now it can be handled exactly the same as `from_glib_full_num()`.
-                Self::from_glib_full_num(ptr as *mut *mut c_char, len, null_terminated)
+        if len == 0 {
+            ffi::g_free(ptr as ffi::gpointer);
+            StrV::default()
+        } else {
+            // Need to clone every item because we don't own it here
+            for i in 0..len {
+                let p = ptr.add(i);
+                *p = ffi::g_strdup(*p);
             }
+
+            // And now it can be handled exactly the same as `from_glib_full_num()`.
+            Self::from_glib_full_num(ptr as *mut *mut c_char, len, null_terminated)
         }
     }
 
@@ -574,35 +532,33 @@ impl StrV {
         len: usize,
         null_terminated: bool,
     ) -> Self {
-        unsafe {
-            debug_assert!(!ptr.is_null() || len == 0);
+        debug_assert!(!ptr.is_null() || len == 0);
 
-            if len == 0 {
-                ffi::g_free(ptr as ffi::gpointer);
-                StrV::default()
-            } else {
-                if null_terminated {
-                    return StrV {
-                        ptr: ptr::NonNull::new_unchecked(ptr),
-                        len,
-                        capacity: len + 1,
-                    };
-                }
-
-                // Need to re-allocate here for adding the NULL-terminator
-                let capacity = len + 1;
-                assert_ne!(capacity, 0);
-                let ptr = ffi::g_realloc(
-                    ptr as *mut _,
-                    mem::size_of::<*mut c_char>().checked_mul(capacity).unwrap(),
-                ) as *mut *mut c_char;
-                *ptr.add(len) = ptr::null_mut();
-
-                StrV {
+        if len == 0 {
+            ffi::g_free(ptr as ffi::gpointer);
+            StrV::default()
+        } else {
+            if null_terminated {
+                return StrV {
                     ptr: ptr::NonNull::new_unchecked(ptr),
                     len,
-                    capacity,
-                }
+                    capacity: len + 1,
+                };
+            }
+
+            // Need to re-allocate here for adding the NULL-terminator
+            let capacity = len + 1;
+            assert_ne!(capacity, 0);
+            let ptr = ffi::g_realloc(
+                ptr as *mut _,
+                mem::size_of::<*mut c_char>().checked_mul(capacity).unwrap(),
+            ) as *mut *mut c_char;
+            *ptr.add(len) = ptr::null_mut();
+
+            StrV {
+                ptr: ptr::NonNull::new_unchecked(ptr),
+                len,
+                capacity,
             }
         }
     }
@@ -611,48 +567,42 @@ impl StrV {
     /// Create a new `StrV` around a `NULL`-terminated C array.
     #[inline]
     pub unsafe fn from_glib_none(ptr: *const *const c_char) -> Self {
-        unsafe {
-            let mut len = 0;
-            if !ptr.is_null() {
-                while !(*ptr.add(len)).is_null() {
-                    len += 1;
-                }
+        let mut len = 0;
+        if !ptr.is_null() {
+            while !(*ptr.add(len)).is_null() {
+                len += 1;
             }
-
-            StrV::from_glib_none_num(ptr, len, true)
         }
+
+        StrV::from_glib_none_num(ptr, len, true)
     }
 
     // rustdoc-stripper-ignore-next
     /// Create a new `StrV` around a `NULL`-terminated C array.
     #[inline]
     pub unsafe fn from_glib_container(ptr: *mut *const c_char) -> Self {
-        unsafe {
-            let mut len = 0;
-            if !ptr.is_null() {
-                while !(*ptr.add(len)).is_null() {
-                    len += 1;
-                }
+        let mut len = 0;
+        if !ptr.is_null() {
+            while !(*ptr.add(len)).is_null() {
+                len += 1;
             }
-
-            StrV::from_glib_container_num(ptr, len, true)
         }
+
+        StrV::from_glib_container_num(ptr, len, true)
     }
 
     // rustdoc-stripper-ignore-next
     /// Create a new `StrV` around a `NULL`-terminated C array.
     #[inline]
     pub unsafe fn from_glib_full(ptr: *mut *mut c_char) -> Self {
-        unsafe {
-            let mut len = 0;
-            if !ptr.is_null() {
-                while !(*ptr.add(len)).is_null() {
-                    len += 1;
-                }
+        let mut len = 0;
+        if !ptr.is_null() {
+            while !(*ptr.add(len)).is_null() {
+                len += 1;
             }
-
-            StrV::from_glib_full_num(ptr, len, true)
         }
+
+        StrV::from_glib_full_num(ptr, len, true)
     }
 
     // rustdoc-stripper-ignore-next
@@ -748,7 +698,7 @@ impl StrV {
     #[allow(clippy::int_plus_one)]
     pub fn reserve(&mut self, additional: usize) {
         // Nothing new to reserve as there's still enough space
-        if additional < self.capacity - self.len {
+        if self.len + additional + 1 <= self.capacity {
             return;
         }
 
@@ -808,7 +758,7 @@ impl StrV {
     #[inline]
     pub fn extend_from_slice<S: AsRef<str>>(&mut self, other: &[S]) {
         // Nothing new to reserve as there's still enough space
-        if other.len() >= self.capacity - self.len {
+        if self.len + other.len() + 1 > self.capacity {
             self.reserve(other.len());
         }
 
@@ -816,11 +766,9 @@ impl StrV {
             for item in other {
                 *self.ptr.as_ptr().add(self.len) = GString::from(item.as_ref()).into_glib_ptr();
                 self.len += 1;
-
-                // Add null terminator on every iteration because `as_ref`
-                // may panic
-                *self.ptr.as_ptr().add(self.len) = ptr::null_mut();
             }
+
+            *self.ptr.as_ptr().add(self.len) = ptr::null_mut();
         }
     }
 
@@ -832,7 +780,7 @@ impl StrV {
         assert!(index <= self.len);
 
         // Nothing new to reserve as there's still enough space
-        if 1 >= self.capacity - self.len {
+        if self.len + 1 + 1 > self.capacity {
             self.reserve(1);
         }
 
@@ -856,7 +804,7 @@ impl StrV {
     #[inline]
     pub fn push(&mut self, item: GString) {
         // Nothing new to reserve as there's still enough space
-        if 1 >= self.capacity - self.len {
+        if self.len + 1 + 1 > self.capacity {
             self.reserve(1);
         }
 
@@ -972,23 +920,23 @@ impl StrV {
 impl FromGlibContainer<*mut c_char, *mut *mut c_char> for StrV {
     #[inline]
     unsafe fn from_glib_none_num(ptr: *mut *mut c_char, num: usize) -> Self {
-        unsafe { Self::from_glib_none_num(ptr as *const *const c_char, num, false) }
+        Self::from_glib_none_num(ptr as *const *const c_char, num, false)
     }
 
     #[inline]
     unsafe fn from_glib_container_num(ptr: *mut *mut c_char, num: usize) -> Self {
-        unsafe { Self::from_glib_container_num(ptr as *mut *const c_char, num, false) }
+        Self::from_glib_container_num(ptr as *mut *const c_char, num, false)
     }
 
     #[inline]
     unsafe fn from_glib_full_num(ptr: *mut *mut c_char, num: usize) -> Self {
-        unsafe { Self::from_glib_full_num(ptr, num, false) }
+        Self::from_glib_full_num(ptr, num, false)
     }
 }
 
 impl FromGlibContainer<*mut c_char, *const *mut c_char> for StrV {
     unsafe fn from_glib_none_num(ptr: *const *mut c_char, num: usize) -> Self {
-        unsafe { Self::from_glib_none_num(ptr as *const *const c_char, num, false) }
+        Self::from_glib_none_num(ptr as *const *const c_char, num, false)
     }
 
     unsafe fn from_glib_container_num(_ptr: *const *mut c_char, _num: usize) -> Self {
@@ -1003,24 +951,24 @@ impl FromGlibContainer<*mut c_char, *const *mut c_char> for StrV {
 impl FromGlibPtrContainer<*mut c_char, *mut *mut c_char> for StrV {
     #[inline]
     unsafe fn from_glib_none(ptr: *mut *mut c_char) -> Self {
-        unsafe { Self::from_glib_none(ptr as *const *const c_char) }
+        Self::from_glib_none(ptr as *const *const c_char)
     }
 
     #[inline]
     unsafe fn from_glib_container(ptr: *mut *mut c_char) -> Self {
-        unsafe { Self::from_glib_container(ptr as *mut *const c_char) }
+        Self::from_glib_container(ptr as *mut *const c_char)
     }
 
     #[inline]
     unsafe fn from_glib_full(ptr: *mut *mut c_char) -> Self {
-        unsafe { Self::from_glib_full(ptr) }
+        Self::from_glib_full(ptr)
     }
 }
 
 impl FromGlibPtrContainer<*mut c_char, *const *mut c_char> for StrV {
     #[inline]
     unsafe fn from_glib_none(ptr: *const *mut c_char) -> Self {
-        unsafe { Self::from_glib_none(ptr as *const *const c_char) }
+        Self::from_glib_none(ptr as *const *const c_char)
     }
 
     unsafe fn from_glib_container(_ptr: *const *mut c_char) -> Self {
@@ -1067,7 +1015,7 @@ impl<'a> ToGlibPtr<'a, *const *mut c_char> for StrV {
 
 impl IntoGlibPtr<*mut *mut c_char> for StrV {
     #[inline]
-    fn into_glib_ptr(self) -> *mut *mut c_char {
+    unsafe fn into_glib_ptr(self) -> *mut *mut c_char {
         self.into_raw()
     }
 }
@@ -1094,10 +1042,8 @@ unsafe impl<'a> crate::value::FromValue<'a> for StrV {
     type Checker = crate::value::GenericValueTypeChecker<Self>;
 
     unsafe fn from_value(value: &'a crate::value::Value) -> Self {
-        unsafe {
-            let ptr = gobject_ffi::g_value_dup_boxed(value.to_glib_none().0) as *mut *mut c_char;
-            FromGlibPtrContainer::from_glib_full(ptr)
-        }
+        let ptr = gobject_ffi::g_value_dup_boxed(value.to_glib_none().0) as *mut *mut c_char;
+        FromGlibPtrContainer::from_glib_full(ptr)
     }
 }
 
@@ -1105,11 +1051,8 @@ unsafe impl<'a> crate::value::FromValue<'a> for &'a [GStringPtr] {
     type Checker = crate::value::GenericValueTypeChecker<Self>;
 
     unsafe fn from_value(value: &'a crate::value::Value) -> Self {
-        unsafe {
-            let ptr =
-                gobject_ffi::g_value_get_boxed(value.to_glib_none().0) as *const *const c_char;
-            StrV::from_glib_borrow(ptr)
-        }
+        let ptr = gobject_ffi::g_value_get_boxed(value.to_glib_none().0) as *const *const c_char;
+        StrV::from_glib_borrow(ptr)
     }
 }
 
@@ -1421,219 +1364,6 @@ impl<const N: usize> IntoStrV for [&'_ String; N] {
     }
 }
 
-// rustdoc-stripper-ignore-next
-/// Representation of a borrowed `NULL`-terminated C array of `NULL`-terminated UTF-8 strings.
-///
-/// It can be constructed safely from a `&StrV` and unsafely from a pointer to a C array.
-/// This type is very similar to `[GStringPtr]`, but with one added constraint: the underlying C array must be `NULL`-terminated.
-#[repr(transparent)]
-pub struct StrVRef {
-    inner: [GStringPtr],
-}
-
-impl StrVRef {
-    // rustdoc-stripper-ignore-next
-    /// Borrows a C array.
-    /// # Safety
-    ///
-    /// The provided pointer **must** be `NULL`-terminated. It is undefined behavior to
-    /// pass a pointer that does not uphold this condition.
-    #[inline]
-    pub unsafe fn from_glib_borrow<'a>(ptr: *const *const c_char) -> &'a StrVRef {
-        unsafe {
-            let slice = StrV::from_glib_borrow(ptr);
-            &*(slice as *const [GStringPtr] as *const StrVRef)
-        }
-    }
-
-    // rustdoc-stripper-ignore-next
-    /// Borrows a C array.
-    /// # Safety
-    ///
-    /// The provided pointer **must** be `NULL`-terminated. It is undefined behavior to
-    /// pass a pointer that does not uphold this condition.
-    #[inline]
-    pub unsafe fn from_glib_borrow_num<'a>(ptr: *const *const c_char, len: usize) -> &'a StrVRef {
-        unsafe {
-            let slice = StrV::from_glib_borrow_num(ptr, len);
-            &*(slice as *const [GStringPtr] as *const StrVRef)
-        }
-    }
-
-    // rustdoc-stripper-ignore-next
-    /// Returns the underlying pointer.
-    ///
-    /// This is guaranteed to be nul-terminated.
-    #[inline]
-    pub const fn as_ptr(&self) -> *const *const c_char {
-        self.inner.as_ptr() as *const *const _
-    }
-}
-
-impl fmt::Debug for StrVRef {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.fmt(f)
-    }
-}
-
-unsafe impl Send for StrVRef {}
-
-unsafe impl Sync for StrVRef {}
-
-impl PartialEq for StrVRef {
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        self.inner == other.inner
-    }
-}
-
-impl Eq for StrVRef {}
-
-impl PartialOrd for StrVRef {
-    #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for StrVRef {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.inner.cmp(&other.inner)
-    }
-}
-
-impl std::hash::Hash for StrVRef {
-    #[inline]
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.inner.hash(state)
-    }
-}
-
-impl PartialEq<[&'_ str]> for StrVRef {
-    fn eq(&self, other: &[&'_ str]) -> bool {
-        if self.len() != other.len() {
-            return false;
-        }
-
-        for (a, b) in Iterator::zip(self.iter(), other.iter()) {
-            if a != b {
-                return false;
-            }
-        }
-
-        true
-    }
-}
-
-impl PartialEq<StrVRef> for [&'_ str] {
-    #[inline]
-    fn eq(&self, other: &StrVRef) -> bool {
-        other.eq(self)
-    }
-}
-
-impl Default for &StrVRef {
-    #[inline]
-    fn default() -> Self {
-        const SLICE: &[*const c_char] = &[ptr::null()];
-        // SAFETY: `SLICE` is indeed a valid nul-terminated array.
-        unsafe { StrVRef::from_glib_borrow(SLICE.as_ptr()) }
-    }
-}
-
-impl std::ops::Deref for StrVRef {
-    type Target = [GStringPtr];
-
-    #[inline]
-    fn deref(&self) -> &[GStringPtr] {
-        &self.inner
-    }
-}
-
-impl<'a> std::iter::IntoIterator for &'a StrVRef {
-    type Item = &'a GStringPtr;
-    type IntoIter = std::slice::Iter<'a, GStringPtr>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        self.inner.iter()
-    }
-}
-
-impl<'a> From<&'a StrV> for &'a StrVRef {
-    fn from(value: &'a StrV) -> Self {
-        let slice = value.as_slice();
-        // Safety: `&StrV` is a null-terminated C array of nul-terminated UTF-8 strings,
-        // therefore `&StrV::as_slice()` return a a null-terminated slice of nul-terminated UTF-8 strings,
-        // thus it is safe to convert it to `&CStr`.
-        unsafe { &*(slice as *const [GStringPtr] as *const StrVRef) }
-    }
-}
-
-impl FromGlibContainer<*mut c_char, *const *const c_char> for &StrVRef {
-    unsafe fn from_glib_none_num(ptr: *const *const c_char, num: usize) -> Self {
-        unsafe { StrVRef::from_glib_borrow_num(ptr, num) }
-    }
-
-    unsafe fn from_glib_container_num(_ptr: *const *const c_char, _num: usize) -> Self {
-        unimplemented!();
-    }
-
-    unsafe fn from_glib_full_num(_ptr: *const *const c_char, _num: usize) -> Self {
-        unimplemented!();
-    }
-}
-
-impl FromGlibPtrContainer<*mut c_char, *const *const c_char> for &StrVRef {
-    #[inline]
-    unsafe fn from_glib_none(ptr: *const *const c_char) -> Self {
-        unsafe { StrVRef::from_glib_borrow(ptr) }
-    }
-
-    unsafe fn from_glib_container(_ptr: *const *const c_char) -> Self {
-        unimplemented!();
-    }
-
-    unsafe fn from_glib_full(_ptr: *const *const c_char) -> Self {
-        unimplemented!();
-    }
-}
-
-impl<'a> ToGlibPtr<'a, *const *const c_char> for StrVRef {
-    type Storage = PhantomData<&'a Self>;
-
-    #[inline]
-    fn to_glib_none(&'a self) -> Stash<'a, *const *const c_char, Self> {
-        Stash(self.as_ptr(), PhantomData)
-    }
-}
-
-impl IntoGlibPtr<*const *const c_char> for &StrVRef {
-    #[inline]
-    fn into_glib_ptr(self) -> *const *const c_char {
-        self.as_ptr()
-    }
-}
-
-impl StaticType for StrVRef {
-    #[inline]
-    fn static_type() -> crate::Type {
-        <Vec<String>>::static_type()
-    }
-}
-
-unsafe impl<'a> crate::value::FromValue<'a> for &'a StrVRef {
-    type Checker = crate::value::GenericValueTypeChecker<Self>;
-
-    unsafe fn from_value(value: &'a crate::value::Value) -> Self {
-        unsafe {
-            let ptr =
-                gobject_ffi::g_value_get_boxed(value.to_glib_none().0) as *const *const c_char;
-            StrVRef::from_glib_borrow(ptr)
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1652,7 +1382,6 @@ mod test {
             StrV::from_glib_full_num(ptr, 4, false)
         };
 
-        assert_eq!(items.len(), slice.len());
         for (a, b) in Iterator::zip(items.iter(), slice.iter()) {
             assert_eq!(a, b);
         }
@@ -1677,7 +1406,6 @@ mod test {
             StrV::from_glib_container_num(ptr, 4, false)
         };
 
-        assert_eq!(items.len(), slice.len());
         for (a, b) in Iterator::zip(items.iter(), slice.iter()) {
             assert_eq!(a, b);
         }
@@ -1704,7 +1432,6 @@ mod test {
             res
         };
 
-        assert_eq!(items.len(), slice.len());
         for (a, b) in Iterator::zip(items.iter(), slice.iter()) {
             assert_eq!(a, b);
         }
@@ -1766,7 +1493,7 @@ mod test {
         slice.push(e);
         assert_eq!(slice.len(), 4);
 
-        for (a, b) in Iterator::zip(items.iter(), slice) {
+        for (a, b) in Iterator::zip(items.iter(), slice.into_iter()) {
             assert_eq!(*a, b);
         }
     }
@@ -1837,107 +1564,5 @@ mod test {
         let strv = StrV::from(&items[..]);
         assert!(strv.contains("str2"));
         assert!(!strv.contains("str4"));
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_reserve_overflow() {
-        let mut strv = StrV::from(&[crate::gstr!("foo"); 3][..]);
-
-        // An old implementation of `reserve` used the condition `self.len +
-        // additional + 1 <= self.capacity`, which was prone to overflow
-        strv.reserve(usize::MAX - 3);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_extend_from_slice_overflow() {
-        // We need a zero-sized type because only a slice of ZST can legally
-        // contain up to `usize::MAX` elements.
-        #[derive(Clone, Copy)]
-        struct ImplicitStr;
-
-        impl AsRef<str> for ImplicitStr {
-            fn as_ref(&self) -> &str {
-                ""
-            }
-        }
-
-        let mut strv = StrV::from(&[crate::gstr!(""); 3][..]);
-
-        // An old implementation of `extend_from_slice` used the condition
-        // `self.len + other.len() + 1 <= self.capacity`, which was prone to
-        // overflow
-        strv.extend_from_slice(&[ImplicitStr; usize::MAX - 3]);
-    }
-
-    #[test]
-    fn test_extend_from_slice_panic_safe() {
-        struct MayPanic(bool);
-
-        impl AsRef<str> for MayPanic {
-            fn as_ref(&self) -> &str {
-                if self.0 {
-                    panic!("panicking as per request");
-                } else {
-                    ""
-                }
-            }
-        }
-
-        let mut strv = StrV::from(&[crate::gstr!(""); 3][..]);
-        strv.clear();
-
-        // Write one element and panic while getting the second element
-        _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            strv.extend_from_slice(&[MayPanic(false), MayPanic(true)]);
-        }));
-
-        // Check that it contains up to one element is null-terminated
-        assert!(strv.len() <= 1);
-        unsafe {
-            for i in 0..strv.len() {
-                assert!(!(*strv.as_ptr().add(i)).is_null());
-            }
-            assert!((*strv.as_ptr().add(strv.len())).is_null());
-        }
-    }
-
-    #[test]
-    fn test_strv_ref_eq_str_slice() {
-        let strv = StrV::from(&[crate::gstr!("a")][..]);
-        let strv_ref: &StrVRef = strv.as_ref();
-
-        // Test `impl PartialEq<[&'_ str]> for StrVRef`
-        assert_eq!(strv_ref, &["a"][..]);
-        assert_ne!(strv_ref, &[][..]);
-        assert_ne!(strv_ref, &["a", "b"][..]);
-        assert_ne!(strv_ref, &["b"][..]);
-    }
-
-    #[test]
-    fn test_from_ptr_slice() {
-        let items = [
-            GStringPtr::from("a"),
-            GStringPtr::from("b"),
-            GStringPtr::from("c"),
-        ];
-        let ptr_slice: crate::PtrSlice<GStringPtr> = crate::PtrSlice::from(&items[..]);
-        let strv: StrV = ptr_slice.into();
-
-        for (i, item) in items.into_iter().enumerate() {
-            assert_eq!(strv[i], item);
-        }
-    }
-
-    #[test]
-    fn test_into_ptr_slice() {
-        let items = [crate::gstr!("a"), crate::gstr!("b"), crate::gstr!("c")];
-        let strv: StrV = StrV::from(&items[..]);
-        let ptr_slice: crate::PtrSlice<GStringPtr> = strv.into();
-
-        for (i, item) in items.into_iter().enumerate() {
-            assert_eq!(ptr_slice[i], item);
-        }
     }
 }

@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Error, ffi, translate::*};
+use crate::{ffi, translate::*, Error};
 
 crate::wrapper! {
     #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -35,39 +35,6 @@ impl MarkupParseContext {
         }
     }
 
-    #[cfg(feature = "v2_90")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_90")))]
-    #[doc(alias = "g_markup_parse_context_get_attribute_position")]
-    #[doc(alias = "get_attribute_position")]
-    pub fn attribute_position(&self, attr: u32) -> (usize, usize, usize, usize, usize, usize) {
-        unsafe {
-            let mut start_lines = std::mem::MaybeUninit::uninit();
-            let mut start_chars = std::mem::MaybeUninit::uninit();
-            let mut start_offset = std::mem::MaybeUninit::uninit();
-            let mut end_lines = std::mem::MaybeUninit::uninit();
-            let mut end_chars = std::mem::MaybeUninit::uninit();
-            let mut end_offset = std::mem::MaybeUninit::uninit();
-            ffi::g_markup_parse_context_get_attribute_position(
-                self.to_glib_none().0,
-                attr,
-                start_lines.as_mut_ptr(),
-                start_chars.as_mut_ptr(),
-                start_offset.as_mut_ptr(),
-                end_lines.as_mut_ptr(),
-                end_chars.as_mut_ptr(),
-                end_offset.as_mut_ptr(),
-            );
-            (
-                start_lines.assume_init(),
-                start_chars.assume_init(),
-                start_offset.assume_init(),
-                end_lines.assume_init(),
-                end_chars.assume_init(),
-                end_offset.assume_init(),
-            )
-        }
-    }
-
     #[doc(alias = "g_markup_parse_context_get_element")]
     #[doc(alias = "get_element")]
     pub fn element(&self) -> crate::GString {
@@ -88,14 +55,6 @@ impl MarkupParseContext {
         }
     }
 
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    #[doc(alias = "g_markup_parse_context_get_offset")]
-    #[doc(alias = "get_offset")]
-    pub fn offset(&self) -> usize {
-        unsafe { ffi::g_markup_parse_context_get_offset(self.to_glib_none().0) }
-    }
-
     #[doc(alias = "g_markup_parse_context_get_position")]
     #[doc(alias = "get_position")]
     pub fn position(&self) -> (i32, i32) {
@@ -108,29 +67,6 @@ impl MarkupParseContext {
                 char_number.as_mut_ptr(),
             );
             (line_number.assume_init(), char_number.assume_init())
-        }
-    }
-
-    #[cfg(feature = "v2_88")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-    #[doc(alias = "g_markup_parse_context_get_tag_start")]
-    #[doc(alias = "get_tag_start")]
-    pub fn tag_start(&self) -> (usize, usize, usize) {
-        unsafe {
-            let mut line_number = std::mem::MaybeUninit::uninit();
-            let mut char_number = std::mem::MaybeUninit::uninit();
-            let mut offset = std::mem::MaybeUninit::uninit();
-            ffi::g_markup_parse_context_get_tag_start(
-                self.to_glib_none().0,
-                line_number.as_mut_ptr(),
-                char_number.as_mut_ptr(),
-                offset.as_mut_ptr(),
-            );
-            (
-                line_number.assume_init(),
-                char_number.assume_init(),
-                offset.assume_init(),
-            )
         }
     }
 

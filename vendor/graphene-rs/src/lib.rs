@@ -22,9 +22,6 @@ pub mod prelude;
 
 pub use crate::auto::*;
 
-#[cfg(feature = "v1_12")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-mod box2_d;
 mod box_;
 mod euler;
 mod frustum;

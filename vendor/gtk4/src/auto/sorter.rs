@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Ordering, SorterChange, SorterOrder, ffi};
+use crate::{ffi, Ordering, SorterChange, SorterOrder};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -24,7 +24,12 @@ impl Sorter {
     pub const NONE: Option<&'static Sorter> = None;
 }
 
-pub trait SorterExt: IsA<Sorter> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Sorter>> Sealed for T {}
+}
+
+pub trait SorterExt: IsA<Sorter> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_sorter_changed")]
     fn changed(&self, change: SorterChange) {
         unsafe {
@@ -59,19 +64,17 @@ pub trait SorterExt: IsA<Sorter> + 'static {
             change: ffi::GtkSorterChange,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Sorter::from_glib_borrow(this).unsafe_cast_ref(),
-                    from_glib(change),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Sorter::from_glib_borrow(this).unsafe_cast_ref(),
+                from_glib(change),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"changed".as_ptr(),
+                b"changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     changed_trampoline::<Self, F> as *const (),
                 )),

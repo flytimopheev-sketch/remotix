@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{EventController, PropagationLimit, PropagationPhase, ffi};
+use crate::{ffi, EventController, PropagationLimit, PropagationPhase};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -54,7 +54,7 @@ impl DropTargetAsync {
     #[doc(alias = "get_formats")]
     pub fn formats(&self) -> Option<gdk::ContentFormats> {
         unsafe {
-            from_glib_none(ffi::gtk_drop_target_async_get_formats(
+            from_glib_full(ffi::gtk_drop_target_async_get_formats(
                 self.to_glib_none().0,
             ))
         }
@@ -95,16 +95,14 @@ impl DropTargetAsync {
             drop: *mut gdk::ffi::GdkDrop,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), &from_glib_borrow(drop)).into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), &from_glib_borrow(drop)).into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"accept".as_ptr(),
+                b"accept\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     accept_trampoline::<F> as *const (),
                 )),
@@ -127,16 +125,14 @@ impl DropTargetAsync {
             y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) -> gdk::ffi::GdkDragAction {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), &from_glib_borrow(drop), x, y).into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), &from_glib_borrow(drop), x, y).into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drag-enter".as_ptr(),
+                b"drag-enter\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drag_enter_trampoline::<F> as *const (),
                 )),
@@ -154,16 +150,14 @@ impl DropTargetAsync {
             drop: *mut gdk::ffi::GdkDrop,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), &from_glib_borrow(drop))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), &from_glib_borrow(drop))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drag-leave".as_ptr(),
+                b"drag-leave\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drag_leave_trampoline::<F> as *const (),
                 )),
@@ -186,16 +180,14 @@ impl DropTargetAsync {
             y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) -> gdk::ffi::GdkDragAction {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), &from_glib_borrow(drop), x, y).into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), &from_glib_borrow(drop), x, y).into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drag-motion".as_ptr(),
+                b"drag-motion\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drag_motion_trampoline::<F> as *const (),
                 )),
@@ -218,16 +210,14 @@ impl DropTargetAsync {
             y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this), &from_glib_borrow(drop), x, y).into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), &from_glib_borrow(drop), x, y).into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drop".as_ptr(),
+                b"drop\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drop_trampoline::<F> as *const (),
                 )),
@@ -243,16 +233,14 @@ impl DropTargetAsync {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::actions".as_ptr(),
+                b"notify::actions\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_actions_trampoline::<F> as *const (),
                 )),
@@ -268,16 +256,14 @@ impl DropTargetAsync {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::formats".as_ptr(),
+                b"notify::formats\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_formats_trampoline::<F> as *const (),
                 )),

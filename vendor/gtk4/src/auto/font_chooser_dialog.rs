@@ -3,33 +3,16 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-use crate::WindowGravity;
 use crate::{
-    AccessibleRole, Align, Application, Buildable, ConstraintTarget, Dialog, FontChooser,
-    FontChooserLevel, LayoutManager, Native, Overflow, Root, ShortcutManager, Widget, Window, ffi,
+    ffi, Accessible, AccessibleRole, Align, Application, Buildable, ConstraintTarget, Dialog,
+    FontChooser, FontChooserLevel, LayoutManager, Native, Overflow, Root, ShortcutManager, Widget,
+    Window,
 };
 use glib::{prelude::*, translate::*};
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkFontChooserDialog")]
     pub struct FontChooserDialog(Object<ffi::GtkFontChooserDialog>) @extends Dialog, Window, Widget, @implements Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, FontChooser;
-
-    match fn {
-        type_ => || ffi::gtk_font_chooser_dialog_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkFontChooserDialog")]
-    pub struct FontChooserDialog(Object<ffi::GtkFontChooserDialog>) @extends Dialog, Window, Widget, @implements Buildable, ConstraintTarget, Native, Root, ShortcutManager, FontChooser;
 
     match fn {
         type_ => || ffi::gtk_font_chooser_dialog_get_type(),
@@ -166,14 +149,6 @@ impl FontChooserDialogBuilder {
     pub fn fullscreened(self, fullscreened: bool) -> Self {
         Self {
             builder: self.builder.property("fullscreened", fullscreened),
-        }
-    }
-
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    pub fn gravity(self, gravity: WindowGravity) -> Self {
-        Self {
-            builder: self.builder.property("gravity", gravity),
         }
     }
 

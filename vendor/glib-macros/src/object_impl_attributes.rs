@@ -5,7 +5,7 @@ pub mod subclass;
 
 use proc_macro2::Span;
 
-use crate::utils::{NestedMetaItem, parse_optional_nested_meta_items};
+use crate::utils::{parse_optional_nested_meta_items, NestedMetaItem};
 
 /// The parsing of `#[object_subclass]` and `#[object_interface]` is subtly different.
 enum AttrKind {
@@ -74,7 +74,7 @@ impl Input {
         let trait_path = trait_
             .as_ref()
             .ok_or_else(|| syn::Error::new(Span::call_site(), wrong_place_msg))?
-            .0
+            .1
             .clone();
 
         Ok(Self {

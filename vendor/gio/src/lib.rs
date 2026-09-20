@@ -17,13 +17,11 @@ mod app_info;
 mod application;
 pub use action_entry::{ActionEntry, ActionEntryBuilder};
 pub use application::{ApplicationBusyGuard, ApplicationHoldGuard};
-mod application_command_line;
 mod async_initable;
 mod cancellable;
 pub use cancellable::CancelledHandlerId;
 mod cancellable_future;
 pub use crate::cancellable_future::{CancellableFuture, Cancelled};
-mod content_type;
 mod converter;
 mod credentials;
 mod data_input_stream;
@@ -32,17 +30,17 @@ mod dbus;
 pub use self::dbus::*;
 mod dbus_connection;
 pub use self::dbus_connection::{
-    ActionGroupExportId, DBusSignalRef, FilterId, MenuModelExportId, RegistrationBuilder,
-    RegistrationId, SignalSubscription, SignalSubscriptionId, SubscribedSignalStream, WatcherId,
-    WeakSignalSubscription,
+    ActionGroupExportId, FilterId, MenuModelExportId, RegistrationBuilder, RegistrationId,
+    SignalSubscriptionId, WatcherId,
 };
-mod dbus_interface_info;
 mod dbus_message;
 mod dbus_method_invocation;
 mod dbus_node_info;
 #[cfg(feature = "v2_72")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v2_72")))]
 mod debug_controller_dbus;
+#[cfg(all(not(windows), not(target_os = "macos")))]
+mod desktop_app_info;
 mod error;
 mod file;
 mod file_attribute_info;
@@ -50,8 +48,10 @@ pub use crate::file_attribute_info::FileAttributeInfo;
 mod file_attribute_info_list;
 mod file_attribute_matcher;
 pub use crate::file_attribute_matcher::FileAttributematcherIter;
-mod file_attribute_value;
-pub use file_attribute_value::FileAttributeValue;
+#[cfg(unix)]
+mod file_descriptor_based;
+#[cfg(unix)]
+pub use file_descriptor_based::FileDescriptorBased;
 mod file_enumerator;
 pub use crate::file_enumerator::FileEnumeratorStream;
 mod file_info;
@@ -83,16 +83,25 @@ pub use crate::settings::BindingBuilder;
 mod simple_proxy_resolver;
 mod socket;
 pub use socket::{InputMessage, InputVector, OutputMessage, OutputVector, SocketControlMessages};
-mod dbus_object_manager_client;
 mod socket_control_message;
 mod socket_listener;
 mod socket_msg_flags;
-pub use socket_msg_flags::*;
+pub use socket_msg_flags::SocketMsgFlags;
 mod subprocess;
 mod subprocess_launcher;
 mod threaded_socket_service;
 #[cfg(unix)]
 mod unix_fd_list;
+#[cfg(unix)]
+mod unix_fd_message;
+#[cfg(unix)]
+mod unix_input_stream;
+#[cfg(unix)]
+mod unix_mount_entry;
+#[cfg(unix)]
+mod unix_mount_point;
+#[cfg(unix)]
+mod unix_output_stream;
 #[cfg(unix)]
 mod unix_socket_address;
 
@@ -107,7 +116,6 @@ pub mod builders {
 
 pub mod functions {
     pub use super::auto::functions::*;
-    pub use super::content_type::content_type_guess;
 }
 
 pub use crate::auto::*;
@@ -117,7 +125,6 @@ pub mod prelude;
 #[allow(clippy::missing_safety_doc)]
 #[allow(clippy::new_ret_no_self)]
 #[allow(unused_imports)]
-#[allow(clippy::let_and_return)]
 mod auto;
 
 mod gio_future;
@@ -128,12 +135,6 @@ pub use crate::io_extension::*;
 
 mod io_extension_point;
 pub use crate::io_extension_point::*;
-
-mod io_module;
-pub use crate::io_module::*;
-
-mod io_module_scope;
-pub use crate::io_module_scope::*;
 
 mod task;
 pub use crate::task::*;
@@ -146,3 +147,13 @@ mod write_output_stream;
 pub use crate::write_output_stream::WriteOutputStream;
 mod dbus_proxy;
 mod tls_connection;
+
+#[cfg(windows)]
+mod win32_input_stream;
+#[cfg(windows)]
+pub use self::win32_input_stream::Win32InputStream;
+
+#[cfg(windows)]
+mod win32_output_stream;
+#[cfg(windows)]
+pub use self::win32_output_stream::Win32OutputStream;

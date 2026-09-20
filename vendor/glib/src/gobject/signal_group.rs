@@ -3,10 +3,11 @@
 use std::mem::transmute;
 
 use crate::{
-    Object, RustClosure, SignalGroup, Value, ffi, gobject_ffi,
+    ffi, gobject_ffi,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
+    Object, RustClosure, SignalGroup, Value,
 };
 
 impl SignalGroup {
@@ -92,50 +93,42 @@ impl SignalGroup {
     }
 
     unsafe fn connect_bind_unsafe<F: Fn(&Self, &Object)>(&self, f: F) -> SignalHandlerId {
-        unsafe {
-            unsafe extern "C" fn bind_trampoline<F: Fn(&SignalGroup, &Object)>(
-                this: *mut crate::gobject_ffi::GSignalGroup,
-                instance: *mut crate::gobject_ffi::GObject,
-                f: ffi::gpointer,
-            ) {
-                unsafe {
-                    let f: &F = &*(f as *const F);
-                    f(&from_glib_borrow(this), &from_glib_borrow(instance))
-                }
-            }
-            let f: Box<F> = Box::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                b"bind\0".as_ptr() as *const _,
-                Some(transmute::<*const (), unsafe extern "C" fn()>(
-                    bind_trampoline::<F> as *const (),
-                )),
-                Box::into_raw(f),
-            )
+        unsafe extern "C" fn bind_trampoline<F: Fn(&SignalGroup, &Object)>(
+            this: *mut crate::gobject_ffi::GSignalGroup,
+            instance: *mut crate::gobject_ffi::GObject,
+            f: ffi::gpointer,
+        ) {
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this), &from_glib_borrow(instance))
         }
+        let f: Box<F> = Box::new(f);
+        connect_raw(
+            self.as_ptr() as *mut _,
+            b"bind\0".as_ptr() as *const _,
+            Some(transmute::<*const (), unsafe extern "C" fn()>(
+                bind_trampoline::<F> as *const (),
+            )),
+            Box::into_raw(f),
+        )
     }
 
     unsafe fn connect_unbind_unsafe<F: Fn(&Self)>(&self, f: F) -> SignalHandlerId {
-        unsafe {
-            unsafe extern "C" fn unbind_trampoline<F: Fn(&SignalGroup)>(
-                this: *mut crate::gobject_ffi::GSignalGroup,
-                f: ffi::gpointer,
-            ) {
-                unsafe {
-                    let f: &F = &*(f as *const F);
-                    f(&from_glib_borrow(this))
-                }
-            }
-            let f: Box<F> = Box::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                b"unbind\0".as_ptr() as *const _,
-                Some(transmute::<*const (), unsafe extern "C" fn()>(
-                    unbind_trampoline::<F> as *const (),
-                )),
-                Box::into_raw(f),
-            )
+        unsafe extern "C" fn unbind_trampoline<F: Fn(&SignalGroup)>(
+            this: *mut crate::gobject_ffi::GSignalGroup,
+            f: ffi::gpointer,
+        ) {
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
+        let f: Box<F> = Box::new(f);
+        connect_raw(
+            self.as_ptr() as *mut _,
+            b"unbind\0".as_ptr() as *const _,
+            Some(transmute::<*const (), unsafe extern "C" fn()>(
+                unbind_trampoline::<F> as *const (),
+            )),
+            Box::into_raw(f),
+        )
     }
 
     #[doc(alias = "bind")]
@@ -189,7 +182,7 @@ mod tests {
 
     mod imp {
         use super::*;
-        use crate::subclass::{Signal, prelude::*};
+        use crate::subclass::{prelude::*, Signal};
 
         #[derive(Default)]
         pub struct SignalObject {}

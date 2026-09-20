@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{EventController, Gesture, GestureSingle, PropagationLimit, PropagationPhase, ffi};
+use crate::{ffi, EventController, Gesture, GestureSingle, PropagationLimit, PropagationPhase};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -115,7 +115,12 @@ impl GestureDragBuilder {
     }
 }
 
-pub trait GestureDragExt: IsA<GestureDrag> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::GestureDrag>> Sealed for T {}
+}
+
+pub trait GestureDragExt: IsA<GestureDrag> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_gesture_drag_get_offset")]
     #[doc(alias = "get_offset")]
     fn offset(&self) -> Option<(f64, f64)> {
@@ -165,20 +170,18 @@ pub trait GestureDragExt: IsA<GestureDrag> + 'static {
             start_y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    GestureDrag::from_glib_borrow(this).unsafe_cast_ref(),
-                    start_x,
-                    start_y,
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                GestureDrag::from_glib_borrow(this).unsafe_cast_ref(),
+                start_x,
+                start_y,
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drag-begin".as_ptr(),
+                b"drag-begin\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drag_begin_trampoline::<Self, F> as *const (),
                 )),
@@ -198,20 +201,18 @@ pub trait GestureDragExt: IsA<GestureDrag> + 'static {
             offset_y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    GestureDrag::from_glib_borrow(this).unsafe_cast_ref(),
-                    offset_x,
-                    offset_y,
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                GestureDrag::from_glib_borrow(this).unsafe_cast_ref(),
+                offset_x,
+                offset_y,
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drag-end".as_ptr(),
+                b"drag-end\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drag_end_trampoline::<Self, F> as *const (),
                 )),
@@ -231,20 +232,18 @@ pub trait GestureDragExt: IsA<GestureDrag> + 'static {
             offset_y: std::ffi::c_double,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    GestureDrag::from_glib_borrow(this).unsafe_cast_ref(),
-                    offset_x,
-                    offset_y,
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                GestureDrag::from_glib_borrow(this).unsafe_cast_ref(),
+                offset_x,
+                offset_y,
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drag-update".as_ptr(),
+                b"drag-update\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drag_update_trampoline::<Self, F> as *const (),
                 )),

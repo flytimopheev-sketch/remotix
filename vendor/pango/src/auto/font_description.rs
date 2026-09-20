@@ -2,13 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v1_57")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-use crate::FontColor;
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-use crate::Width;
-use crate::{FontMask, Gravity, Stretch, Style, Variant, Weight, ffi};
+use crate::{ffi, FontMask, Gravity, Stretch, Style, Variant, Weight};
 use glib::translate::*;
 
 glib::wrapper! {
@@ -51,14 +45,6 @@ impl FontDescription {
                 desc2.to_glib_none().0,
             ))
         }
-    }
-
-    #[cfg(feature = "v1_57")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-    #[doc(alias = "pango_font_description_get_color")]
-    #[doc(alias = "get_color")]
-    pub fn color(&self) -> FontColor {
-        unsafe { from_glib(ffi::pango_font_description_get_color(self.to_glib_none().0)) }
     }
 
     #[doc(alias = "pango_font_description_get_family")]
@@ -167,14 +153,6 @@ impl FontDescription {
         }
     }
 
-    #[cfg(feature = "v1_58")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-    #[doc(alias = "pango_font_description_get_width")]
-    #[doc(alias = "get_width")]
-    pub fn width(&self) -> Width {
-        unsafe { from_glib(ffi::pango_font_description_get_width(self.to_glib_none().0)) }
-    }
-
     #[doc(alias = "pango_font_description_hash")]
     fn hash(&self) -> u32 {
         unsafe { ffi::pango_font_description_hash(self.to_glib_none().0) }
@@ -195,15 +173,6 @@ impl FontDescription {
     pub fn set_absolute_size(&mut self, size: f64) {
         unsafe {
             ffi::pango_font_description_set_absolute_size(self.to_glib_none_mut().0, size);
-        }
-    }
-
-    #[cfg(feature = "v1_57")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-    #[doc(alias = "pango_font_description_set_color")]
-    pub fn set_color(&mut self, color: FontColor) {
-        unsafe {
-            ffi::pango_font_description_set_color(self.to_glib_none_mut().0, color.into_glib());
         }
     }
 
@@ -280,15 +249,6 @@ impl FontDescription {
     pub fn set_weight(&mut self, weight: Weight) {
         unsafe {
             ffi::pango_font_description_set_weight(self.to_glib_none_mut().0, weight.into_glib());
-        }
-    }
-
-    #[cfg(feature = "v1_58")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-    #[doc(alias = "pango_font_description_set_width")]
-    pub fn set_width(&mut self, width: Width) {
-        unsafe {
-            ffi::pango_font_description_set_width(self.to_glib_none_mut().0, width.into_glib());
         }
     }
 

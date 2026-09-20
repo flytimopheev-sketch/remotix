@@ -3,13 +3,13 @@
 // DO NOT EDIT
 
 use crate::{
-    PageSetup, PrintContext, PrintOperationAction, PrintOperationPreview, PrintOperationResult,
-    PrintSettings, PrintStatus, Unit, Widget, Window, ffi,
+    ffi, PageSetup, PrintContext, PrintOperationAction, PrintOperationPreview,
+    PrintOperationResult, PrintSettings, PrintStatus, Unit, Widget, Window,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -174,7 +174,12 @@ impl PrintOperationBuilder {
     }
 }
 
-pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::PrintOperation>> Sealed for T {}
+}
+
+pub trait PrintOperationExt: IsA<PrintOperation> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_print_operation_cancel")]
     fn cancel(&self) {
         unsafe {
@@ -525,19 +530,17 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             context: *mut ffi::GtkPrintContext,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(context),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(context),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"begin-print".as_ptr(),
+                b"begin-print\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     begin_print_trampoline::<Self, F> as *const (),
                 )),
@@ -558,18 +561,16 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             this: *mut ffi::GtkPrintOperation,
             f: glib::ffi::gpointer,
         ) -> *mut glib::gobject_ffi::GObject {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref()) /*Not checked*/
-                    .to_glib_none()
-                    .0
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref()) /*Not checked*/
+                .to_glib_none()
+                .0
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"create-custom-widget".as_ptr(),
+                b"create-custom-widget\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     create_custom_widget_trampoline::<Self, F> as *const (),
                 )),
@@ -591,19 +592,17 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             widget: *mut ffi::GtkWidget,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(widget),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(widget),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"custom-widget-apply".as_ptr(),
+                b"custom-widget-apply\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     custom_widget_apply_trampoline::<Self, F> as *const (),
                 )),
@@ -622,19 +621,17 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             result: ffi::GtkPrintOperationResult,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    from_glib(result),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                from_glib(result),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"done".as_ptr(),
+                b"done\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     done_trampoline::<Self, F> as *const (),
                 )),
@@ -657,20 +654,18 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             page_nr: std::ffi::c_int,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(context),
-                    page_nr,
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(context),
+                page_nr,
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"draw-page".as_ptr(),
+                b"draw-page\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     draw_page_trampoline::<Self, F> as *const (),
                 )),
@@ -689,19 +684,17 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             context: *mut ffi::GtkPrintContext,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(context),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(context),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"end-print".as_ptr(),
+                b"end-print\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     end_print_trampoline::<Self, F> as *const (),
                 )),
@@ -723,20 +716,18 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             context: *mut ffi::GtkPrintContext,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(context),
-                )
-                .into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(context),
+            )
+            .into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"paginate".as_ptr(),
+                b"paginate\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     paginate_trampoline::<Self, F> as *const (),
                 )),
@@ -762,22 +753,20 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             parent: *mut ffi::GtkWindow,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(preview),
-                    &from_glib_borrow(context),
-                    Option::<Window>::from_glib_borrow(parent).as_ref().as_ref(),
-                )
-                .into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(preview),
+                &from_glib_borrow(context),
+                Option::<Window>::from_glib_borrow(parent).as_ref().as_ref(),
+            )
+            .into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"preview".as_ptr(),
+                b"preview\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     preview_trampoline::<Self, F> as *const (),
                 )),
@@ -801,21 +790,19 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             setup: *mut ffi::GtkPageSetup,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(context),
-                    page_nr,
-                    &from_glib_borrow(setup),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(context),
+                page_nr,
+                &from_glib_borrow(setup),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"request-page-setup".as_ptr(),
+                b"request-page-setup\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     request_page_setup_trampoline::<Self, F> as *const (),
                 )),
@@ -833,16 +820,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             this: *mut ffi::GtkPrintOperation,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"status-changed".as_ptr(),
+                b"status-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     status_changed_trampoline::<Self, F> as *const (),
                 )),
@@ -866,21 +851,19 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             settings: *mut ffi::GtkPrintSettings,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(widget),
-                    &from_glib_borrow(setup),
-                    &from_glib_borrow(settings),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                PrintOperation::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(widget),
+                &from_glib_borrow(setup),
+                &from_glib_borrow(settings),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"update-custom-widget".as_ptr(),
+                b"update-custom-widget\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     update_custom_widget_trampoline::<Self, F> as *const (),
                 )),
@@ -899,16 +882,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::allow-async".as_ptr(),
+                b"notify::allow-async\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_allow_async_trampoline::<Self, F> as *const (),
                 )),
@@ -927,16 +908,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::current-page".as_ptr(),
+                b"notify::current-page\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_current_page_trampoline::<Self, F> as *const (),
                 )),
@@ -955,16 +934,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::custom-tab-label".as_ptr(),
+                b"notify::custom-tab-label\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_custom_tab_label_trampoline::<Self, F> as *const (),
                 )),
@@ -983,16 +960,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::default-page-setup".as_ptr(),
+                b"notify::default-page-setup\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_default_page_setup_trampoline::<Self, F> as *const (),
                 )),
@@ -1011,16 +986,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::embed-page-setup".as_ptr(),
+                b"notify::embed-page-setup\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_embed_page_setup_trampoline::<Self, F> as *const (),
                 )),
@@ -1039,16 +1012,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::export-filename".as_ptr(),
+                b"notify::export-filename\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_export_filename_trampoline::<Self, F> as *const (),
                 )),
@@ -1067,16 +1038,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::has-selection".as_ptr(),
+                b"notify::has-selection\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_has_selection_trampoline::<Self, F> as *const (),
                 )),
@@ -1095,16 +1064,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::job-name".as_ptr(),
+                b"notify::job-name\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_job_name_trampoline::<Self, F> as *const (),
                 )),
@@ -1123,16 +1090,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::n-pages".as_ptr(),
+                b"notify::n-pages\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_n_pages_trampoline::<Self, F> as *const (),
                 )),
@@ -1151,16 +1116,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::n-pages-to-print".as_ptr(),
+                b"notify::n-pages-to-print\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_n_pages_to_print_trampoline::<Self, F> as *const (),
                 )),
@@ -1179,16 +1142,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::print-settings".as_ptr(),
+                b"notify::print-settings\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_print_settings_trampoline::<Self, F> as *const (),
                 )),
@@ -1207,16 +1168,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::show-progress".as_ptr(),
+                b"notify::show-progress\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_show_progress_trampoline::<Self, F> as *const (),
                 )),
@@ -1235,16 +1194,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::status".as_ptr(),
+                b"notify::status\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_status_trampoline::<Self, F> as *const (),
                 )),
@@ -1263,16 +1220,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::status-string".as_ptr(),
+                b"notify::status-string\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_status_string_trampoline::<Self, F> as *const (),
                 )),
@@ -1291,16 +1246,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::support-selection".as_ptr(),
+                b"notify::support-selection\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_support_selection_trampoline::<Self, F> as *const (),
                 )),
@@ -1319,16 +1272,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::track-print-status".as_ptr(),
+                b"notify::track-print-status\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_track_print_status_trampoline::<Self, F> as *const (),
                 )),
@@ -1344,16 +1295,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::unit".as_ptr(),
+                b"notify::unit\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_unit_trampoline::<Self, F> as *const (),
                 )),
@@ -1372,16 +1321,14 @@ pub trait PrintOperationExt: IsA<PrintOperation> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(PrintOperation::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::use-full-page".as_ptr(),
+                b"notify::use-full-page\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_use_full_page_trampoline::<Self, F> as *const (),
                 )),

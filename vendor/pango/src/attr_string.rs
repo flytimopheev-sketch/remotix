@@ -2,7 +2,7 @@
 
 use glib::translate::*;
 
-use crate::{AttrType, ffi};
+use crate::{ffi, AttrType};
 
 define_attribute_struct!(AttrString, ffi::PangoAttrString, &[AttrType::Family]);
 

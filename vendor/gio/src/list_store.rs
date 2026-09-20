@@ -2,9 +2,9 @@
 
 use std::{cell::Cell, cmp::Ordering, rc::Rc};
 
-use glib::{Object, prelude::*, translate::*};
+use glib::{prelude::*, translate::*, Object};
 
-use crate::{ListModel, ListStore, ffi, prelude::*};
+use crate::{ffi, prelude::*, ListModel, ListStore};
 
 impl ListStore {
     #[doc(alias = "g_list_store_new")]
@@ -25,8 +25,8 @@ impl ListStore {
     ) -> u32 {
         unsafe {
             let mut func = compare_func;
-            let func_obj: &mut dyn FnMut(&Object, &Object) -> Ordering = &mut func;
-            let func_ptr = &func_obj as *const &mut dyn FnMut(&Object, &Object) -> Ordering
+            let func_obj: &mut (dyn FnMut(&Object, &Object) -> Ordering) = &mut func;
+            let func_ptr = &func_obj as *const &mut (dyn FnMut(&Object, &Object) -> Ordering)
                 as glib::ffi::gpointer;
 
             ffi::g_list_store_insert_sorted(
@@ -42,8 +42,8 @@ impl ListStore {
     pub fn sort<F: FnMut(&Object, &Object) -> Ordering>(&self, compare_func: F) {
         unsafe {
             let mut func = compare_func;
-            let func_obj: &mut dyn FnMut(&Object, &Object) -> Ordering = &mut func;
-            let func_ptr = &func_obj as *const &mut dyn FnMut(&Object, &Object) -> Ordering
+            let func_obj: &mut (dyn FnMut(&Object, &Object) -> Ordering) = &mut func;
+            let func_ptr = &func_obj as *const &mut (dyn FnMut(&Object, &Object) -> Ordering)
                 as glib::ffi::gpointer;
 
             ffi::g_list_store_sort(
@@ -143,62 +143,41 @@ impl ListStore {
             _b: glib::ffi::gconstpointer,
             func: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let func = func as *mut &mut dyn FnMut(&Object) -> bool;
+            let func = func as *mut &mut (dyn FnMut(&Object) -> bool);
 
-                let a = from_glib_borrow(a as *mut glib::gobject_ffi::GObject);
+            let a = from_glib_borrow(a as *mut glib::gobject_ffi::GObject);
 
-                (*func)(&a).into_glib()
-            }
+            (*func)(&a).into_glib()
         }
 
-        let mut func = equal_func;
-        let func_obj: &mut dyn FnMut(&Object) -> bool = &mut func;
-        let func_ptr = &func_obj as *const &mut dyn FnMut(&Object) -> bool as glib::ffi::gpointer;
-        let mut position = std::mem::MaybeUninit::uninit();
-
-        // GIO prior to 2.76 requires a non-NULL item to be passed in so we're constructing a fake item here.
-        // See https://gitlab.gnome.org/GNOME/glib/-/merge_requests/3284
-        #[cfg(not(feature = "v2_76"))]
-        let result = unsafe {
-            let g_class: *mut glib::gobject_ffi::GTypeClass =
-                glib::gobject_ffi::g_type_class_peek(self.item_type().into_glib()) as *mut _;
-
-            // g_class will be `NULL` when no instance of the `item-type` has been created yet.
-            // See https://github.com/gtk-rs/gtk-rs-core/issues/1767
-            if g_class.is_null() {
-                return None;
-            }
-
+        unsafe {
+            // GIO requires a non-NULL item to be passed in so we're constructing a fake item here.
+            // See https://gitlab.gnome.org/GNOME/glib/-/merge_requests/3284
             let item = glib::gobject_ffi::GObject {
-                g_type_instance: glib::gobject_ffi::GTypeInstance { g_class },
+                g_type_instance: glib::gobject_ffi::GTypeInstance {
+                    g_class: glib::gobject_ffi::g_type_class_peek(self.item_type().into_glib())
+                        as *mut _,
+                },
                 ref_count: 1,
                 qdata: std::ptr::null_mut(),
             };
+            let mut func = equal_func;
+            let func_obj: &mut (dyn FnMut(&Object) -> bool) = &mut func;
+            let func_ptr =
+                &func_obj as *const &mut (dyn FnMut(&Object) -> bool) as glib::ffi::gpointer;
 
-            bool::from_glib(ffi::g_list_store_find_with_equal_func_full(
+            let mut position = std::mem::MaybeUninit::uninit();
+
+            let found = bool::from_glib(ffi::g_list_store_find_with_equal_func_full(
                 self.to_glib_none().0,
                 mut_override(&item as *const _),
                 Some(equal_func_trampoline),
                 func_ptr,
                 position.as_mut_ptr(),
-            ))
-            .then(|| position.assume_init())
-        };
+            ));
 
-        #[cfg(feature = "v2_76")]
-        let result = unsafe {
-            bool::from_glib(ffi::g_list_store_find_with_equal_func_full(
-                self.to_glib_none().0,
-                std::ptr::null_mut(),
-                Some(equal_func_trampoline),
-                func_ptr,
-                position.as_mut_ptr(),
-            ))
-            .then(|| position.assume_init())
-        };
-
-        result
+            found.then(|| position.assume_init())
+        }
     }
 }
 
@@ -226,14 +205,12 @@ unsafe extern "C" fn compare_func_trampoline(
     b: glib::ffi::gconstpointer,
     func: glib::ffi::gpointer,
 ) -> i32 {
-    unsafe {
-        let func = func as *mut &mut dyn FnMut(&Object, &Object) -> Ordering;
+    let func = func as *mut &mut (dyn FnMut(&Object, &Object) -> Ordering);
 
-        let a = from_glib_borrow(a as *mut glib::gobject_ffi::GObject);
-        let b = from_glib_borrow(b as *mut glib::gobject_ffi::GObject);
+    let a = from_glib_borrow(a as *mut glib::gobject_ffi::GObject);
+    let b = from_glib_borrow(b as *mut glib::gobject_ffi::GObject);
 
-        (*func)(&a, &b).into_glib()
-    }
+    (*func)(&a, &b).into_glib()
 }
 
 impl<A: AsRef<glib::Object>> std::iter::Extend<A> for ListStore {
@@ -248,7 +225,7 @@ impl<A: AsRef<glib::Object>> std::iter::Extend<A> for ListStore {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ListStore, prelude::*};
+    use crate::{prelude::*, ListStore};
 
     #[test]
     fn splice() {

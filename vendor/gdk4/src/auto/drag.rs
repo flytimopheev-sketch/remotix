@@ -3,12 +3,12 @@
 // DO NOT EDIT
 
 use crate::{
-    ContentFormats, ContentProvider, Device, Display, DragAction, DragCancelReason, Surface, ffi,
+    ffi, ContentFormats, ContentProvider, Device, Display, DragAction, DragCancelReason, Surface,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -48,7 +48,12 @@ impl Drag {
     }
 }
 
-pub trait DragExt: IsA<Drag> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Drag>> Sealed for T {}
+}
+
+pub trait DragExt: IsA<Drag> + sealed::Sealed + 'static {
     #[doc(alias = "gdk_drag_drop_done")]
     fn drop_done(&self, success: bool) {
         unsafe {
@@ -139,19 +144,17 @@ pub trait DragExt: IsA<Drag> + 'static {
             reason: ffi::GdkDragCancelReason,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Drag::from_glib_borrow(this).unsafe_cast_ref(),
-                    from_glib(reason),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Drag::from_glib_borrow(this).unsafe_cast_ref(),
+                from_glib(reason),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"cancel".as_ptr(),
+                b"cancel\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     cancel_trampoline::<Self, F> as *const (),
                 )),
@@ -166,16 +169,14 @@ pub trait DragExt: IsA<Drag> + 'static {
             this: *mut ffi::GdkDrag,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Drag::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Drag::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"dnd-finished".as_ptr(),
+                b"dnd-finished\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     dnd_finished_trampoline::<Self, F> as *const (),
                 )),
@@ -190,16 +191,14 @@ pub trait DragExt: IsA<Drag> + 'static {
             this: *mut ffi::GdkDrag,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Drag::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Drag::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"drop-performed".as_ptr(),
+                b"drop-performed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     drop_performed_trampoline::<Self, F> as *const (),
                 )),
@@ -215,16 +214,14 @@ pub trait DragExt: IsA<Drag> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Drag::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Drag::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::actions".as_ptr(),
+                b"notify::actions\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_actions_trampoline::<Self, F> as *const (),
                 )),
@@ -240,16 +237,14 @@ pub trait DragExt: IsA<Drag> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Drag::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Drag::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::display".as_ptr(),
+                b"notify::display\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_display_trampoline::<Self, F> as *const (),
                 )),
@@ -268,16 +263,14 @@ pub trait DragExt: IsA<Drag> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Drag::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Drag::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::selected-action".as_ptr(),
+                b"notify::selected-action\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_selected_action_trampoline::<Self, F> as *const (),
                 )),

@@ -5,9 +5,9 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use glib::{StrV, translate::*};
+use glib::{translate::*, StrV};
 
-use crate::{FileAttributeValue, FileInfo, ffi};
+use crate::{ffi, FileInfo};
 
 impl FileInfo {
     #[cfg_attr(feature = "v2_62", deprecated)]
@@ -69,19 +69,6 @@ impl FileInfo {
                     attr_value.as_ptr() as *mut _,
                 );
             });
-        }
-    }
-
-    #[doc(alias = "g_file_info_set_attribute")]
-    pub fn set_attribute<'a>(&self, attribute: &str, value: impl Into<FileAttributeValue<'a>>) {
-        unsafe {
-            let value: FileAttributeValue<'a> = value.into();
-            ffi::g_file_info_set_attribute(
-                self.to_glib_none().0,
-                attribute.to_glib_none().0,
-                value.type_().into_glib(),
-                value.as_ptr(),
-            );
         }
     }
 }

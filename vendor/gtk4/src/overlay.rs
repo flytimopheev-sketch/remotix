@@ -3,11 +3,11 @@
 use std::{mem::transmute, ptr};
 
 use glib::{
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 
-use crate::{Overlay, Widget, ffi, prelude::*};
+use crate::{ffi, prelude::*, Overlay, Widget};
 
 impl Overlay {
     pub fn connect_get_child_position<F>(&self, f: F) -> SignalHandlerId
@@ -18,9 +18,9 @@ impl Overlay {
             let f: Box<F> = Box::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"get-child-position".as_ptr() as *mut _,
-                Some(transmute::<*const (), unsafe extern "C" fn()>(
-                    get_child_position_trampoline::<F> as *const (),
+                b"get-child-position\0".as_ptr() as *mut _,
+                Some(transmute::<usize, unsafe extern "C" fn()>(
+                    get_child_position_trampoline::<F> as usize,
                 )),
                 Box::into_raw(f),
             )
@@ -36,18 +36,16 @@ unsafe extern "C" fn get_child_position_trampoline<
     allocation: *mut gdk::ffi::GdkRectangle,
     f: glib::ffi::gpointer,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let f: &F = &*(f as *const F);
-        match f(
-            Overlay::from_glib_borrow(this).unsafe_cast_ref(),
-            &from_glib_borrow(widget),
-        ) {
-            Some(rect) => {
-                ptr::write(allocation, ptr::read(rect.to_glib_none().0));
-                true
-            }
-            None => false,
+    let f: &F = &*(f as *const F);
+    match f(
+        Overlay::from_glib_borrow(this).unsafe_cast_ref(),
+        &from_glib_borrow(widget),
+    ) {
+        Some(rect) => {
+            ptr::write(allocation, ptr::read(rect.to_glib_none().0));
+            true
         }
-        .into_glib()
+        None => false,
     }
+    .into_glib()
 }

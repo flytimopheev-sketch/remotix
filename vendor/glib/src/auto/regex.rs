@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Error, RegexCompileFlags, RegexMatchFlags, ffi, translate::*};
+use crate::{ffi, translate::*, Error, RegexCompileFlags, RegexMatchFlags};
 
 crate::wrapper! {
     #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -81,7 +81,7 @@ impl Regex {
     }
 
     //#[doc(alias = "g_regex_replace_eval")]
-    //pub fn replace_eval(&self, string: &str, start_position: i32, match_options: RegexMatchFlags, eval: /*Unimplemented*/FnMut(&MatchInfo, /*Ignored*/String) -> bool, user_data: /*Unimplemented*/Option<Basic: Pointer>) -> Result<crate::GString, crate::Error> {
+    //pub fn replace_eval(&self, string: &[&str], start_position: i32, match_options: RegexMatchFlags, eval: /*Unimplemented*/FnMut(&MatchInfo, /*Ignored*/String) -> bool, user_data: /*Unimplemented*/Option<Basic: Pointer>) -> Result<crate::GString, crate::Error> {
     //    unsafe { TODO: call ffi:g_regex_replace_eval() }
     //}
 }

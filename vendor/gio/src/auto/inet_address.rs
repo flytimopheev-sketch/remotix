@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{SocketFamily, ffi};
+use crate::{ffi, SocketFamily};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -49,7 +49,12 @@ impl std::fmt::Display for InetAddress {
 unsafe impl Send for InetAddress {}
 unsafe impl Sync for InetAddress {}
 
-pub trait InetAddressExt: IsA<InetAddress> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::InetAddress>> Sealed for T {}
+}
+
+pub trait InetAddressExt: IsA<InetAddress> + sealed::Sealed + 'static {
     #[doc(alias = "g_inet_address_equal")]
     fn equal(&self, other_address: &impl IsA<InetAddress>) -> bool {
         unsafe {
@@ -68,14 +73,6 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
                 self.as_ref().to_glib_none().0,
             ))
         }
-    }
-
-    #[cfg(feature = "v2_86")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_86")))]
-    #[doc(alias = "g_inet_address_get_flowinfo")]
-    #[doc(alias = "get_flowinfo")]
-    fn flowinfo(&self) -> u32 {
-        unsafe { ffi::g_inet_address_get_flowinfo(self.as_ref().to_glib_none().0) }
     }
 
     #[doc(alias = "g_inet_address_get_is_any")]
@@ -194,15 +191,6 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
         unsafe { ffi::g_inet_address_get_native_size(self.as_ref().to_glib_none().0) }
     }
 
-    #[cfg(feature = "v2_86")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_86")))]
-    #[doc(alias = "g_inet_address_get_scope_id")]
-    #[doc(alias = "get_scope_id")]
-    #[doc(alias = "scope-id")]
-    fn scope_id(&self) -> u32 {
-        unsafe { ffi::g_inet_address_get_scope_id(self.as_ref().to_glib_none().0) }
-    }
-
     #[doc(alias = "g_inet_address_to_string")]
     #[doc(alias = "to_string")]
     fn to_str(&self) -> glib::GString {
@@ -227,16 +215,14 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-any".as_ptr(),
+                b"notify::is-any\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_any_trampoline::<Self, F> as *const (),
                 )),
@@ -258,16 +244,14 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-link-local".as_ptr(),
+                b"notify::is-link-local\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_link_local_trampoline::<Self, F> as *const (),
                 )),
@@ -289,16 +273,14 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-loopback".as_ptr(),
+                b"notify::is-loopback\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_loopback_trampoline::<Self, F> as *const (),
                 )),
@@ -320,16 +302,14 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-mc-global".as_ptr(),
+                b"notify::is-mc-global\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_mc_global_trampoline::<Self, F> as *const (),
                 )),
@@ -351,16 +331,14 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-mc-link-local".as_ptr(),
+                b"notify::is-mc-link-local\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_mc_link_local_trampoline::<Self, F> as *const (),
                 )),
@@ -382,16 +360,14 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-mc-node-local".as_ptr(),
+                b"notify::is-mc-node-local\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_mc_node_local_trampoline::<Self, F> as *const (),
                 )),
@@ -413,16 +389,14 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-mc-org-local".as_ptr(),
+                b"notify::is-mc-org-local\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_mc_org_local_trampoline::<Self, F> as *const (),
                 )),
@@ -444,16 +418,14 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-mc-site-local".as_ptr(),
+                b"notify::is-mc-site-local\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_mc_site_local_trampoline::<Self, F> as *const (),
                 )),
@@ -475,16 +447,14 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-multicast".as_ptr(),
+                b"notify::is-multicast\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_multicast_trampoline::<Self, F> as *const (),
                 )),
@@ -506,16 +476,14 @@ pub trait InetAddressExt: IsA<InetAddress> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(InetAddress::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::is-site-local".as_ptr(),
+                b"notify::is-site-local\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_is_site_local_trampoline::<Self, F> as *const (),
                 )),

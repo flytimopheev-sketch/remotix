@@ -3,39 +3,38 @@
 use std::{fmt, ptr};
 
 use crate::{
-    Binding, BindingFlags, BindingGroup, BoolError, Object, ParamSpec, Value, ffi, gobject_ffi,
-    object::ObjectRef, prelude::*, translate::*, value::FromValue,
+    ffi, gobject_ffi, object::ObjectRef, prelude::*, translate::*, Binding, BindingFlags,
+    BindingGroup, BoolError, Object, ParamSpec, Value,
 };
 
 impl BindingGroup {
     #[doc(alias = "bind_with_closures")]
-    pub fn bind<'a, 'f, 't, O: ObjectType>(
+    pub fn bind<'a, O: ObjectType>(
         &'a self,
         source_property: &'a str,
         target: &'a O,
         target_property: &'a str,
-    ) -> BindingGroupBuilder<'a, 'f, 't> {
+    ) -> BindingGroupBuilder<'a> {
         BindingGroupBuilder::new(self, source_property, target, target_property)
     }
 }
 
-type TransformFn<'b> =
-    Option<Box<dyn Fn(&'b Binding, &'b Value) -> Option<Value> + Send + Sync + 'static>>;
+type TransformFn = Option<Box<dyn Fn(&Binding, &Value) -> Option<Value> + Send + Sync + 'static>>;
 
 // rustdoc-stripper-ignore-next
 /// Builder for binding group bindings.
 #[must_use = "The builder must be built to be used"]
-pub struct BindingGroupBuilder<'a, 'f, 't> {
+pub struct BindingGroupBuilder<'a> {
     group: &'a BindingGroup,
     source_property: &'a str,
     target: &'a ObjectRef,
     target_property: &'a str,
     flags: BindingFlags,
-    transform_to: TransformFn<'t>,
-    transform_from: TransformFn<'f>,
+    transform_to: TransformFn,
+    transform_from: TransformFn,
 }
 
-impl fmt::Debug for BindingGroupBuilder<'_, '_, '_> {
+impl fmt::Debug for BindingGroupBuilder<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BindingGroupBuilder")
             .field("group", &self.group)
@@ -47,7 +46,7 @@ impl fmt::Debug for BindingGroupBuilder<'_, '_, '_> {
     }
 }
 
-impl<'a, 'f, 't> BindingGroupBuilder<'a, 'f, 't> {
+impl<'a> BindingGroupBuilder<'a> {
     fn new(
         group: &'a BindingGroup,
         source_property: &'a str,
@@ -67,9 +66,7 @@ impl<'a, 'f, 't> BindingGroupBuilder<'a, 'f, 't> {
 
     // rustdoc-stripper-ignore-next
     /// Transform changed property values from the target object to the source object with the given closure.
-    pub fn transform_from_with_values<
-        F: Fn(&Binding, &Value) -> Option<Value> + Send + Sync + 'static,
-    >(
+    pub fn transform_from<F: Fn(&Binding, &Value) -> Option<Value> + Send + Sync + 'static>(
         self,
         func: F,
     ) -> Self {
@@ -80,59 +77,13 @@ impl<'a, 'f, 't> BindingGroupBuilder<'a, 'f, 't> {
     }
 
     // rustdoc-stripper-ignore-next
-    /// Transform changed property values from the target object to the source object with the given closure.
-    ///
-    /// This function operates on concrete argument and return types.
-    /// See [`Self::transform_from_with_values`] for a version which operates on `glib::Value`s.
-    pub fn transform_from<
-        S: FromValue<'f>,
-        T: Into<Value>,
-        F: Fn(&'f Binding, S) -> Option<T> + Send + Sync + 'static,
-    >(
-        self,
-        func: F,
-    ) -> Self {
-        Self {
-            transform_from: Some(Box::new(move |binding, from_value| {
-                let from_value = from_value.get().expect("Wrong value type");
-                func(binding, from_value).map(|r| r.into())
-            })),
-            ..self
-        }
-    }
-
-    // rustdoc-stripper-ignore-next
     /// Transform changed property values from the source object to the target object with the given closure.
-    pub fn transform_to_with_values<
-        F: Fn(&Binding, &Value) -> Option<Value> + Send + Sync + 'static,
-    >(
+    pub fn transform_to<F: Fn(&Binding, &Value) -> Option<Value> + Send + Sync + 'static>(
         self,
         func: F,
     ) -> Self {
         Self {
             transform_to: Some(Box::new(func)),
-            ..self
-        }
-    }
-
-    // rustdoc-stripper-ignore-next
-    /// Transform changed property values from the source object to the target object with the given closure.
-    ///
-    /// This function operates on concrete argument and return types.
-    /// See [`Self::transform_to_with_values`] for a version which operates on `glib::Value`s.
-    pub fn transform_to<
-        S: FromValue<'t>,
-        T: Into<Value>,
-        F: Fn(&'t Binding, S) -> Option<T> + Send + Sync + 'static,
-    >(
-        self,
-        func: F,
-    ) -> Self {
-        Self {
-            transform_to: Some(Box::new(move |binding, from_value| {
-                let from_value = from_value.get().expect("Wrong value type");
-                func(binding, from_value).map(|r| r.into())
-            })),
             ..self
         }
     }
@@ -175,11 +126,10 @@ impl<'a, 'f, 't> BindingGroupBuilder<'a, 'f, 't> {
             to_value: *mut gobject_ffi::GValue,
             user_data: ffi::gpointer,
         ) -> ffi::gboolean {
-            unsafe {
-                let transform_data =
-                    &*(user_data as *const (TransformFn, TransformFn, String, ParamSpec));
+            let transform_data =
+                &*(user_data as *const (TransformFn, TransformFn, String, ParamSpec));
 
-                match (transform_data.0.as_ref().unwrap())(
+            match (transform_data.0.as_ref().unwrap())(
                 &from_glib_borrow(binding),
                 &*(from_value as *const Value),
             ) {
@@ -197,7 +147,6 @@ impl<'a, 'f, 't> BindingGroupBuilder<'a, 'f, 't> {
                 }
             }
             .into_glib()
-            }
         }
 
         unsafe extern "C" fn transform_from_trampoline(
@@ -206,12 +155,11 @@ impl<'a, 'f, 't> BindingGroupBuilder<'a, 'f, 't> {
             to_value: *mut gobject_ffi::GValue,
             user_data: ffi::gpointer,
         ) -> ffi::gboolean {
-            unsafe {
-                let transform_data =
-                    &*(user_data as *const (TransformFn, TransformFn, String, ParamSpec));
-                let binding = from_glib_borrow(binding);
+            let transform_data =
+                &*(user_data as *const (TransformFn, TransformFn, String, ParamSpec));
+            let binding = from_glib_borrow(binding);
 
-                match (transform_data.1.as_ref().unwrap())(
+            match (transform_data.1.as_ref().unwrap())(
                 &binding,
                 &*(from_value as *const Value),
             ) {
@@ -234,38 +182,31 @@ impl<'a, 'f, 't> BindingGroupBuilder<'a, 'f, 't> {
                 }
             }
             .into_glib()
-            }
         }
 
         unsafe extern "C" fn free_transform_data(data: ffi::gpointer) {
-            unsafe {
-                let _ = Box::from_raw(data as *mut (TransformFn, TransformFn, String, ParamSpec));
-            }
+            let _ = Box::from_raw(data as *mut (TransformFn, TransformFn, String, ParamSpec));
         }
 
         let mut _source_property_name_cstr = None;
-        let source_property_name = match self.group.source() {
-            Some(source) => {
-                let source_property =
-                    source.find_property(self.source_property).ok_or_else(|| {
-                        bool_error!(
-                            "Source property {} on type {} not found",
-                            self.source_property,
-                            source.type_()
-                        )
-                    })?;
+        let source_property_name = if let Some(source) = self.group.source() {
+            let source_property = source.find_property(self.source_property).ok_or_else(|| {
+                bool_error!(
+                    "Source property {} on type {} not found",
+                    self.source_property,
+                    source.type_()
+                )
+            })?;
 
-                // This is NUL-terminated from the C side
-                source_property.name().as_ptr()
-            }
-            _ => {
-                // This is a Rust &str and needs to be NUL-terminated first
-                let source_property_name = std::ffi::CString::new(self.source_property).unwrap();
-                let source_property_name_ptr = source_property_name.as_ptr() as *const u8;
-                _source_property_name_cstr = Some(source_property_name);
+            // This is NUL-terminated from the C side
+            source_property.name().as_ptr()
+        } else {
+            // This is a Rust &str and needs to be NUL-terminated first
+            let source_property_name = std::ffi::CString::new(self.source_property).unwrap();
+            let source_property_name_ptr = source_property_name.as_ptr() as *const u8;
+            _source_property_name_cstr = Some(source_property_name);
 
-                source_property_name_ptr
-            }
+            source_property_name_ptr
         };
 
         unsafe {
@@ -381,11 +322,11 @@ mod test {
         binding_group
             .bind("name", &target, "name")
             .sync_create()
-            .transform_to_with_values(|_binding, value| {
+            .transform_to(|_binding, value| {
                 let value = value.get::<&str>().unwrap();
                 Some(format!("{value} World").to_value())
             })
-            .transform_from_with_values(|_binding, value| {
+            .transform_from(|_binding, value| {
                 let value = value.get::<&str>().unwrap();
                 Some(format!("{value} World").to_value())
             })
@@ -407,11 +348,11 @@ mod test {
             .bind("name", &target, "name")
             .sync_create()
             .bidirectional()
-            .transform_to_with_values(|_binding, value| {
+            .transform_to(|_binding, value| {
                 let value = value.get::<&str>().unwrap();
                 Some(format!("{value} World").to_value())
             })
-            .transform_from_with_values(|_binding, value| {
+            .transform_from(|_binding, value| {
                 let value = value.get::<&str>().unwrap();
                 Some(format!("{value} World").to_value())
             })
@@ -432,11 +373,11 @@ mod test {
         binding_group
             .bind("name", &target, "enabled")
             .sync_create()
-            .transform_to_with_values(|_binding, value| {
+            .transform_to(|_binding, value| {
                 let value = value.get::<&str>().unwrap();
                 Some((value == "Hello").to_value())
             })
-            .transform_from_with_values(|_binding, value| {
+            .transform_from(|_binding, value| {
                 let value = value.get::<bool>().unwrap();
                 Some((if value { "Hello" } else { "World" }).to_value())
             })
@@ -461,11 +402,11 @@ mod test {
             .bind("name", &target, "enabled")
             .sync_create()
             .bidirectional()
-            .transform_to_with_values(|_binding, value| {
+            .transform_to(|_binding, value| {
                 let value = value.get::<&str>().unwrap();
                 Some((value == "Hello").to_value())
             })
-            .transform_from_with_values(|_binding, value| {
+            .transform_from(|_binding, value| {
                 let value = value.get::<bool>().unwrap();
                 Some((if value { "Hello" } else { "World" }).to_value())
             })
@@ -475,35 +416,6 @@ mod test {
         assert_eq!(source.name(), "Hello");
         target.set_enabled(false);
         assert_eq!(source.name(), "World");
-    }
-
-    #[test]
-    fn binding_from_transform_concrete_change_type() {
-        let binding_group = crate::BindingGroup::new();
-
-        let source = TestObject::default();
-        let target = TestObject::default();
-
-        binding_group.set_source(Some(&source));
-        binding_group
-            .bind("name", &target, "enabled")
-            .sync_create()
-            .bidirectional()
-            .transform_to::<&str, _, _>(|_binding, value| Some(value == "Hello"))
-            .transform_from(
-                |_binding, value: bool| if value { Some("Hello") } else { Some("World") },
-            )
-            .build();
-
-        target.set_enabled(true);
-        assert_eq!(source.name(), "Hello");
-        target.set_enabled(false);
-        assert_eq!(source.name(), "World");
-
-        source.set_name("Hello");
-        assert!(target.enabled());
-        source.set_name("World");
-        assert!(!target.enabled());
     }
 
     mod imp {

@@ -3,13 +3,13 @@
 use std::{pin::Pin, task::ready};
 
 use futures_core::{
-    Future,
     stream::Stream,
     task::{Context, Poll},
+    Future,
 };
 
-use crate::{SocketConnection, SocketListener, prelude::SocketListenerExt};
-use glib::{Error, Object, prelude::*};
+use crate::{prelude::SocketListenerExt, SocketConnection, SocketListener};
+use glib::{prelude::*, Error, Object};
 
 pub struct Incoming {
     listener: SocketListener,
@@ -21,7 +21,7 @@ impl Stream for Incoming {
 
     fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.fut.is_none() {
-            self.fut = Some(Box::pin(self.listener.accept_future()));
+            self.fut = Some(self.listener.accept_future());
         }
 
         let fut = self.fut.as_mut().unwrap();

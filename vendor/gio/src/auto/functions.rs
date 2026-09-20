@@ -3,8 +3,8 @@
 // DO NOT EDIT
 
 use crate::{
-    AsyncResult, BusType, Cancellable, DBusConnection, File, IOErrorEnum, IOModule, IOModuleScope,
-    IOStream, Icon, InputStream, Resource, ResourceLookupFlags, SettingsBackend, ffi,
+    ffi, AsyncResult, BusType, Cancellable, DBusConnection, File, IOErrorEnum, IOStream, Icon,
+    InputStream, Resource, ResourceLookupFlags, SettingsBackend,
 };
 use glib::{prelude::*, translate::*};
 use std::{boxed::Box as Box_, pin::Pin};
@@ -34,19 +34,17 @@ pub fn bus_get<P: FnOnce(Result<DBusConnection, glib::Error>) + 'static>(
         res: *mut crate::ffi::GAsyncResult,
         user_data: glib::ffi::gpointer,
     ) {
-        unsafe {
-            let mut error = std::ptr::null_mut();
-            let ret = ffi::g_bus_get_finish(res, &mut error);
-            let result = if error.is_null() {
-                Ok(from_glib_full(ret))
-            } else {
-                Err(from_glib_full(error))
-            };
-            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                Box_::from_raw(user_data as *mut _);
-            let callback: P = callback.into_inner();
-            callback(result);
-        }
+        let mut error = std::ptr::null_mut();
+        let ret = ffi::g_bus_get_finish(res, &mut error);
+        let result = if error.is_null() {
+            Ok(from_glib_full(ret))
+        } else {
+            Err(from_glib_full(error))
+        };
+        let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+            Box_::from_raw(user_data as *mut _);
+        let callback: P = callback.into_inner();
+        callback(result);
     }
     let callback = bus_get_trampoline::<P>;
     unsafe {
@@ -180,6 +178,24 @@ pub fn content_type_get_symbolic_icon(type_: &str) -> Icon {
     }
 }
 
+#[doc(alias = "g_content_type_guess")]
+pub fn content_type_guess(
+    filename: Option<impl AsRef<std::path::Path>>,
+    data: &[u8],
+) -> (glib::GString, bool) {
+    let data_size = data.len() as _;
+    unsafe {
+        let mut result_uncertain = std::mem::MaybeUninit::uninit();
+        let ret = from_glib_full(ffi::g_content_type_guess(
+            filename.as_ref().map(|p| p.as_ref()).to_glib_none().0,
+            data.to_glib_none().0,
+            data_size,
+            result_uncertain.as_mut_ptr(),
+        ));
+        (ret, from_glib(result_uncertain.assume_init()))
+    }
+}
+
 #[doc(alias = "g_content_type_guess_for_tree")]
 pub fn content_type_guess_for_tree(root: &impl IsA<File>) -> Vec<glib::GString> {
     unsafe {
@@ -280,20 +296,18 @@ pub fn dbus_address_get_stream<
         res: *mut crate::ffi::GAsyncResult,
         user_data: glib::ffi::gpointer,
     ) {
-        unsafe {
-            let mut error = std::ptr::null_mut();
-            let mut out_guid = std::ptr::null_mut();
-            let ret = ffi::g_dbus_address_get_stream_finish(res, &mut out_guid, &mut error);
-            let result = if error.is_null() {
-                Ok((from_glib_full(ret), from_glib_full(out_guid)))
-            } else {
-                Err(from_glib_full(error))
-            };
-            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                Box_::from_raw(user_data as *mut _);
-            let callback: P = callback.into_inner();
-            callback(result);
-        }
+        let mut error = std::ptr::null_mut();
+        let mut out_guid = std::ptr::null_mut();
+        let ret = ffi::g_dbus_address_get_stream_finish(res, &mut out_guid, &mut error);
+        let result = if error.is_null() {
+            Ok((from_glib_full(ret), from_glib_full(out_guid)))
+        } else {
+            Err(from_glib_full(error))
+        };
+        let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+            Box_::from_raw(user_data as *mut _);
+        let callback: P = callback.into_inner();
+        callback(result);
     }
     let callback = dbus_address_get_stream_trampoline::<P>;
     unsafe {
@@ -441,27 +455,15 @@ pub fn io_error_from_errno(err_no: i32) -> IOErrorEnum {
     unsafe { from_glib(ffi::g_io_error_from_errno(err_no)) }
 }
 
-#[doc(alias = "g_io_modules_load_all_in_directory")]
-pub fn io_modules_load_all_in_directory(dirname: impl AsRef<std::path::Path>) -> Vec<IOModule> {
-    unsafe {
-        FromGlibPtrContainer::from_glib_full(ffi::g_io_modules_load_all_in_directory(
-            dirname.as_ref().to_glib_none().0,
-        ))
-    }
-}
+//#[doc(alias = "g_io_modules_load_all_in_directory")]
+//pub fn io_modules_load_all_in_directory(dirname: impl AsRef<std::path::Path>) -> /*Ignored*/Vec<IOModule> {
+//    unsafe { TODO: call ffi:g_io_modules_load_all_in_directory() }
+//}
 
-#[doc(alias = "g_io_modules_load_all_in_directory_with_scope")]
-pub fn io_modules_load_all_in_directory_with_scope(
-    dirname: impl AsRef<std::path::Path>,
-    scope: &mut IOModuleScope,
-) -> Vec<IOModule> {
-    unsafe {
-        FromGlibPtrContainer::from_glib_full(ffi::g_io_modules_load_all_in_directory_with_scope(
-            dirname.as_ref().to_glib_none().0,
-            scope.to_glib_none_mut().0,
-        ))
-    }
-}
+//#[doc(alias = "g_io_modules_load_all_in_directory_with_scope")]
+//pub fn io_modules_load_all_in_directory_with_scope(dirname: impl AsRef<std::path::Path>, scope: /*Ignored*/&mut IOModuleScope) -> /*Ignored*/Vec<IOModule> {
+//    unsafe { TODO: call ffi:g_io_modules_load_all_in_directory_with_scope() }
+//}
 
 #[doc(alias = "g_io_modules_scan_all_in_directory")]
 pub fn io_modules_scan_all_in_directory(dirname: impl AsRef<std::path::Path>) {
@@ -470,18 +472,10 @@ pub fn io_modules_scan_all_in_directory(dirname: impl AsRef<std::path::Path>) {
     }
 }
 
-#[doc(alias = "g_io_modules_scan_all_in_directory_with_scope")]
-pub fn io_modules_scan_all_in_directory_with_scope(
-    dirname: impl AsRef<std::path::Path>,
-    scope: &mut IOModuleScope,
-) {
-    unsafe {
-        ffi::g_io_modules_scan_all_in_directory_with_scope(
-            dirname.as_ref().to_glib_none().0,
-            scope.to_glib_none_mut().0,
-        );
-    }
-}
+//#[doc(alias = "g_io_modules_scan_all_in_directory_with_scope")]
+//pub fn io_modules_scan_all_in_directory_with_scope(dirname: impl AsRef<std::path::Path>, scope: /*Ignored*/&mut IOModuleScope) {
+//    unsafe { TODO: call ffi:g_io_modules_scan_all_in_directory_with_scope() }
+//}
 
 #[doc(alias = "g_keyfile_settings_backend_new")]
 pub fn keyfile_settings_backend_new(
@@ -612,4 +606,33 @@ pub fn resources_unregister(resource: &Resource) {
     unsafe {
         ffi::g_resources_unregister(resource.to_glib_none().0);
     }
+}
+
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+#[doc(alias = "g_unix_is_mount_path_system_internal")]
+pub fn unix_is_mount_path_system_internal(mount_path: impl AsRef<std::path::Path>) -> bool {
+    unsafe {
+        from_glib(ffi::g_unix_is_mount_path_system_internal(
+            mount_path.as_ref().to_glib_none().0,
+        ))
+    }
+}
+
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+#[doc(alias = "g_unix_is_system_device_path")]
+pub fn unix_is_system_device_path(device_path: impl AsRef<std::path::Path>) -> bool {
+    unsafe {
+        from_glib(ffi::g_unix_is_system_device_path(
+            device_path.as_ref().to_glib_none().0,
+        ))
+    }
+}
+
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+#[doc(alias = "g_unix_is_system_fs_type")]
+pub fn unix_is_system_fs_type(fs_type: &str) -> bool {
+    unsafe { from_glib(ffi::g_unix_is_system_fs_type(fs_type.to_glib_none().0)) }
 }

@@ -7,7 +7,11 @@ license = "MIT"
 authors = ["flytimopheev <flytimopheev@gmail.com>"]
 
 [dependencies]
-gtk4 = { version = "0.11", features = ["v4_12"] }
+# gtk4 0.9 — последний стек, совместимый с библиотеками EL9/РЕД ОС.
+# ВАЖНО: у gtk4-rs фича v4_6 тянет pango/v1_50, а в EL9 Pango 1.48 —
+# поэтому максимум v4_4 (привязки ограничены GTK 4.4 / Pango 1.44;
+# при использовании API 4.6+ компиляция упадёт с явной ошибкой).
+gtk4 = { version = "0.9", features = ["v4_4"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -17,9 +21,10 @@ rand = "0.8"
 base64 = "0.22"
 ssh2 = "0.9"
 chrono = "0.4"
-
-[target.'cfg(target_os = "linux")'.dependencies]
-vte4 = "0.10"
+# Динамическая загрузка VTE для GTK4 (libvte-2.91-gtk4.so.0) во время
+# выполнения: пакет не требует VTE жёстко (в EL9/RHEL9 его нет) и работает
+# с упрощённым терминалом, если библиотека не установлена.
+libloading = "0.8"
 
 # RDP: чисто-растовый IronRDP (без системного FreeRDP — RPM не требует
 # freerdp-devel/freerdp-libs, всё вендорено в vendor/ и собирается офлайн).

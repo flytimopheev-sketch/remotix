@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Device, DevicePadFeature, ffi};
+use crate::{ffi, Device, DevicePadFeature};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -18,7 +18,12 @@ impl DevicePad {
     pub const NONE: Option<&'static DevicePad> = None;
 }
 
-pub trait DevicePadExt: IsA<DevicePad> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::DevicePad>> Sealed for T {}
+}
+
+pub trait DevicePadExt: IsA<DevicePad> + sealed::Sealed + 'static {
     #[doc(alias = "gdk_device_pad_get_feature_group")]
     #[doc(alias = "get_feature_group")]
     fn feature_group(&self, feature: DevicePadFeature, feature_idx: i32) -> i32 {

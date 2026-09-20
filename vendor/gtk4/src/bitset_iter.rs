@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 use glib::translate::*;
 
-use crate::{Bitset, ffi};
+use crate::{ffi, Bitset};
 
 #[derive(Copy, Clone)]
 #[doc(alias = "GtkBitsetIter")]
@@ -161,5 +161,7 @@ mod tests {
         assert_eq!(iter.previous(), Some(0));
         assert_eq!(iter.previous(), None);
         assert!(!iter.is_valid());
+        assert_eq!(iter.next(), Some(1));
+        assert!(iter.is_valid());
     }
 }

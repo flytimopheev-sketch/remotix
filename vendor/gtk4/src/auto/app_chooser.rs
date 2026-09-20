@@ -3,27 +3,12 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
-use crate::{Buildable, ConstraintTarget, Widget, ffi};
+use crate::{ffi, Accessible, Buildable, ConstraintTarget, Widget};
 use glib::{prelude::*, translate::*};
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkAppChooser")]
     pub struct AppChooser(Interface<ffi::GtkAppChooser>) @requires Widget, Accessible, Buildable, ConstraintTarget;
-
-    match fn {
-        type_ => || ffi::gtk_app_chooser_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkAppChooser")]
-    pub struct AppChooser(Interface<ffi::GtkAppChooser>) @requires Widget, Buildable, ConstraintTarget;
 
     match fn {
         type_ => || ffi::gtk_app_chooser_get_type(),
@@ -34,7 +19,12 @@ impl AppChooser {
     pub const NONE: Option<&'static AppChooser> = None;
 }
 
-pub trait AppChooserExt: IsA<AppChooser> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::AppChooser>> Sealed for T {}
+}
+
+pub trait AppChooserExt: IsA<AppChooser> + sealed::Sealed + 'static {
     #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
     #[allow(deprecated)]
     #[doc(alias = "gtk_app_chooser_get_app_info")]

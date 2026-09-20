@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Path, PathPoint, ffi};
+use crate::{ffi, Path, PathPoint};
 use glib::translate::*;
 
 glib::wrapper! {
@@ -57,7 +57,11 @@ impl PathMeasure {
                 distance,
                 result.to_glib_none_mut().0,
             ));
-            if ret { Some(result) } else { None }
+            if ret {
+                Some(result)
+            } else {
+                None
+            }
         }
     }
 

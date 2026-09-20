@@ -3,10 +3,10 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-use crate::{Border, StateFlags, StyleContextPrintFlags, StyleProvider, ffi};
+use crate::{ffi, Border, StateFlags, StyleContextPrintFlags, StyleProvider};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -24,7 +24,12 @@ impl StyleContext {
     pub const NONE: Option<&'static StyleContext> = None;
 }
 
-pub trait StyleContextExt: IsA<StyleContext> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::StyleContext>> Sealed for T {}
+}
+
+pub trait StyleContextExt: IsA<StyleContext> + sealed::Sealed + 'static {
     #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
     #[allow(deprecated)]
     #[doc(alias = "gtk_style_context_add_class")]
@@ -165,7 +170,11 @@ pub trait StyleContextExt: IsA<StyleContext> + 'static {
                 color_name.to_glib_none().0,
                 color.to_glib_none_mut().0,
             ));
-            if ret { Some(color) } else { None }
+            if ret {
+                Some(color)
+            } else {
+                None
+            }
         }
     }
 
@@ -264,16 +273,14 @@ pub trait StyleContextExt: IsA<StyleContext> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(StyleContext::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(StyleContext::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::display".as_ptr(),
+                b"notify::display\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_display_trampoline::<Self, F> as *const (),
                 )),

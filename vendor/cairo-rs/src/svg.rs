@@ -15,7 +15,7 @@ use glib::translate::*;
 
 #[cfg(all(feature = "svg", feature = "v1_16"))]
 use crate::SvgUnit;
-use crate::{Error, Surface, SurfaceType, SvgVersion, ffi};
+use crate::{ffi, Error, Surface, SurfaceType, SvgVersion};
 
 impl SvgVersion {
     pub fn as_str(self) -> Option<&'static str> {
@@ -118,7 +118,7 @@ impl SvgSurface {
 
 #[cfg(test)]
 mod test {
-    use tempfile::{NamedTempFile, tempfile};
+    use tempfile::{tempfile, NamedTempFile};
 
     use super::*;
     use crate::context::*;

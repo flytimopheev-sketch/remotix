@@ -2,35 +2,20 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, BaselinePosition, Buildable, ConstraintTarget, LayoutManager,
-    Orientable, Orientation, Overflow, PositionType, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, BaselinePosition, Buildable, ConstraintTarget,
+    LayoutManager, Orientable, Orientation, Overflow, PositionType, Widget,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkGrid")]
     pub struct Grid(Object<ffi::GtkGrid, ffi::GtkGridClass>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, Orientable;
-
-    match fn {
-        type_ => || ffi::gtk_grid_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkGrid")]
-    pub struct Grid(Object<ffi::GtkGrid, ffi::GtkGridClass>) @extends Widget, @implements Buildable, ConstraintTarget, Orientable;
 
     match fn {
         type_ => || ffi::gtk_grid_get_type(),
@@ -316,7 +301,12 @@ impl GridBuilder {
     }
 }
 
-pub trait GridExt: IsA<Grid> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Grid>> Sealed for T {}
+}
+
+pub trait GridExt: IsA<Grid> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_grid_attach")]
     fn attach(&self, child: &impl IsA<Widget>, column: i32, row: i32, width: i32, height: i32) {
         unsafe {
@@ -555,16 +545,14 @@ pub trait GridExt: IsA<Grid> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Grid::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Grid::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::baseline-row".as_ptr(),
+                b"notify::baseline-row\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_baseline_row_trampoline::<Self, F> as *const (),
                 )),
@@ -583,16 +571,14 @@ pub trait GridExt: IsA<Grid> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Grid::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Grid::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::column-homogeneous".as_ptr(),
+                b"notify::column-homogeneous\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_column_homogeneous_trampoline::<Self, F> as *const (),
                 )),
@@ -608,16 +594,14 @@ pub trait GridExt: IsA<Grid> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Grid::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Grid::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::column-spacing".as_ptr(),
+                b"notify::column-spacing\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_column_spacing_trampoline::<Self, F> as *const (),
                 )),
@@ -636,16 +620,14 @@ pub trait GridExt: IsA<Grid> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Grid::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Grid::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::row-homogeneous".as_ptr(),
+                b"notify::row-homogeneous\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_row_homogeneous_trampoline::<Self, F> as *const (),
                 )),
@@ -661,16 +643,14 @@ pub trait GridExt: IsA<Grid> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Grid::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Grid::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::row-spacing".as_ptr(),
+                b"notify::row-spacing\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_row_spacing_trampoline::<Self, F> as *const (),
                 )),

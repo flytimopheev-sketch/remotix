@@ -3,12 +3,12 @@
 // DO NOT EDIT
 
 use crate::{
-    Cancellable, Credentials, DatagramBased, InetAddress, Initable, SocketAddress,
-    SocketConnection, SocketFamily, SocketProtocol, SocketType, ffi,
+    ffi, Cancellable, Credentials, DatagramBased, InetAddress, Initable, SocketAddress,
+    SocketConnection, SocketFamily, SocketProtocol, SocketType,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -48,7 +48,12 @@ impl Socket {
     }
 }
 
-pub trait SocketExt: IsA<Socket> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Socket>> Sealed for T {}
+}
+
+pub trait SocketExt: IsA<Socket> + sealed::Sealed + 'static {
     #[doc(alias = "g_socket_accept")]
     fn accept(&self, cancellable: Option<&impl IsA<Cancellable>>) -> Result<Socket, glib::Error> {
         unsafe {
@@ -607,16 +612,14 @@ pub trait SocketExt: IsA<Socket> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Socket::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Socket::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::blocking".as_ptr(),
+                b"notify::blocking\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_blocking_trampoline::<Self, F> as *const (),
                 )),
@@ -632,16 +635,14 @@ pub trait SocketExt: IsA<Socket> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Socket::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Socket::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::broadcast".as_ptr(),
+                b"notify::broadcast\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_broadcast_trampoline::<Self, F> as *const (),
                 )),
@@ -657,16 +658,14 @@ pub trait SocketExt: IsA<Socket> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Socket::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Socket::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::keepalive".as_ptr(),
+                b"notify::keepalive\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_keepalive_trampoline::<Self, F> as *const (),
                 )),
@@ -685,16 +684,14 @@ pub trait SocketExt: IsA<Socket> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Socket::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Socket::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::listen-backlog".as_ptr(),
+                b"notify::listen-backlog\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_listen_backlog_trampoline::<Self, F> as *const (),
                 )),
@@ -713,16 +710,14 @@ pub trait SocketExt: IsA<Socket> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Socket::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Socket::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::local-address".as_ptr(),
+                b"notify::local-address\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_local_address_trampoline::<Self, F> as *const (),
                 )),
@@ -741,16 +736,14 @@ pub trait SocketExt: IsA<Socket> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Socket::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Socket::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::multicast-loopback".as_ptr(),
+                b"notify::multicast-loopback\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_multicast_loopback_trampoline::<Self, F> as *const (),
                 )),
@@ -769,16 +762,14 @@ pub trait SocketExt: IsA<Socket> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Socket::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Socket::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::multicast-ttl".as_ptr(),
+                b"notify::multicast-ttl\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_multicast_ttl_trampoline::<Self, F> as *const (),
                 )),
@@ -797,16 +788,14 @@ pub trait SocketExt: IsA<Socket> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Socket::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Socket::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::remote-address".as_ptr(),
+                b"notify::remote-address\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_remote_address_trampoline::<Self, F> as *const (),
                 )),
@@ -822,16 +811,14 @@ pub trait SocketExt: IsA<Socket> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Socket::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Socket::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::timeout".as_ptr(),
+                b"notify::timeout\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_timeout_trampoline::<Self, F> as *const (),
                 )),
@@ -847,16 +834,14 @@ pub trait SocketExt: IsA<Socket> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Socket::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Socket::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::ttl".as_ptr(),
+                b"notify::ttl\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_ttl_trampoline::<Self, F> as *const (),
                 )),

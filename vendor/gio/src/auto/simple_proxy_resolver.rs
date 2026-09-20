@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{ProxyResolver, ffi};
+use crate::{ffi, ProxyResolver};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -23,7 +23,12 @@ impl SimpleProxyResolver {
     pub const NONE: Option<&'static SimpleProxyResolver> = None;
 }
 
-pub trait SimpleProxyResolverExt: IsA<SimpleProxyResolver> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::SimpleProxyResolver>> Sealed for T {}
+}
+
+pub trait SimpleProxyResolverExt: IsA<SimpleProxyResolver> + sealed::Sealed + 'static {
     #[doc(alias = "g_simple_proxy_resolver_set_default_proxy")]
     #[doc(alias = "default-proxy")]
     fn set_default_proxy(&self, default_proxy: Option<&str>) {
@@ -66,16 +71,14 @@ pub trait SimpleProxyResolverExt: IsA<SimpleProxyResolver> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(SimpleProxyResolver::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(SimpleProxyResolver::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::default-proxy".as_ptr(),
+                b"notify::default-proxy\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_default_proxy_trampoline::<Self, F> as *const (),
                 )),
@@ -94,16 +97,14 @@ pub trait SimpleProxyResolverExt: IsA<SimpleProxyResolver> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(SimpleProxyResolver::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(SimpleProxyResolver::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::ignore-hosts".as_ptr(),
+                b"notify::ignore-hosts\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_ignore_hosts_trampoline::<Self, F> as *const (),
                 )),

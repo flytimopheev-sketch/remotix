@@ -8,7 +8,7 @@ use crate::Context;
 #[cfg(feature = "v1_46")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v1_46")))]
 use crate::FontFace;
-use crate::{Coverage, FontDescription, FontMap, FontMetrics, Glyph, Language, Rectangle, ffi};
+use crate::{ffi, Coverage, FontDescription, FontMap, FontMetrics, Glyph, Language, Rectangle};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -46,7 +46,12 @@ impl Font {
     }
 }
 
-pub trait FontExt: IsA<Font> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Font>> Sealed for T {}
+}
+
+pub trait FontExt: IsA<Font> + sealed::Sealed + 'static {
     #[doc(alias = "pango_font_describe")]
     fn describe(&self) -> FontDescription {
         unsafe { from_glib_full(ffi::pango_font_describe(self.as_ref().to_glib_none().0)) }
@@ -76,7 +81,7 @@ pub trait FontExt: IsA<Font> + 'static {
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_46")))]
     #[doc(alias = "pango_font_get_face")]
     #[doc(alias = "get_face")]
-    fn face(&self) -> Option<FontFace> {
+    fn face(&self) -> FontFace {
         unsafe { from_glib_none(ffi::pango_font_get_face(self.as_ref().to_glib_none().0)) }
     }
 

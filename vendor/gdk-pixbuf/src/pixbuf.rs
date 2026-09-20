@@ -2,10 +2,10 @@
 
 use std::{future::Future, io::Read, mem, path::Path, pin::Pin, ptr, slice};
 
-use glib::{Error, prelude::*, translate::*};
+use glib::{prelude::*, translate::*, Error};
 use libc::{c_uchar, c_void};
 
-use crate::{Colorspace, Pixbuf, PixbufFormat, ffi};
+use crate::{ffi, Colorspace, Pixbuf, PixbufFormat};
 
 impl Pixbuf {
     #[doc(alias = "gdk_pixbuf_new_from_data")]
@@ -19,9 +19,7 @@ impl Pixbuf {
         row_stride: i32,
     ) -> Pixbuf {
         unsafe extern "C" fn destroy<T: AsMut<[u8]>>(_: *mut c_uchar, data: *mut c_void) {
-            unsafe {
-                let _data: Box<T> = Box::from_raw(data as *mut T); // the data will be destroyed now
-            }
+            let _data: Box<T> = Box::from_raw(data as *mut T); // the data will be destroyed now
         }
         assert!(width > 0, "width must be greater than 0");
         assert!(height > 0, "height must be greater than 0");
@@ -37,7 +35,7 @@ impl Pixbuf {
         let bits_per_sample = bits_per_sample as usize;
 
         let n_channels = if has_alpha { 4 } else { 3 };
-        let last_row_len = width * (n_channels * bits_per_sample).div_ceil(8);
+        let last_row_len = width * ((n_channels * bits_per_sample + 7) / 8);
 
         let mut data: Box<T> = Box::new(data);
 
@@ -109,19 +107,17 @@ impl Pixbuf {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = ptr::null_mut();
-                let ptr = ffi::gdk_pixbuf_new_from_stream_finish(res, &mut error);
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ptr))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box<glib::thread_guard::ThreadGuard<R>> =
-                    Box::from_raw(user_data as *mut _);
-                let callback = callback.into_inner();
-                callback(result);
-            }
+            let mut error = ptr::null_mut();
+            let ptr = ffi::gdk_pixbuf_new_from_stream_finish(res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ptr))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box<glib::thread_guard::ThreadGuard<R>> =
+                Box::from_raw(user_data as *mut _);
+            let callback = callback.into_inner();
+            callback(result);
         }
         let callback = from_stream_async_trampoline::<R>;
         unsafe {
@@ -178,19 +174,17 @@ impl Pixbuf {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = ptr::null_mut();
-                let ptr = ffi::gdk_pixbuf_new_from_stream_finish(res, &mut error);
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ptr))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box<glib::thread_guard::ThreadGuard<R>> =
-                    Box::from_raw(user_data as *mut _);
-                let callback = callback.into_inner();
-                callback(result);
-            }
+            let mut error = ptr::null_mut();
+            let ptr = ffi::gdk_pixbuf_new_from_stream_finish(res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ptr))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box<glib::thread_guard::ThreadGuard<R>> =
+                Box::from_raw(user_data as *mut _);
+            let callback = callback.into_inner();
+            callback(result);
         }
         let callback = from_stream_at_scale_async_trampoline::<R>;
         unsafe {
@@ -245,14 +239,12 @@ impl Pixbuf {
     #[doc(alias = "gdk_pixbuf_get_pixels_with_length")]
     #[doc(alias = "get_pixels")]
     pub unsafe fn pixels(&self) -> &mut [u8] {
-        unsafe {
-            let mut len = 0;
-            let ptr = ffi::gdk_pixbuf_get_pixels_with_length(self.to_glib_none().0, &mut len);
-            if len == 0 {
-                return &mut [];
-            }
-            slice::from_raw_parts_mut(ptr, len as usize)
+        let mut len = 0;
+        let ptr = ffi::gdk_pixbuf_get_pixels_with_length(self.to_glib_none().0, &mut len);
+        if len == 0 {
+            return &mut [];
         }
+        slice::from_raw_parts_mut(ptr, len as usize)
     }
 
     pub fn put_pixel(&self, x: u32, y: u32, red: u8, green: u8, blue: u8, alpha: u8) {
@@ -337,32 +329,30 @@ impl Pixbuf {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = ptr::null_mut();
-                let mut width = mem::MaybeUninit::uninit();
-                let mut height = mem::MaybeUninit::uninit();
-                let ret = ffi::gdk_pixbuf_get_file_info_finish(
-                    res,
-                    width.as_mut_ptr(),
-                    height.as_mut_ptr(),
-                    &mut error,
-                );
-                let result = if !error.is_null() {
-                    Err(from_glib_full(error))
-                } else if ret.is_null() {
-                    Ok(None)
-                } else {
-                    Ok(Some((
-                        from_glib_none(ret),
-                        width.assume_init(),
-                        height.assume_init(),
-                    )))
-                };
-                let callback: Box<glib::thread_guard::ThreadGuard<Q>> =
-                    Box::from_raw(user_data as *mut _);
-                let callback = callback.into_inner();
-                callback(result);
-            }
+            let mut error = ptr::null_mut();
+            let mut width = mem::MaybeUninit::uninit();
+            let mut height = mem::MaybeUninit::uninit();
+            let ret = ffi::gdk_pixbuf_get_file_info_finish(
+                res,
+                width.as_mut_ptr(),
+                height.as_mut_ptr(),
+                &mut error,
+            );
+            let result = if !error.is_null() {
+                Err(from_glib_full(error))
+            } else if ret.is_null() {
+                Ok(None)
+            } else {
+                Ok(Some((
+                    from_glib_none(ret),
+                    width.assume_init(),
+                    height.assume_init(),
+                )))
+            };
+            let callback: Box<glib::thread_guard::ThreadGuard<Q>> =
+                Box::from_raw(user_data as *mut _);
+            let callback = callback.into_inner();
+            callback(result);
         }
         let callback = get_file_info_async_trampoline::<Q>;
         unsafe {
@@ -479,19 +469,17 @@ impl Pixbuf {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = ptr::null_mut();
-                let _ = ffi::gdk_pixbuf_save_to_stream_finish(res, &mut error);
-                let result = if error.is_null() {
-                    Ok(())
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box<glib::thread_guard::ThreadGuard<R>> =
-                    Box::from_raw(user_data as *mut _);
-                let callback = callback.into_inner();
-                callback(result);
-            }
+            let mut error = ptr::null_mut();
+            let _ = ffi::gdk_pixbuf_save_to_stream_finish(res, &mut error);
+            let result = if error.is_null() {
+                Ok(())
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box<glib::thread_guard::ThreadGuard<R>> =
+                Box::from_raw(user_data as *mut _);
+            let callback = callback.into_inner();
+            callback(result);
         }
         let callback = save_to_streamv_async_trampoline::<R>;
         unsafe {

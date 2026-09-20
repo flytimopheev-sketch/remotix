@@ -6,8 +6,8 @@
 #![doc = include_str!("../README.md")]
 
 pub use cairo;
-pub use gdk_pixbuf;
 pub use gdk4_sys as ffi;
+pub use gdk_pixbuf;
 pub use gio;
 #[cfg(feature = "gl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "gl")))]
@@ -54,7 +54,6 @@ macro_rules! skip_assert_initialized {
 
 #[allow(clippy::derived_hash_with_manual_eq)]
 #[allow(clippy::type_complexity)]
-#[allow(clippy::let_and_return)]
 #[allow(unused_imports)]
 mod auto;
 
@@ -79,8 +78,6 @@ mod crossing_event;
 mod cursor;
 mod delete_event;
 mod display;
-#[cfg(target_os = "linux")]
-#[cfg_attr(docsrs, doc(cfg(target_os = "linux")))]
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 mod dmabuf_texture_builder;
@@ -103,9 +100,6 @@ mod grab_broken_event;
 mod key_event;
 mod keymap_key;
 mod keys;
-#[cfg(feature = "v4_16")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_16")))]
-mod memory_texture_builder;
 mod motion_event;
 mod pad_event;
 mod popup_layout;

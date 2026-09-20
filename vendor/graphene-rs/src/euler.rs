@@ -4,7 +4,7 @@ use std::fmt;
 
 use glib::translate::*;
 
-use crate::{Euler, EulerOrder, Matrix, Quaternion, Vec3, ffi};
+use crate::{ffi, Euler, EulerOrder, Matrix, Quaternion, Vec3};
 
 impl Euler {
     #[doc(alias = "graphene_euler_init")]

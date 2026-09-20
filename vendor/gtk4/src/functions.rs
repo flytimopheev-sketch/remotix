@@ -2,10 +2,10 @@
 
 use std::{boxed::Box as Box_, pin::Pin, sync::OnceLock};
 
-use glib::{Quark, Slice, translate::*};
+use glib::{translate::*, Quark, Slice};
 
 pub use crate::auto::functions::*;
-use crate::{AboutDialog, StyleProvider, Window, ffi, prelude::*};
+use crate::{ffi, prelude::*, AboutDialog, StyleProvider, Window};
 
 #[doc(alias = "gtk_accelerator_valid")]
 pub fn accelerator_valid(keyval: gdk::Key, modifiers: gdk::ModifierType) -> bool {
@@ -173,20 +173,17 @@ pub fn show_uri_full<P: FnOnce(Result<(), glib::Error>) + 'static>(
         res: *mut gio::ffi::GAsyncResult,
         user_data: glib::ffi::gpointer,
     ) {
-        unsafe {
-            let mut error = std::ptr::null_mut();
-            let _ =
-                ffi::gtk_show_uri_full_finish(parent_ptr as *mut ffi::GtkWindow, res, &mut error);
-            let result = if error.is_null() {
-                Ok(())
-            } else {
-                Err(from_glib_full(error))
-            };
-            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                Box_::from_raw(user_data as *mut _);
-            let callback = callback.into_inner();
-            callback(result);
-        }
+        let mut error = std::ptr::null_mut();
+        let _ = ffi::gtk_show_uri_full_finish(parent_ptr as *mut ffi::GtkWindow, res, &mut error);
+        let result = if error.is_null() {
+            Ok(())
+        } else {
+            Err(from_glib_full(error))
+        };
+        let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+            Box_::from_raw(user_data as *mut _);
+        let callback = callback.into_inner();
+        callback(result);
     }
     let callback = show_uri_full_trampoline::<P>;
     unsafe {

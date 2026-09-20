@@ -2,13 +2,13 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
+use crate::ffi;
 #[cfg(feature = "v4_12")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_12")))]
 use crate::SectionModel;
-use crate::ffi;
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -24,7 +24,7 @@ glib::wrapper! {
     }
 }
 
-#[cfg(not(feature = "v4_12"))]
+#[cfg(not(any(feature = "v4_12")))]
 glib::wrapper! {
     #[doc(alias = "GtkMapListModel")]
     pub struct MapListModel(Object<ffi::GtkMapListModel, ffi::GtkMapListModelClass>) @implements gio::ListModel;
@@ -46,19 +46,15 @@ impl MapListModel {
             item: *mut glib::gobject_ffi::GObject,
             user_data: glib::ffi::gpointer,
         ) -> *mut glib::gobject_ffi::GObject {
-            unsafe {
-                let item = from_glib_full(item);
-                let callback = &*(user_data as *mut P);
-                (*callback)(&item).to_glib_full()
-            }
+            let item = from_glib_full(item);
+            let callback = &*(user_data as *mut P);
+            (*callback)(&item).to_glib_full()
         }
         let map_func = Some(map_func_func::<P> as _);
         unsafe extern "C" fn user_destroy_func<P: Fn(&glib::Object) -> glib::Object + 'static>(
             data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let _callback = Box_::from_raw(data as *mut P);
-            }
+            let _callback = Box_::from_raw(data as *mut P);
         }
         let destroy_call3 = Some(user_destroy_func::<P> as _);
         let super_callback0: Box_<P> = map_func_data;
@@ -91,19 +87,15 @@ impl MapListModel {
             item: *mut glib::gobject_ffi::GObject,
             user_data: glib::ffi::gpointer,
         ) -> *mut glib::gobject_ffi::GObject {
-            unsafe {
-                let item = from_glib_full(item);
-                let callback = &*(user_data as *mut P);
-                (*callback)(&item).to_glib_full()
-            }
+            let item = from_glib_full(item);
+            let callback = &*(user_data as *mut P);
+            (*callback)(&item).to_glib_full()
         }
         let map_func = Some(map_func_func::<P> as _);
         unsafe extern "C" fn user_destroy_func<P: Fn(&glib::Object) -> glib::Object + 'static>(
             data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let _callback = Box_::from_raw(data as *mut P);
-            }
+            let _callback = Box_::from_raw(data as *mut P);
         }
         let destroy_call3 = Some(user_destroy_func::<P> as _);
         let super_callback0: Box_<P> = map_func_data;
@@ -118,7 +110,6 @@ impl MapListModel {
     }
 
     #[doc(alias = "gtk_map_list_model_set_model")]
-    #[doc(alias = "model")]
     pub fn set_model(&self, model: Option<&impl IsA<gio::ListModel>>) {
         unsafe {
             ffi::gtk_map_list_model_set_model(
@@ -135,43 +126,16 @@ impl MapListModel {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::has-map".as_ptr(),
+                b"notify::has-map\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_has_map_trampoline::<F> as *const (),
-                )),
-                Box_::into_raw(f),
-            )
-        }
-    }
-
-    #[doc(alias = "model")]
-    pub fn connect_model_notify<F: Fn(&Self) + 'static>(&self, f: F) -> SignalHandlerId {
-        unsafe extern "C" fn notify_model_trampoline<F: Fn(&MapListModel) + 'static>(
-            this: *mut ffi::GtkMapListModel,
-            _param_spec: glib::ffi::gpointer,
-            f: glib::ffi::gpointer,
-        ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"notify::model".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    notify_model_trampoline::<F> as *const (),
                 )),
                 Box_::into_raw(f),
             )

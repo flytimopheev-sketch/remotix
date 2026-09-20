@@ -2,11 +2,11 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{AppInfo, File, ffi};
+use crate::{ffi, AppInfo, File};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -35,7 +35,12 @@ impl Default for AppLaunchContext {
     }
 }
 
-pub trait AppLaunchContextExt: IsA<AppLaunchContext> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::AppLaunchContext>> Sealed for T {}
+}
+
+pub trait AppLaunchContextExt: IsA<AppLaunchContext> + sealed::Sealed + 'static {
     #[doc(alias = "g_app_launch_context_get_display")]
     #[doc(alias = "get_display")]
     fn display(&self, info: &impl IsA<AppInfo>, files: &[File]) -> Option<glib::GString> {
@@ -115,19 +120,17 @@ pub trait AppLaunchContextExt: IsA<AppLaunchContext> + 'static {
             startup_notify_id: *mut std::ffi::c_char,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    AppLaunchContext::from_glib_borrow(this).unsafe_cast_ref(),
-                    &glib::GString::from_glib_borrow(startup_notify_id),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                AppLaunchContext::from_glib_borrow(this).unsafe_cast_ref(),
+                &glib::GString::from_glib_borrow(startup_notify_id),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"launch-failed".as_ptr(),
+                b"launch-failed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     launch_failed_trampoline::<Self, F> as *const (),
                 )),
@@ -152,22 +155,20 @@ pub trait AppLaunchContextExt: IsA<AppLaunchContext> + 'static {
             platform_data: *mut glib::ffi::GVariant,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    AppLaunchContext::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(info),
-                    Option::<glib::Variant>::from_glib_borrow(platform_data)
-                        .as_ref()
-                        .as_ref(),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                AppLaunchContext::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(info),
+                Option::<glib::Variant>::from_glib_borrow(platform_data)
+                    .as_ref()
+                    .as_ref(),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"launch-started".as_ptr(),
+                b"launch-started\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     launch_started_trampoline::<Self, F> as *const (),
                 )),
@@ -190,20 +191,18 @@ pub trait AppLaunchContextExt: IsA<AppLaunchContext> + 'static {
             platform_data: *mut glib::ffi::GVariant,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    AppLaunchContext::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(info),
-                    &from_glib_borrow(platform_data),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                AppLaunchContext::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(info),
+                &from_glib_borrow(platform_data),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"launched".as_ptr(),
+                b"launched\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     launched_trampoline::<Self, F> as *const (),
                 )),

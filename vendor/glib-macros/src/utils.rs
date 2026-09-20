@@ -1,10 +1,11 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{ToTokens, quote, quote_spanned};
+use proc_macro_crate::crate_name;
+use quote::{quote, quote_spanned, ToTokens};
 use syn::{
-    Token, Variant, meta::ParseNestedMeta, parse::Parse, punctuated::Punctuated, spanned::Spanned,
-    token::Comma,
+    meta::ParseNestedMeta, parse::Parse, punctuated::Punctuated, spanned::Spanned, token::Comma,
+    Token, Variant,
 };
 
 pub trait ParseNestedMetaItem {
@@ -184,9 +185,8 @@ pub fn parse_optional_nested_meta_items<'a>(
     }
 }
 
-#[cfg(feature = "proc_macro_crate")]
 pub fn crate_ident_new() -> TokenStream {
-    use proc_macro_crate::{FoundCrate, crate_name};
+    use proc_macro_crate::FoundCrate;
 
     match crate_name("glib") {
         Ok(FoundCrate::Name(name)) => Some(name),
@@ -212,12 +212,6 @@ pub fn crate_ident_new() -> TokenStream {
         let glib = Ident::new("glib", Span::call_site());
         quote!(#glib)
     })
-}
-
-#[cfg(not(feature = "proc_macro_crate"))]
-pub fn crate_ident_new() -> TokenStream {
-    let glib = Ident::new("glib", Span::call_site());
-    quote!(#glib)
 }
 
 // Generate i32 to enum mapping, used to implement
@@ -249,7 +243,7 @@ pub fn gen_enum_from_glib(
 // by running `cargo test --lib`
 #[cfg(test)]
 mod tests {
-    use syn::{DeriveInput, parse_quote};
+    use syn::{parse_quote, DeriveInput};
 
     use super::*;
 

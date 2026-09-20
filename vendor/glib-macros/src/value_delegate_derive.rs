@@ -1,7 +1,7 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 use quote::quote;
-use syn::{Token, parse::Parse};
+use syn::{parse::Parse, Token};
 
 use crate::utils::crate_ident_new;
 

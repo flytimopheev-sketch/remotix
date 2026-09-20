@@ -13,18 +13,18 @@
 
 use glib_sys as glib;
 
-#[allow(unused_imports)]
-use libc::{FILE, intptr_t, off_t, size_t, ssize_t, time_t, uintptr_t};
 #[cfg(unix)]
 #[allow(unused_imports)]
 use libc::{dev_t, gid_t, pid_t, socklen_t, uid_t};
+#[allow(unused_imports)]
+use libc::{intptr_t, off_t, size_t, ssize_t, time_t, uintptr_t, FILE};
 #[allow(unused_imports)]
 use std::ffi::{
     c_char, c_double, c_float, c_int, c_long, c_short, c_uchar, c_uint, c_ulong, c_ushort, c_void,
 };
 
 #[allow(unused_imports)]
-use glib::{GType, gboolean, gconstpointer, gpointer};
+use glib::{gboolean, gconstpointer, gpointer, GType};
 
 pub const G_TYPE_INVALID: GType = 0 << G_TYPE_FUNDAMENTAL_SHIFT;
 pub const G_TYPE_NONE: GType = 1 << G_TYPE_FUNDAMENTAL_SHIFT;
@@ -78,8 +78,6 @@ pub const G_BINDING_SYNC_CREATE: GBindingFlags = 2;
 pub const G_BINDING_INVERT_BOOLEAN: GBindingFlags = 4;
 
 pub type GConnectFlags = c_uint;
-#[cfg(feature = "v2_74")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_74")))]
 pub const G_CONNECT_DEFAULT: GConnectFlags = 0;
 pub const G_CONNECT_AFTER: GConnectFlags = 1;
 pub const G_CONNECT_SWAPPED: GConnectFlags = 2;
@@ -136,8 +134,6 @@ pub const G_TYPE_DEBUG_INSTANCE_COUNT: GTypeDebugFlags = 4;
 pub const G_TYPE_DEBUG_MASK: GTypeDebugFlags = 7;
 
 pub type GTypeFlags = c_uint;
-#[cfg(feature = "v2_74")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_74")))]
 pub const G_TYPE_FLAG_NONE: GTypeFlags = 0;
 pub const G_TYPE_FLAG_ABSTRACT: GTypeFlags = 16;
 pub const G_TYPE_FLAG_VALUE_ABSTRACT: GTypeFlags = 32;
@@ -1422,7 +1418,7 @@ impl ::std::fmt::Debug for GTypePlugin {
     }
 }
 
-unsafe extern "C" {
+extern "C" {
 
     //=========================================================================
     // GBindingFlags

@@ -3,16 +3,17 @@
 use std::{
     char::CharTryFromError,
     ffi::CStr,
-    num::{NonZeroI8, NonZeroI32, NonZeroI64, NonZeroU8, NonZeroU32, NonZeroU64},
+    num::{NonZeroI32, NonZeroI64, NonZeroI8, NonZeroU32, NonZeroU64, NonZeroU8},
     path::{Path, PathBuf},
 };
 
 use crate::{
-    Object, ParamFlags, Type, Value, ffi, gobject_ffi,
+    ffi, gobject_ffi,
     object::{Interface, InterfaceRef, IsClass, IsInterface, ObjectClass},
     prelude::*,
     translate::*,
     utils::is_canonical_pspec_name,
+    Object, ParamFlags, Type, Value,
 };
 // Can't use get_type here as this is not a boxed type but another fundamental type
 wrapper! {
@@ -46,11 +47,9 @@ unsafe impl<'a> crate::value::FromValue<'a> for ParamSpec {
     type Checker = crate::value::GenericValueTypeOrNoneChecker<Self>;
 
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe {
-            let ptr = gobject_ffi::g_value_dup_param(value.to_glib_none().0);
-            debug_assert!(!ptr.is_null());
-            from_glib_full(ptr)
-        }
+        let ptr = gobject_ffi::g_value_dup_param(value.to_glib_none().0);
+        debug_assert!(!ptr.is_null());
+        from_glib_full(ptr)
     }
 }
 
@@ -59,17 +58,15 @@ unsafe impl<'a> crate::value::FromValue<'a> for &'a ParamSpec {
     type Checker = crate::value::GenericValueTypeOrNoneChecker<Self>;
 
     unsafe fn from_value(value: &'a crate::Value) -> Self {
-        unsafe {
-            debug_assert_eq!(
-                std::mem::size_of::<Self>(),
-                std::mem::size_of::<crate::ffi::gpointer>()
-            );
-            let value = &*(value as *const crate::Value as *const crate::gobject_ffi::GValue);
-            let ptr = &value.data[0].v_pointer as *const crate::ffi::gpointer
-                as *const *const gobject_ffi::GParamSpec;
-            debug_assert!(!(*ptr).is_null());
-            &*(ptr as *const ParamSpec)
-        }
+        debug_assert_eq!(
+            std::mem::size_of::<Self>(),
+            std::mem::size_of::<crate::ffi::gpointer>()
+        );
+        let value = &*(value as *const crate::Value as *const crate::gobject_ffi::GValue);
+        let ptr = &value.data[0].v_pointer as *const crate::ffi::gpointer
+            as *const *const gobject_ffi::GParamSpec;
+        debug_assert!(!(*ptr).is_null());
+        &*(ptr as *const ParamSpec)
     }
 }
 
@@ -324,24 +321,24 @@ macro_rules! define_param_spec {
         unsafe impl<'a> crate::value::FromValue<'a> for $rust_type {
             type Checker = $crate::value::GenericValueTypeOrNoneChecker<Self>;
 
-            unsafe fn from_value(value: &'a crate::Value) -> Self { unsafe {
+            unsafe fn from_value(value: &'a crate::Value) -> Self {
                 let ptr = gobject_ffi::g_value_dup_param(value.to_glib_none().0);
                 debug_assert!(!ptr.is_null());
                 from_glib_full(ptr as *mut $ffi_type)
-            }}
+            }
         }
 
         #[doc(hidden)]
         unsafe impl<'a> crate::value::FromValue<'a> for &'a $rust_type {
             type Checker = crate::value::GenericValueTypeOrNoneChecker<Self>;
 
-            unsafe fn from_value(value: &'a crate::Value) -> Self { unsafe {
+            unsafe fn from_value(value: &'a crate::Value) -> Self {
                 debug_assert_eq!(std::mem::size_of::<Self>(), std::mem::size_of::<crate::ffi::gpointer>());
                 let value = &*(value as *const crate::Value as *const crate::gobject_ffi::GValue);
                 let ptr = &value.data[0].v_pointer as *const crate::ffi::gpointer as *const *const gobject_ffi::GParamSpec;
                 debug_assert!(!(*ptr).is_null());
                 &*(ptr as *const $rust_type)
-            }}
+            }
         }
 
         #[doc(hidden)]
@@ -437,7 +434,7 @@ macro_rules! define_param_spec {
         #[doc(hidden)]
         impl IntoGlibPtr<*mut gobject_ffi::GParamSpec> for $rust_type {
             #[inline]
-            fn into_glib_ptr(self) -> *mut gobject_ffi::GParamSpec {
+            unsafe fn into_glib_ptr(self) -> *mut gobject_ffi::GParamSpec {
                 let s = std::mem::ManuallyDrop::new(self);
                 s.to_glib_none().0
             }
@@ -446,7 +443,7 @@ macro_rules! define_param_spec {
         #[doc(hidden)]
         impl IntoGlibPtr<*const gobject_ffi::GParamSpec> for $rust_type {
             #[inline]
-            fn into_glib_ptr(self) -> *const gobject_ffi::GParamSpec {
+            unsafe fn into_glib_ptr(self) -> *const gobject_ffi::GParamSpec {
                 let s = std::mem::ManuallyDrop::new(self);
                 s.to_glib_none().0
             }
@@ -455,41 +452,41 @@ macro_rules! define_param_spec {
         #[doc(hidden)]
         impl FromGlibPtrNone<*const gobject_ffi::GParamSpec> for $rust_type {
             #[inline]
-            unsafe fn from_glib_none(ptr: *const gobject_ffi::GParamSpec) -> Self { unsafe {
+            unsafe fn from_glib_none(ptr: *const gobject_ffi::GParamSpec) -> Self {
                 from_glib_none(ptr as *const $ffi_type)
-            }}
+            }
         }
 
         #[doc(hidden)]
         impl FromGlibPtrNone<*mut gobject_ffi::GParamSpec> for $rust_type {
             #[inline]
-            unsafe fn from_glib_none(ptr: *mut gobject_ffi::GParamSpec) -> Self { unsafe {
+            unsafe fn from_glib_none(ptr: *mut gobject_ffi::GParamSpec) -> Self {
                 from_glib_none(ptr as *mut $ffi_type)
-            }}
+            }
         }
 
         #[doc(hidden)]
         impl FromGlibPtrBorrow<*const gobject_ffi::GParamSpec> for $rust_type {
             #[inline]
-            unsafe fn from_glib_borrow(ptr: *const gobject_ffi::GParamSpec) -> Borrowed<Self> { unsafe {
+            unsafe fn from_glib_borrow(ptr: *const gobject_ffi::GParamSpec) -> Borrowed<Self> {
                 from_glib_borrow(ptr as *const $ffi_type)
-            }}
+            }
         }
 
         #[doc(hidden)]
         impl FromGlibPtrBorrow<*mut gobject_ffi::GParamSpec> for $rust_type {
             #[inline]
-            unsafe fn from_glib_borrow(ptr: *mut gobject_ffi::GParamSpec) -> Borrowed<Self> { unsafe {
+            unsafe fn from_glib_borrow(ptr: *mut gobject_ffi::GParamSpec) -> Borrowed<Self> {
                 from_glib_borrow(ptr as *mut $ffi_type)
-            }}
+            }
         }
 
         #[doc(hidden)]
         impl FromGlibPtrFull<*mut gobject_ffi::GParamSpec> for $rust_type {
             #[inline]
-            unsafe fn from_glib_full(ptr: *mut gobject_ffi::GParamSpec) -> Self { unsafe {
+            unsafe fn from_glib_full(ptr: *mut gobject_ffi::GParamSpec) -> Self {
                 from_glib_full(ptr as *mut $ffi_type)
-            }}
+            }
         }
 
         impl $rust_type {
@@ -1910,12 +1907,10 @@ define_param_spec!(
 
 impl ParamSpecOverride {
     unsafe fn new_unchecked(name: &str, overridden: impl AsRef<ParamSpec>) -> ParamSpec {
-        unsafe {
-            from_glib_none(gobject_ffi::g_param_spec_override(
-                name.to_glib_none().0,
-                overridden.as_ref().to_glib_none().0,
-            ))
-        }
+        from_glib_none(gobject_ffi::g_param_spec_override(
+            name.to_glib_none().0,
+            overridden.as_ref().to_glib_none().0,
+        ))
     }
 
     // rustdoc-stripper-ignore-next
@@ -2177,35 +2172,6 @@ pub trait HasParamSpec {
     type SetValue: ?Sized;
     type BuilderFn;
     fn param_spec_builder() -> Self::BuilderFn;
-}
-
-// unless a custom `default` attribute is specified, the macro will use this trait.
-pub trait HasParamSpecDefaulted: HasParamSpec + Default {
-    type BuilderFnDefaulted;
-    fn param_spec_builder_defaulted() -> Self::BuilderFnDefaulted;
-}
-
-// Manually implement the trait for every Enum
-impl<
-    T: HasParamSpec<ParamSpec = ParamSpecEnum>
-        + StaticType
-        + FromGlib<i32>
-        + IntoGlib<GlibType = i32>
-        + Default,
-> HasParamSpecDefaulted for T
-{
-    type BuilderFnDefaulted = fn(name: &str) -> ParamSpecEnumBuilder<T>;
-    fn param_spec_builder_defaulted() -> Self::BuilderFnDefaulted {
-        |name| Self::ParamSpec::builder(name)
-    }
-}
-
-// Manually implement the trait for chars
-impl HasParamSpecDefaulted for char {
-    type BuilderFnDefaulted = fn(name: &str) -> ParamSpecUnicharBuilder;
-    fn param_spec_builder_defaulted() -> Self::BuilderFnDefaulted {
-        |name| Self::ParamSpec::builder(name, Default::default())
-    }
 }
 
 impl<T: crate::value::ToValueOptional + HasParamSpec> HasParamSpec for Option<T> {

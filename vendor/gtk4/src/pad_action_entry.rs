@@ -4,7 +4,7 @@ use std::ffi::CStr;
 
 use glib::translate::*;
 
-use crate::{PadActionType, ffi};
+use crate::{ffi, PadActionType};
 
 glib::wrapper! {
     #[doc(alias = "GtkPadActionEntry")]
@@ -64,28 +64,22 @@ impl PadActionEntry {
     }
 }
 unsafe fn init_action_entry(action_entry: *mut ffi::GtkPadActionEntry) {
-    unsafe {
-        std::ptr::write(action_entry, std::mem::zeroed());
-    }
+    std::ptr::write(action_entry, std::mem::zeroed());
 }
 
 unsafe fn copy_into_action_entry(
     dest: *mut ffi::GtkPadActionEntry,
     src: *const ffi::GtkPadActionEntry,
 ) {
-    unsafe {
-        init_action_entry(dest);
-        (*dest).action_name = glib::ffi::g_strdup((*src).action_name);
-        (*dest).label = glib::ffi::g_strdup((*src).label);
-        (*dest).type_ = (*src).type_;
-        (*dest).index = (*src).index;
-        (*dest).mode = (*src).mode;
-    }
+    init_action_entry(dest);
+    (*dest).action_name = glib::ffi::g_strdup((*src).action_name);
+    (*dest).label = glib::ffi::g_strdup((*src).label);
+    (*dest).type_ = (*src).type_;
+    (*dest).index = (*src).index;
+    (*dest).mode = (*src).mode;
 }
 
 unsafe fn clear_action_entry(action_entry: *mut ffi::GtkPadActionEntry) {
-    unsafe {
-        glib::ffi::g_free((*action_entry).label as *mut _);
-        glib::ffi::g_free((*action_entry).action_name as *mut _);
-    }
+    glib::ffi::g_free((*action_entry).label as *mut _);
+    glib::ffi::g_free((*action_entry).action_name as *mut _);
 }

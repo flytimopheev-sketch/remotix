@@ -2,29 +2,15 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, Buildable, ConstraintTarget, LayoutManager, Overflow, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, Buildable, ConstraintTarget, LayoutManager, Overflow,
+    Widget,
 };
 use glib::{prelude::*, translate::*};
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkFixed")]
     pub struct Fixed(Object<ffi::GtkFixed, ffi::GtkFixedClass>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget;
-
-    match fn {
-        type_ => || ffi::gtk_fixed_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkFixed")]
-    pub struct Fixed(Object<ffi::GtkFixed, ffi::GtkFixedClass>) @extends Widget, @implements Buildable, ConstraintTarget;
 
     match fn {
         type_ => || ffi::gtk_fixed_get_type(),
@@ -272,7 +258,12 @@ impl FixedBuilder {
     }
 }
 
-pub trait FixedExt: IsA<Fixed> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Fixed>> Sealed for T {}
+}
+
+pub trait FixedExt: IsA<Fixed> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_fixed_get_child_position")]
     #[doc(alias = "get_child_position")]
     fn child_position(&self, widget: &impl IsA<Widget>) -> (f64, f64) {

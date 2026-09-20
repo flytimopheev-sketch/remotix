@@ -1,5 +1,5 @@
 [build-dependencies]
-system-deps = "9"
+system-deps = "7"
 
 [dependencies]
 libc = "0.2"
@@ -20,7 +20,6 @@ tempfile = "3"
 [features]
 v2_40 = []
 v2_42 = ["v2_40"]
-v2_44 = ["v2_42"]
 
 [lib]
 name = "gdk_pixbuf_sys"
@@ -65,9 +64,7 @@ version = "2.40"
 [package.metadata.system-deps.gdk_pixbuf_2_0.v2_42]
 version = "2.42"
 
-[package.metadata.system-deps.gdk_pixbuf_2_0.v2_44]
-version = "2.43"
-
 [package.metadata.docs.rs]
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
 all-features = true

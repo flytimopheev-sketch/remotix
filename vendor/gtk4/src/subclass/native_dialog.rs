@@ -1,15 +1,15 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`NativeDialog`].
+//! Traits intended for subclassing [`NativeDialog`](crate::NativeDialog).
 
 use glib::translate::*;
 
-use crate::{NativeDialog, ResponseType, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, NativeDialog, ResponseType};
 
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait NativeDialogImpl: ObjectImpl + ObjectSubclass<Type: IsA<NativeDialog>> {
+pub trait NativeDialogImpl: NativeDialogImplExt + ObjectImpl {
     fn response(&self, response: ResponseType) {
         self.parent_response(response)
     }
@@ -23,9 +23,14 @@ pub trait NativeDialogImpl: ObjectImpl + ObjectSubclass<Type: IsA<NativeDialog>>
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::NativeDialogImplExt> Sealed for T {}
+}
+
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait NativeDialogImplExt: NativeDialogImpl {
+pub trait NativeDialogImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_response(&self, response: ResponseType) {
         unsafe {
             let data = Self::type_data();
@@ -92,29 +97,23 @@ unsafe extern "C" fn dialog_response<T: NativeDialogImpl>(
     ptr: *mut ffi::GtkNativeDialog,
     responseptr: i32,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let res: ResponseType = from_glib(responseptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let res: ResponseType = from_glib(responseptr);
 
-        imp.response(res)
-    }
+    imp.response(res)
 }
 
 unsafe extern "C" fn dialog_show<T: NativeDialogImpl>(ptr: *mut ffi::GtkNativeDialog) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.show()
-    }
+    imp.show()
 }
 
 unsafe extern "C" fn dialog_hide<T: NativeDialogImpl>(ptr: *mut ffi::GtkNativeDialog) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.hide()
-    }
+    imp.hide()
 }

@@ -1,13 +1,14 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for implementing the [`CellLayout`] interface.
+//! Traits intended for implementing the [`CellLayout`](crate::CellLayout)
+//! interface.
 use std::sync::OnceLock;
 
-use glib::{Quark, translate::*};
+use glib::{translate::*, Quark};
 
 use crate::{
-    CellArea, CellLayout, CellRenderer, TreeIter, TreeModel, ffi, prelude::*, subclass::prelude::*,
+    ffi, prelude::*, subclass::prelude::*, CellArea, CellLayout, CellRenderer, TreeIter, TreeModel,
 };
 
 #[derive(Debug)]
@@ -52,7 +53,7 @@ impl Drop for CellLayoutDataCallback {
 
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait CellLayoutImpl: ObjectImpl + ObjectSubclass<Type: IsA<CellLayout>> {
+pub trait CellLayoutImpl: ObjectImpl {
     fn add_attribute<R: IsA<CellRenderer>>(&self, cell: &R, attribute: &str, column: i32) {
         self.parent_add_attribute(cell, attribute, column)
     }
@@ -95,9 +96,14 @@ pub trait CellLayoutImpl: ObjectImpl + ObjectSubclass<Type: IsA<CellLayout>> {
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::CellLayoutImplExt> Sealed for T {}
+}
+
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait CellLayoutImplExt: CellLayoutImpl {
+pub trait CellLayoutImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_add_attribute<R: IsA<CellRenderer>>(&self, cell: &R, attribute: &str, column: i32) {
         unsafe {
             let type_data = Self::type_data();
@@ -284,12 +290,10 @@ unsafe impl<T: CellLayoutImpl> IsImplementable<T> for CellLayout {
 unsafe extern "C" fn cell_layout_get_area<T: CellLayoutImpl>(
     cell_layout: *mut ffi::GtkCellLayout,
 ) -> *mut ffi::GtkCellArea {
-    unsafe {
-        let instance = &*(cell_layout as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(cell_layout as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.area().into_glib_ptr()
-    }
+    imp.area().into_glib_ptr()
 }
 
 unsafe extern "C" fn cell_layout_pack_start<T: CellLayoutImpl>(
@@ -297,13 +301,11 @@ unsafe extern "C" fn cell_layout_pack_start<T: CellLayoutImpl>(
     cellptr: *mut ffi::GtkCellRenderer,
     expand: glib::ffi::gboolean,
 ) {
-    unsafe {
-        let instance = &*(cell_layout as *mut T::Instance);
-        let imp = instance.imp();
-        let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
+    let instance = &*(cell_layout as *mut T::Instance);
+    let imp = instance.imp();
+    let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
 
-        imp.pack_start(&*cell, from_glib(expand))
-    }
+    imp.pack_start(&*cell, from_glib(expand))
 }
 
 unsafe extern "C" fn cell_layout_pack_end<T: CellLayoutImpl>(
@@ -311,22 +313,18 @@ unsafe extern "C" fn cell_layout_pack_end<T: CellLayoutImpl>(
     cellptr: *mut ffi::GtkCellRenderer,
     expand: glib::ffi::gboolean,
 ) {
-    unsafe {
-        let instance = &*(cell_layout as *mut T::Instance);
-        let imp = instance.imp();
-        let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
+    let instance = &*(cell_layout as *mut T::Instance);
+    let imp = instance.imp();
+    let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
 
-        imp.pack_end(&*cell, from_glib(expand))
-    }
+    imp.pack_end(&*cell, from_glib(expand))
 }
 
 unsafe extern "C" fn cell_layout_clear<T: CellLayoutImpl>(cell_layout: *mut ffi::GtkCellLayout) {
-    unsafe {
-        let instance = &*(cell_layout as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(cell_layout as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.clear()
-    }
+    imp.clear()
 }
 
 unsafe extern "C" fn cell_layout_reorder<T: CellLayoutImpl>(
@@ -334,13 +332,11 @@ unsafe extern "C" fn cell_layout_reorder<T: CellLayoutImpl>(
     cellptr: *mut ffi::GtkCellRenderer,
     position: i32,
 ) {
-    unsafe {
-        let instance = &*(cell_layout as *mut T::Instance);
-        let imp = instance.imp();
-        let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
+    let instance = &*(cell_layout as *mut T::Instance);
+    let imp = instance.imp();
+    let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
 
-        imp.reorder(&*cell, position)
-    }
+    imp.reorder(&*cell, position)
 }
 
 unsafe extern "C" fn cell_layout_add_attribute<T: CellLayoutImpl>(
@@ -349,27 +345,23 @@ unsafe extern "C" fn cell_layout_add_attribute<T: CellLayoutImpl>(
     attributeptr: *const libc::c_char,
     column: i32,
 ) {
-    unsafe {
-        let instance = &*(cell_layout as *mut T::Instance);
-        let imp = instance.imp();
-        let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
-        let attribute: Borrowed<glib::GString> = from_glib_borrow(attributeptr);
+    let instance = &*(cell_layout as *mut T::Instance);
+    let imp = instance.imp();
+    let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
+    let attribute: Borrowed<glib::GString> = from_glib_borrow(attributeptr);
 
-        imp.add_attribute(&*cell, &attribute, column)
-    }
+    imp.add_attribute(&*cell, &attribute, column)
 }
 
 unsafe extern "C" fn cell_layout_clear_attributes<T: CellLayoutImpl>(
     cell_layout: *mut ffi::GtkCellLayout,
     cellptr: *mut ffi::GtkCellRenderer,
 ) {
-    unsafe {
-        let instance = &*(cell_layout as *mut T::Instance);
-        let imp = instance.imp();
-        let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
+    let instance = &*(cell_layout as *mut T::Instance);
+    let imp = instance.imp();
+    let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
 
-        imp.clear_attributes(&*cell)
-    }
+    imp.clear_attributes(&*cell)
 }
 
 unsafe extern "C" fn cell_layout_set_cell_data_func<T: CellLayoutImpl>(
@@ -379,41 +371,37 @@ unsafe extern "C" fn cell_layout_set_cell_data_func<T: CellLayoutImpl>(
     user_data: glib::ffi::gpointer,
     destroy_notify: glib::ffi::GDestroyNotify,
 ) {
-    unsafe {
-        let instance = &*(cell_layout as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(cell_layout as *mut T::Instance);
+    let imp = instance.imp();
 
-        let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
+    let cell: Borrowed<CellRenderer> = from_glib_borrow(cellptr);
 
-        let callback = if callback.is_none() {
-            None
-        } else {
-            Some(CellLayoutDataCallback {
-                callback,
-                user_data,
-                destroy_notify,
-            })
-        };
+    let callback = if callback.is_none() {
+        None
+    } else {
+        Some(CellLayoutDataCallback {
+            callback,
+            user_data,
+            destroy_notify,
+        })
+    };
 
-        imp.set_cell_data_func(&*cell, callback)
-    }
+    imp.set_cell_data_func(&*cell, callback)
 }
 
 unsafe extern "C" fn cell_layout_get_cells<T: CellLayoutImpl>(
     cell_layout: *mut ffi::GtkCellLayout,
 ) -> *mut glib::ffi::GList {
-    unsafe {
-        let instance = &*(cell_layout as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(cell_layout as *mut T::Instance);
+    let imp = instance.imp();
 
-        let cells = imp.cells();
+    let cells = imp.cells();
 
-        static QUARK: OnceLock<Quark> = OnceLock::new();
-        let quark = *QUARK.get_or_init(|| Quark::from_str("gtk-rs-subclass-cell-layout-get-cells"));
+    static QUARK: OnceLock<Quark> = OnceLock::new();
+    let quark = *QUARK.get_or_init(|| Quark::from_str("gtk-rs-subclass-cell-layout-get-cells"));
 
-        // transfer container: list owned by the caller by not the actual content
-        // so we need to keep the cells around and return a ptr of the list
-        imp.obj().set_qdata(quark, cells.clone());
-        cells.to_glib_container().0
-    }
+    // transfer container: list owned by the caller by not the actual content
+    // so we need to keep the cells around and return a ptr of the list
+    imp.obj().set_qdata(quark, cells.clone());
+    cells.to_glib_container().0
 }

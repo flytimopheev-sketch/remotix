@@ -356,13 +356,6 @@ const RUST_LAYOUTS: &[(&str, Layout)] = &[
         },
     ),
     (
-        "PangoFontColor",
-        Layout {
-            size: size_of::<PangoFontColor>(),
-            alignment: align_of::<PangoFontColor>(),
-        },
-    ),
-    (
         "PangoFontFace",
         Layout {
             size: size_of::<PangoFontFace>(),
@@ -566,13 +559,6 @@ const RUST_LAYOUTS: &[(&str, Layout)] = &[
         },
     ),
     (
-        "PangoRenderComponent",
-        Layout {
-            size: size_of::<PangoRenderComponent>(),
-            alignment: align_of::<PangoRenderComponent>(),
-        },
-    ),
-    (
         "PangoRenderPart",
         Layout {
             size: size_of::<PangoRenderPart>(),
@@ -664,13 +650,6 @@ const RUST_LAYOUTS: &[(&str, Layout)] = &[
         },
     ),
     (
-        "PangoWidth",
-        Layout {
-            size: size_of::<PangoWidth>(),
-            alignment: align_of::<PangoWidth>(),
-        },
-    ),
-    (
         "PangoWrapMode",
         Layout {
             size: size_of::<PangoWrapMode>(),
@@ -725,7 +704,6 @@ const RUST_CONSTANTS: &[(&str, &str)] = &[
     ("(gint) PANGO_ATTR_UNDERLINE_COLOR", "18"),
     ("(gint) PANGO_ATTR_VARIANT", "5"),
     ("(gint) PANGO_ATTR_WEIGHT", "4"),
-    ("(gint) PANGO_ATTR_WIDTH", "38"),
     ("(gint) PANGO_ATTR_WORD", "34"),
     ("(gint) PANGO_BASELINE_SHIFT_NONE", "0"),
     ("(gint) PANGO_BASELINE_SHIFT_SUBSCRIPT", "2"),
@@ -768,10 +746,6 @@ const RUST_CONSTANTS: &[(&str, &str)] = &[
     ("(gint) PANGO_ELLIPSIZE_MIDDLE", "2"),
     ("(gint) PANGO_ELLIPSIZE_NONE", "0"),
     ("(gint) PANGO_ELLIPSIZE_START", "1"),
-    ("(gint) PANGO_FONT_COLOR_DONT_CARE", "2"),
-    ("(gint) PANGO_FONT_COLOR_FORBIDDEN", "0"),
-    ("(gint) PANGO_FONT_COLOR_REQUIRED", "1"),
-    ("(guint) PANGO_FONT_MASK_COLOR", "512"),
     ("(guint) PANGO_FONT_MASK_FAMILY", "1"),
     ("(guint) PANGO_FONT_MASK_FEATURES", "256"),
     ("(guint) PANGO_FONT_MASK_GRAVITY", "64"),
@@ -781,7 +755,6 @@ const RUST_CONSTANTS: &[(&str, &str)] = &[
     ("(guint) PANGO_FONT_MASK_VARIANT", "4"),
     ("(guint) PANGO_FONT_MASK_VARIATIONS", "128"),
     ("(guint) PANGO_FONT_MASK_WEIGHT", "8"),
-    ("(guint) PANGO_FONT_MASK_WIDTH", "16"),
     ("(gint) PANGO_FONT_SCALE_NONE", "0"),
     ("(gint) PANGO_FONT_SCALE_SMALL_CAPS", "3"),
     ("(gint) PANGO_FONT_SCALE_SUBSCRIPT", "2"),
@@ -807,14 +780,6 @@ const RUST_CONSTANTS: &[(&str, &str)] = &[
     ("(guint) PANGO_LAYOUT_SERIALIZE_OUTPUT", "2"),
     ("(gint) PANGO_OVERLINE_NONE", "0"),
     ("(gint) PANGO_OVERLINE_SINGLE", "1"),
-    ("PANGO_RENDER_COMPONENT_ALL", "62"),
-    ("(guint) PANGO_RENDER_COMPONENT_BACKGROUND", "8"),
-    ("(guint) PANGO_RENDER_COMPONENT_COLOR_GLYPH", "4"),
-    ("(guint) PANGO_RENDER_COMPONENT_NONE", "0"),
-    ("(guint) PANGO_RENDER_COMPONENT_OVERLINE", "32"),
-    ("(guint) PANGO_RENDER_COMPONENT_PLAIN_GLYPH", "2"),
-    ("(guint) PANGO_RENDER_COMPONENT_STRIKETHROUGH", "16"),
-    ("(guint) PANGO_RENDER_COMPONENT_UNDERLINE", "8"),
     ("(gint) PANGO_RENDER_PART_BACKGROUND", "1"),
     ("(gint) PANGO_RENDER_PART_FOREGROUND", "0"),
     ("(gint) PANGO_RENDER_PART_OVERLINE", "4"),
@@ -992,15 +957,6 @@ const RUST_CONSTANTS: &[(&str, &str)] = &[
     ("(gint) PANGO_WEIGHT_ULTRABOLD", "800"),
     ("(gint) PANGO_WEIGHT_ULTRAHEAVY", "1000"),
     ("(gint) PANGO_WEIGHT_ULTRALIGHT", "200"),
-    ("(gint) PANGO_WIDTH_CONDENSED", "750"),
-    ("(gint) PANGO_WIDTH_EXPANDED", "1250"),
-    ("(gint) PANGO_WIDTH_EXTRA_CONDENSED", "625"),
-    ("(gint) PANGO_WIDTH_EXTRA_EXPANDED", "1500"),
-    ("(gint) PANGO_WIDTH_NORMAL", "1000"),
-    ("(gint) PANGO_WIDTH_SEMI_CONDENSED", "875"),
-    ("(gint) PANGO_WIDTH_SEMI_EXPANDED", "1125"),
-    ("(gint) PANGO_WIDTH_ULTRA_CONDENSED", "500"),
-    ("(gint) PANGO_WIDTH_ULTRA_EXPANDED", "2000"),
     ("(gint) PANGO_WRAP_CHAR", "1"),
     ("(gint) PANGO_WRAP_NONE", "3"),
     ("(gint) PANGO_WRAP_WORD", "0"),

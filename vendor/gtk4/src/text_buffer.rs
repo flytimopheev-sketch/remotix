@@ -3,24 +3,28 @@
 use std::{boxed::Box as Box_, mem::transmute, slice, str};
 
 use glib::{
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use libc::{c_char, c_int};
 
-use crate::{TextBuffer, TextIter, TextTag, ffi, prelude::*};
-
 #[cfg(feature = "v4_16")]
 use crate::TextBufferNotifyFlags;
+use crate::{ffi, prelude::*, TextBuffer, TextIter, TextTag};
+
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TextBuffer>> Sealed for T {}
+}
 
 // rustdoc-stripper-ignore-next
 /// Trait containing manually implemented methods of
 /// [`TextBuffer`](crate::TextBuffer).
-pub trait TextBufferExtManual: IsA<TextBuffer> + 'static {
+pub trait TextBufferExtManual: sealed::Sealed + IsA<TextBuffer> + 'static {
     // rustdoc-stripper-ignore-next
     /// # Panics
     ///
-    /// If the properties don't exists or are not writable.
+    /// If the properties don't exists or are not writeable.
     #[doc(alias = "gtk_text_buffer_create_tag")]
     fn create_tag(
         &self,
@@ -52,16 +56,13 @@ pub trait TextBufferExtManual: IsA<TextBuffer> + 'static {
         self.as_ref().insert(iter, text);
         let start_iter = self.as_ref().iter_at_offset(start_offset);
         let tag_table = self.as_ref().tag_table();
-        tags_names
-            .iter()
-            .for_each(|tag_name| match tag_table.lookup(tag_name) {
-                Some(tag) => {
-                    self.as_ref().apply_tag(&tag, &start_iter, iter);
-                }
-                _ => {
-                    glib::g_warning!("TextBuffer", "No tag with name {}!", tag_name);
-                }
-            });
+        tags_names.iter().for_each(|tag_name| {
+            if let Some(tag) = tag_table.lookup(tag_name) {
+                self.as_ref().apply_tag(&tag, &start_iter, iter);
+            } else {
+                glib::g_warning!("TextBuffer", "No tag with name {}!", tag_name);
+            }
+        });
     }
 
     fn connect_insert_text<F: Fn(&Self, &mut TextIter, &str) + 'static>(
@@ -81,28 +82,26 @@ pub trait TextBufferExtManual: IsA<TextBuffer> + 'static {
             ) where
                 T: IsA<TextBuffer>,
             {
-                unsafe {
-                    let mut location_copy = from_glib_none(location);
-                    let f: &F = &*(f as *const F);
-                    let text = if len <= 0 {
-                        &[]
-                    } else {
-                        slice::from_raw_parts(text as *const u8, len as usize)
-                    };
+                let mut location_copy = from_glib_none(location);
+                let f: &F = &*(f as *const F);
+                let text = if len <= 0 {
+                    &[]
+                } else {
+                    slice::from_raw_parts(text as *const u8, len as usize)
+                };
 
-                    f(
-                        TextBuffer::from_glib_borrow(this).unsafe_cast_ref(),
-                        &mut location_copy,
-                        str::from_utf8(text).unwrap(),
-                    )
-                }
+                f(
+                    TextBuffer::from_glib_borrow(this).unsafe_cast_ref(),
+                    &mut location_copy,
+                    str::from_utf8(text).unwrap(),
+                )
             }
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.to_glib_none().0 as *mut _,
-                c"insert-text".as_ptr() as *mut _,
-                Some(transmute::<*const (), unsafe extern "C" fn()>(
-                    insert_text_trampoline::<Self, F> as *const (),
+                b"insert-text\0".as_ptr() as *mut _,
+                Some(transmute::<usize, unsafe extern "C" fn()>(
+                    insert_text_trampoline::<Self, F> as usize,
                 )),
                 Box_::into_raw(f),
             )
@@ -127,12 +126,10 @@ pub trait TextBufferExtManual: IsA<TextBuffer> + 'static {
             length: std::ffi::c_uint,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let buffer = from_glib_borrow(buffer);
-                let flags = from_glib(flags);
-                let callback = &*(user_data as *mut P);
-                (*callback)(&buffer, flags, position, length)
-            }
+            let buffer = from_glib_borrow(buffer);
+            let flags = from_glib(flags);
+            let callback = &*(user_data as *mut P);
+            (*callback)(&buffer, flags, position, length)
         }
         let commit_notify = Some(commit_notify_func::<P> as _);
         unsafe extern "C" fn destroy_func<
@@ -140,9 +137,7 @@ pub trait TextBufferExtManual: IsA<TextBuffer> + 'static {
         >(
             data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let _callback = Box_::from_raw(data as *mut P);
-            }
+            let _callback = Box_::from_raw(data as *mut P);
         }
         let destroy_call4 = Some(destroy_func::<P> as _);
         let super_callback0: Box_<P> = commit_notify_data;

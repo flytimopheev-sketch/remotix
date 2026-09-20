@@ -63,7 +63,6 @@ generate = [
     "Gio.DriveStartStopType",
     "Gio.DtlsClientConnection",
     "Gio.DtlsServerConnection",
-    "Gio.EcnCodePoint",
     "Gio.Emblem",
     "Gio.EmblemedIcon",
     "Gio.EmblemOrigin",
@@ -86,8 +85,6 @@ generate = [
     "Gio.FilterInputStream",
     "Gio.IOModuleScopeFlags",
     "Gio.IOStreamSpliceFlags",
-    "Gio.IPTosMessage",
-    "Gio.IPv6TclassMessage",
     "Gio.LoadableIcon",
     "Gio.MemoryMonitor",
     "Gio.MemoryMonitorWarningLevel",
@@ -176,8 +173,6 @@ manual = [
     "Gio.InputMessage",
     "Gio.IOExtension",
     "Gio.IOExtensionPoint",
-    "Gio.IOModule",
-    "Gio.IOModuleScope",
     "Gio.OutputMessage",
     "Gio.SocketMsgFlags",
     "Gio.Task",
@@ -228,6 +223,15 @@ status = "generate"
     #belong to Stream, works only with PollableStream, need mutable buffer reference
     ignore = true
     [[object.function]]
+    name = "unix_is_system_device_path"
+        [[object.function.parameter]]
+        name = "device_path"
+        string_type = "filename"
+    [[object.function]]
+    pattern = "unix_mount.+"
+    #impl UnixMountEntry
+    ignore = true
+    [[object.function]]
     pattern = ".+_with_closures"
     #wrapped with proper types manually
     ignore = true
@@ -245,9 +249,9 @@ status = "generate"
     ignore = true
     [[object.function]]
     name = "content_type_guess"
-    # implemented manually until gir generates nullable array parameters
-    # https://github.com/gtk-rs/gir/issues/1133
-    manual = true
+        [[object.function.parameter]]
+        name = "filename"
+        string_type = "filename"
 
 [[object]]
 name = "Gio.ActionGroup"
@@ -306,14 +310,6 @@ generate_builder = true
     name = "open"
     manual = true
     doc_trait_name = "ApplicationExtManual"
-    [[object.signal]]
-    name = "command-line"
-    manual = true
-    doc_trait_name = "ApplicationExtManual"
-    [[object.signal]]
-    name = "handle-local-options"
-    manual = true
-    doc_trait_name = "ApplicationExtManual"
     [[object.function]]
     name = "run"
     manual = true
@@ -342,7 +338,6 @@ generate_builder = true
 [[object]]
 name = "Gio.ApplicationCommandLine"
 status = "generate"
-manual_traits = ["ApplicationCommandLineExtManual"]
     [[object.function]]
     name = "create_file_for_arg"
         [[object.function.parameter]]
@@ -361,16 +356,6 @@ manual_traits = ["ApplicationCommandLineExtManual"]
         [[object.function.parameter]]
         name = "name"
         string_type = "os_string"
-    [[object.function]]
-    name = "set_exit_status"
-    # Uses glib::ExitCode for consistency with gio::Application interfaces
-    manual = true
-    doc_trait_name = "ApplicationCommandLineExtManual"
-    [[object.function]]
-    name = "get_exit_status"
-    # Uses glib::ExitCode for consistency with gio::Application interfaces
-    manual = true
-    doc_trait_name = "ApplicationCommandLineExtManual"
 
 [[object]]
 name = "Gio.ApplicationFlags"
@@ -696,50 +681,14 @@ status = "generate"
         nullable = true
 
 [[object]]
-name = "Gio.DBusObjectManagerClient"
-status = "generate"
-concurrency = "send+sync"
-manual_traits = ["DBusObjectManagerClientExtManual"]
-    [[object.function]]
-    name = "new_for_bus_sync"
-    visibility = "crate"
-    rename = "for_bus_sync_impl"
-    [[object.function]]
-    name = "new_sync"
-    visibility = "crate"
-    rename = "new_sync_impl"
-    [[object.function]]
-    name = "new"
-    manual = true
-    [[object.function]]
-    name = "new_for_bus"
-    manual = true
-    [[object.property]]
-    name = "get-proxy-type-destroy-notify"
-    # C API
-    ignore = true
-    [[object.property]]
-    name = "get-proxy-type-func"
-    # C API
-    ignore = true
-    [[object.property]]
-    name = "get-proxy-type-user-data"
-    # C API
-    ignore = true
-    [[object.signal]]
-    name = "interface-proxy-properties-changed"
-    # **libc::c_char not handled by generator
-    manual = true
-
-[[object]]
 name = "Gio.DBusProxy"
 status = "generate"
 concurrency = "send+sync"
 manual_traits = ["DBusProxyExtManual"]
     [[object.signal]]
     name = "g-properties-changed"
-    # **libc::c_char not handled by generator
-    manual = true
+    # libc::c_char vs str
+    ignore = true
     [[object.function]]
     pattern = ".+_unix_fd.+"
     cfg_condition = "unix"
@@ -765,6 +714,24 @@ manual_traits = ["DebugControllerDBusExtManual"]
     name = "connection"
     manual = true
     doc_trait_name = "DebugControllerDBusExtManual"
+
+[[object]]
+name = "Gio.DesktopAppInfo"
+status = "generate"
+manual_traits = ["DesktopAppInfoExtManual"]
+cfg_condition = "all(not(windows),not(target_os = \"macos\"))"
+    [[object.function]]
+    name = "get_boolean"
+    # Retrieves the boolean value of a key
+    rename = "boolean"
+    [[object.function]]
+    name = "search"
+    # returns vec of string
+    manual = true
+    [[object.function]]
+    name = "launch_uris_as_manager_with_fds"
+    # has to use RawFd / SOCKET
+    manual = true
 
 [[object]]
 name = "Gio.DtlsConnection"
@@ -844,6 +811,11 @@ manual_traits = ["FileExtManual"]
     manual = true
     doc_trait_name = "FileExtManual"
     [[object.function]]
+    name = "measure_disk_usage"
+    # FnMut callback
+    manual = true
+    doc_trait_name = "FileExtManual"
+    [[object.function]]
     name = "measure_disk_usage_async"
     # Multiple callbacks
     manual = true
@@ -898,6 +870,12 @@ status = "generate"
     version = "2.80"
 
 [[object]]
+name = "Gio.FileDescriptorBased"
+status = "manual"
+cfg_condition = "unix"
+manual_traits = ["FileDescriptorBasedExtManual"]
+
+[[object]]
 name = "Gio.FileEnumerator"
 status = "generate"
 manual_traits = ["FileEnumeratorExtManual"]
@@ -905,11 +883,6 @@ manual_traits = ["FileEnumeratorExtManual"]
     name = "iterate"
     # better with rust iterators
     ignore = true
-    [[object.function]]
-    name = "close"
-    # Return value does not indicate success or error: despite the documentation, this function could return TRUE and an error in same time.
-    # see https://gitlab.gnome.org/GNOME/glib/-/blob/dc6f9447cd2a01012731422afed6facff1eea81a/gio/gfileenumerator.c#L290-297
-    manual = true
 
 [[object]]
 name = "Gio.FileInfo"
@@ -962,10 +935,6 @@ manual_traits = ["InetAddressExtManual"]
 concurrency = "send+sync"
     [[object.function]]
     name = "new_from_bytes"
-    # broken and needs some closer integration with the corresponding std types
-    manual = true
-    [[object.function]]
-    name = "new_from_bytes_with_ipv6_info"
     # broken and needs some closer integration with the corresponding std types
     manual = true
 
@@ -1590,24 +1559,152 @@ manual_traits = ["UnixFDListExtManual"]
     manual = true
     doc_trait_name = "UnixFDListExtManual"
 
+[[object]]
+name = "Gio.UnixFDMessage"
+status = "generate"
+cfg_condition = "unix"
+manual_traits = ["UnixFDMessageExtManual"]
     [[object.function]]
-    name = "append_take"
-    # has to use IntoRawFd
-    manual = true
-    doc_trait_name = "UnixFDListExtManual"
-
-    [[object.function]]
-    name = "lookup"
+    name = "append_fd"
     # has to use RawFd
     manual = true
-    doc_trait_name = "UnixFDListExtManual"
-
+    doc_trait_name = "UnixFDMessageExtManual"
     [[object.function]]
-    name = "peek"
+    name = "steal_fds"
     # has to use RawFd
     manual = true
-    doc_trait_name = "UnixFDListExtManual"
+    doc_trait_name = "UnixFDMessageExtManual"
 
+[[object]]
+name = "Gio.UnixInputStream"
+status = "generate"
+cfg_condition = "unix"
+manual_traits = ["UnixInputStreamExtManual"]
+    [[object.function]]
+    name = "new"
+    # has to use RawFd
+    manual = true
+    generate_doc = false
+
+    [[object.function]]
+    name = "set_close_fd"
+    # Can cause file descriptor leaks
+    manual = true
+    doc_trait_name = "UnixInputStreamExtManual"
+    generate_doc = false
+
+    [[object.function]]
+    name = "get_fd"
+    # conflicts with as FileDescriptorBased::fd
+    ignore = true
+
+    [[object.property]]
+    name = "fd"
+    # has to use RawFd
+    ignore = true
+
+    [[object.property]]
+    name = "close-fd"
+    ignore = true
+
+[[object]]
+name = "Gio.UnixMountEntry"
+status = "generate"
+concurrency = "send+sync"
+cfg_condition = "unix"
+    [[object.derive]]
+    name = "Debug"
+    [[object.function]]
+    pattern = "compare|get_device_path|get_fs_type|get_mount_path|guess_can_eject|guess_name|guess_icon|guess_should_display|guess_symbolic_icon|is_readonly|is_system_internal"
+    version = "2.0"
+        [[object.function.parameter]]
+        pattern = ".+"
+        const = true
+    [[object.function]]
+    name = "get_options"
+    version = "2.58"
+        [[object.function.parameter]]
+        pattern = ".+"
+        const = true
+    [[object.function]]
+    name = "get_root_path"
+    version = "2.60"
+        [[object.function.parameter]]
+        pattern = ".+"
+        const = true
+    [[object.function]]
+    name = "at"
+    version = "2.0"
+    rename = "for_mount_path"
+    [[object.function]]
+    name = "for"
+    version = "2.0"
+    rename = "for_file_path"
+
+[[object]]
+name = "Gio.UnixMountMonitor"
+status = "generate"
+cfg_condition = "unix"
+
+[[object]]
+name = "Gio.UnixMountPoint"
+status = "generate"
+concurrency = "send+sync"
+cfg_condition = "unix"
+    [[object.derive]]
+    name = "Debug"
+    [[object.function]]
+    name = "compare"
+        [[object.function.parameter]]
+        pattern = ".+"
+        const = true
+    [[object.function]]
+    pattern = "get_.*"
+        [[object.function.parameter]]
+        pattern = ".+"
+        const = true
+    [[object.function]]
+    pattern = "guess_.*"
+        [[object.function.parameter]]
+        pattern = ".+"
+        const = true
+    [[object.function]]
+    pattern = "is_.*"
+        [[object.function.parameter]]
+        pattern = ".+"
+        const = true
+
+[[object]]
+name = "Gio.UnixOutputStream"
+status = "generate"
+cfg_condition = "unix"
+manual_traits = ["UnixOutputStreamExtManual"]
+    [[object.function]]
+    name = "new"
+    # has to use RawFd
+    manual = true
+    generate_doc = false
+
+    [[object.function]]
+    name = "set_close_fd"
+    # Can cause file descriptor leaks
+    manual = true
+    doc_trait_name = "UnixOutputStreamExtManual"
+    generate_doc = false
+
+    [[object.function]]
+    name = "get_fd"
+    # conflicts with as FileDescriptorBased::fd
+    ignore = true
+
+    [[object.property]]
+    name = "fd"
+    # has to use RawFd
+    ignore = true
+
+    [[object.property]]
+    name = "close-fd"
+    ignore = true
 
 [[object]]
 name = "Gio.UnixSocketAddress"

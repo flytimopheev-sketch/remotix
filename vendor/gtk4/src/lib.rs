@@ -89,7 +89,6 @@ where
 #[allow(clippy::derived_hash_with_manual_eq)]
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::type_complexity)]
-#[allow(clippy::let_and_return)]
 #[allow(unused_imports)]
 mod auto;
 
@@ -104,8 +103,6 @@ pub mod prelude;
 pub use auto::*;
 pub use rt::*;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 pub mod accessible;
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
@@ -203,9 +200,6 @@ mod tree_sortable;
 mod tree_store;
 mod tree_view;
 mod tree_view_column;
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-mod try_expression;
 mod widget;
 
 #[cfg(feature = "v4_14")]

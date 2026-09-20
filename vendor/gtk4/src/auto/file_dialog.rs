@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{FileFilter, Window, ffi};
+use crate::{ffi, FileFilter, Window};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::{boxed::Box as Box_, pin::Pin};
@@ -122,20 +122,17 @@ impl FileDialog {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret =
-                    ffi::gtk_file_dialog_open_finish(_source_object as *mut _, res, &mut error);
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::gtk_file_dialog_open_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = open_trampoline::<P>;
         unsafe {
@@ -191,23 +188,21 @@ impl FileDialog {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::gtk_file_dialog_open_multiple_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::gtk_file_dialog_open_multiple_finish(
+                _source_object as *mut _,
+                res,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = open_multiple_trampoline::<P>;
         unsafe {
@@ -242,7 +237,7 @@ impl FileDialog {
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_18")))]
     #[doc(alias = "gtk_file_dialog_open_multiple_text_files")]
     pub fn open_multiple_text_files<
-        P: FnOnce(Result<(gio::ListModel, glib::GString), glib::Error>) + 'static,
+        P: FnOnce(Result<(Option<gio::ListModel>, glib::GString), glib::Error>) + 'static,
     >(
         &self,
         parent: Option<&impl IsA<Window>>,
@@ -262,31 +257,29 @@ impl FileDialog {
         let user_data: Box_<glib::thread_guard::ThreadGuard<P>> =
             Box_::new(glib::thread_guard::ThreadGuard::new(callback));
         unsafe extern "C" fn open_multiple_text_files_trampoline<
-            P: FnOnce(Result<(gio::ListModel, glib::GString), glib::Error>) + 'static,
+            P: FnOnce(Result<(Option<gio::ListModel>, glib::GString), glib::Error>) + 'static,
         >(
             _source_object: *mut glib::gobject_ffi::GObject,
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let mut encoding = std::ptr::null();
-                let ret = ffi::gtk_file_dialog_open_multiple_text_files_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut encoding,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok((from_glib_full(ret), from_glib_none(encoding)))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let mut encoding = std::ptr::null();
+            let ret = ffi::gtk_file_dialog_open_multiple_text_files_finish(
+                _source_object as *mut _,
+                res,
+                &mut encoding,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok((from_glib_full(ret), from_glib_none(encoding)))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = open_multiple_text_files_trampoline::<P>;
         unsafe {
@@ -307,8 +300,9 @@ impl FileDialog {
         parent: Option<&(impl IsA<Window> + Clone + 'static)>,
     ) -> Pin<
         Box_<
-            dyn std::future::Future<Output = Result<(gio::ListModel, glib::GString), glib::Error>>
-                + 'static,
+            dyn std::future::Future<
+                    Output = Result<(Option<gio::ListModel>, glib::GString), glib::Error>,
+                > + 'static,
         >,
     > {
         let parent = parent.map(ToOwned::to_owned);
@@ -326,7 +320,9 @@ impl FileDialog {
     #[cfg(feature = "v4_18")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_18")))]
     #[doc(alias = "gtk_file_dialog_open_text_file")]
-    pub fn open_text_file<P: FnOnce(Result<(gio::File, glib::GString), glib::Error>) + 'static>(
+    pub fn open_text_file<
+        P: FnOnce(Result<(Option<gio::File>, glib::GString), glib::Error>) + 'static,
+    >(
         &self,
         parent: Option<&impl IsA<Window>>,
         cancellable: Option<&impl IsA<gio::Cancellable>>,
@@ -345,31 +341,29 @@ impl FileDialog {
         let user_data: Box_<glib::thread_guard::ThreadGuard<P>> =
             Box_::new(glib::thread_guard::ThreadGuard::new(callback));
         unsafe extern "C" fn open_text_file_trampoline<
-            P: FnOnce(Result<(gio::File, glib::GString), glib::Error>) + 'static,
+            P: FnOnce(Result<(Option<gio::File>, glib::GString), glib::Error>) + 'static,
         >(
             _source_object: *mut glib::gobject_ffi::GObject,
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let mut encoding = std::ptr::null();
-                let ret = ffi::gtk_file_dialog_open_text_file_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut encoding,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok((from_glib_full(ret), from_glib_none(encoding)))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let mut encoding = std::ptr::null();
+            let ret = ffi::gtk_file_dialog_open_text_file_finish(
+                _source_object as *mut _,
+                res,
+                &mut encoding,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok((from_glib_full(ret), from_glib_none(encoding)))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = open_text_file_trampoline::<P>;
         unsafe {
@@ -390,8 +384,9 @@ impl FileDialog {
         parent: Option<&(impl IsA<Window> + Clone + 'static)>,
     ) -> Pin<
         Box_<
-            dyn std::future::Future<Output = Result<(gio::File, glib::GString), glib::Error>>
-                + 'static,
+            dyn std::future::Future<
+                    Output = Result<(Option<gio::File>, glib::GString), glib::Error>,
+                > + 'static,
         >,
     > {
         let parent = parent.map(ToOwned::to_owned);
@@ -432,20 +427,17 @@ impl FileDialog {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret =
-                    ffi::gtk_file_dialog_save_finish(_source_object as *mut _, res, &mut error);
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::gtk_file_dialog_save_finish(_source_object as *mut _, res, &mut error);
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = save_trampoline::<P>;
         unsafe {
@@ -479,7 +471,7 @@ impl FileDialog {
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_18")))]
     #[doc(alias = "gtk_file_dialog_save_text_file")]
     pub fn save_text_file<
-        P: FnOnce(Result<(gio::File, glib::GString, glib::GString), glib::Error>) + 'static,
+        P: FnOnce(Result<(Option<gio::File>, glib::GString, glib::GString), glib::Error>) + 'static,
     >(
         &self,
         parent: Option<&impl IsA<Window>>,
@@ -499,37 +491,36 @@ impl FileDialog {
         let user_data: Box_<glib::thread_guard::ThreadGuard<P>> =
             Box_::new(glib::thread_guard::ThreadGuard::new(callback));
         unsafe extern "C" fn save_text_file_trampoline<
-            P: FnOnce(Result<(gio::File, glib::GString, glib::GString), glib::Error>) + 'static,
+            P: FnOnce(Result<(Option<gio::File>, glib::GString, glib::GString), glib::Error>)
+                + 'static,
         >(
             _source_object: *mut glib::gobject_ffi::GObject,
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let mut encoding = std::ptr::null();
-                let mut line_ending = std::ptr::null();
-                let ret = ffi::gtk_file_dialog_save_text_file_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut encoding,
-                    &mut line_ending,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok((
-                        from_glib_full(ret),
-                        from_glib_none(encoding),
-                        from_glib_none(line_ending),
-                    ))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let mut encoding = std::ptr::null();
+            let mut line_ending = std::ptr::null();
+            let ret = ffi::gtk_file_dialog_save_text_file_finish(
+                _source_object as *mut _,
+                res,
+                &mut encoding,
+                &mut line_ending,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok((
+                    from_glib_full(ret),
+                    from_glib_none(encoding),
+                    from_glib_none(line_ending),
+                ))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = save_text_file_trampoline::<P>;
         unsafe {
@@ -551,7 +542,7 @@ impl FileDialog {
     ) -> Pin<
         Box_<
             dyn std::future::Future<
-                    Output = Result<(gio::File, glib::GString, glib::GString), glib::Error>,
+                    Output = Result<(Option<gio::File>, glib::GString, glib::GString), glib::Error>,
                 > + 'static,
         >,
     > {
@@ -593,23 +584,21 @@ impl FileDialog {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::gtk_file_dialog_select_folder_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::gtk_file_dialog_select_folder_finish(
+                _source_object as *mut _,
+                res,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = select_folder_trampoline::<P>;
         unsafe {
@@ -665,23 +654,21 @@ impl FileDialog {
             res: *mut gio::ffi::GAsyncResult,
             user_data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let mut error = std::ptr::null_mut();
-                let ret = ffi::gtk_file_dialog_select_multiple_folders_finish(
-                    _source_object as *mut _,
-                    res,
-                    &mut error,
-                );
-                let result = if error.is_null() {
-                    Ok(from_glib_full(ret))
-                } else {
-                    Err(from_glib_full(error))
-                };
-                let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
-                    Box_::from_raw(user_data as *mut _);
-                let callback: P = callback.into_inner();
-                callback(result);
-            }
+            let mut error = std::ptr::null_mut();
+            let ret = ffi::gtk_file_dialog_select_multiple_folders_finish(
+                _source_object as *mut _,
+                res,
+                &mut error,
+            );
+            let result = if error.is_null() {
+                Ok(from_glib_full(ret))
+            } else {
+                Err(from_glib_full(error))
+            };
+            let callback: Box_<glib::thread_guard::ThreadGuard<P>> =
+                Box_::from_raw(user_data as *mut _);
+            let callback: P = callback.into_inner();
+            callback(result);
         }
         let callback = select_multiple_folders_trampoline::<P>;
         unsafe {
@@ -797,16 +784,14 @@ impl FileDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::accept-label".as_ptr(),
+                b"notify::accept-label\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_accept_label_trampoline::<F> as *const (),
                 )),
@@ -824,16 +809,14 @@ impl FileDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::default-filter".as_ptr(),
+                b"notify::default-filter\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_default_filter_trampoline::<F> as *const (),
                 )),
@@ -851,16 +834,14 @@ impl FileDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::filters".as_ptr(),
+                b"notify::filters\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_filters_trampoline::<F> as *const (),
                 )),
@@ -878,16 +859,14 @@ impl FileDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::initial-file".as_ptr(),
+                b"notify::initial-file\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_initial_file_trampoline::<F> as *const (),
                 )),
@@ -905,16 +884,14 @@ impl FileDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::initial-folder".as_ptr(),
+                b"notify::initial-folder\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_initial_folder_trampoline::<F> as *const (),
                 )),
@@ -932,16 +909,14 @@ impl FileDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::initial-name".as_ptr(),
+                b"notify::initial-name\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_initial_name_trampoline::<F> as *const (),
                 )),
@@ -959,16 +934,14 @@ impl FileDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::modal".as_ptr(),
+                b"notify::modal\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_modal_trampoline::<F> as *const (),
                 )),
@@ -986,16 +959,14 @@ impl FileDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::title".as_ptr(),
+                b"notify::title\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_title_trampoline::<F> as *const (),
                 )),

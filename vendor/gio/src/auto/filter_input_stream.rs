@@ -2,10 +2,10 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{InputStream, ffi};
+use crate::{ffi, InputStream};
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -23,7 +23,12 @@ impl FilterInputStream {
     pub const NONE: Option<&'static FilterInputStream> = None;
 }
 
-pub trait FilterInputStreamExt: IsA<FilterInputStream> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::FilterInputStream>> Sealed for T {}
+}
+
+pub trait FilterInputStreamExt: IsA<FilterInputStream> + sealed::Sealed + 'static {
     #[doc(alias = "g_filter_input_stream_get_base_stream")]
     #[doc(alias = "get_base_stream")]
     #[doc(alias = "base-stream")]
@@ -67,16 +72,14 @@ pub trait FilterInputStreamExt: IsA<FilterInputStream> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(FilterInputStream::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(FilterInputStream::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::close-base-stream".as_ptr(),
+                b"notify::close-base-stream\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_close_base_stream_trampoline::<Self, F> as *const (),
                 )),

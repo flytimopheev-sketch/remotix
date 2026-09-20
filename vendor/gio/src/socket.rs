@@ -1,66 +1,45 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 #[cfg(unix)]
-use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, OwnedFd, RawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 #[cfg(windows)]
-use std::os::windows::io::{
-    AsRawSocket, AsSocket, BorrowedSocket, FromRawSocket, IntoRawSocket, OwnedSocket, RawSocket,
-};
+use std::os::windows::io::{AsRawSocket, FromRawSocket, IntoRawSocket, RawSocket};
 #[cfg(feature = "v2_60")]
 use std::time::Duration;
 use std::{cell::RefCell, marker::PhantomData, mem::transmute, pin::Pin, ptr};
 
 use futures_core::stream::Stream;
-use glib::{Slice, prelude::*, translate::*};
+use glib::{prelude::*, translate::*, Slice};
 
 #[cfg(feature = "v2_60")]
 use crate::PollableReturn;
-use crate::{Cancellable, Socket, SocketAddress, SocketControlMessage, ffi};
+use crate::{ffi, Cancellable, Socket, SocketAddress, SocketControlMessage};
 
 impl Socket {
     #[cfg(unix)]
     #[cfg_attr(docsrs, doc(cfg(unix)))]
-    #[doc(alias = "g_socket_new_from_fd")]
-    pub fn from_fd(fd: OwnedFd) -> Result<Socket, glib::Error> {
-        unsafe { Self::from_raw_fd(fd) }
-    }
-
-    #[cfg(unix)]
-    #[cfg_attr(docsrs, doc(cfg(unix)))]
-    #[doc(alias = "g_socket_new_from_fd")]
-    pub unsafe fn from_raw_fd(fd: impl IntoRawFd) -> Result<Socket, glib::Error> {
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe fn from_fd(fd: impl IntoRawFd) -> Result<Socket, glib::Error> {
         let fd = fd.into_raw_fd();
         let mut error = ptr::null_mut();
-        unsafe {
-            let ret = ffi::g_socket_new_from_fd(fd, &mut error);
-            if error.is_null() {
-                Ok(from_glib_full(ret))
-            } else {
-                let _ = OwnedFd::from_raw_fd(fd);
-                Err(from_glib_full(error))
-            }
+        let ret = ffi::g_socket_new_from_fd(fd, &mut error);
+        if error.is_null() {
+            Ok(from_glib_full(ret))
+        } else {
+            Err(from_glib_full(error))
         }
     }
-
     #[cfg(windows)]
     #[cfg_attr(docsrs, doc(cfg(windows)))]
-    pub fn from_socket(socket: OwnedSocket) -> Result<Socket, glib::Error> {
-        unsafe { Self::from_raw_socket(socket) }
-    }
-
-    #[cfg(windows)]
-    #[cfg_attr(docsrs, doc(cfg(windows)))]
-    pub unsafe fn from_raw_socket(socket: impl IntoRawSocket) -> Result<Socket, glib::Error> {
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe fn from_socket(socket: impl IntoRawSocket) -> Result<Socket, glib::Error> {
         let socket = socket.into_raw_socket();
         let mut error = ptr::null_mut();
-        unsafe {
-            let ret = ffi::g_socket_new_from_fd(socket as i32, &mut error);
-            if error.is_null() {
-                Ok(from_glib_full(ret))
-            } else {
-                let _ = OwnedSocket::from_raw_socket(socket);
-                Err(from_glib_full(error))
-            }
+        let ret = ffi::g_socket_new_from_fd(socket as i32, &mut error);
+        if error.is_null() {
+            Ok(from_glib_full(ret))
+        } else {
+            Err(from_glib_full(error))
         }
     }
 }
@@ -73,33 +52,11 @@ impl AsRawFd for Socket {
     }
 }
 
-#[cfg(unix)]
-#[cfg_attr(docsrs, doc(cfg(unix)))]
-impl AsFd for Socket {
-    fn as_fd(&self) -> BorrowedFd<'_> {
-        unsafe {
-            let raw_fd = self.as_raw_fd();
-            BorrowedFd::borrow_raw(raw_fd)
-        }
-    }
-}
-
 #[cfg(windows)]
 #[cfg_attr(docsrs, doc(cfg(windows)))]
 impl AsRawSocket for Socket {
     fn as_raw_socket(&self) -> RawSocket {
         unsafe { ffi::g_socket_get_fd(self.to_glib_none().0) as _ }
-    }
-}
-
-#[cfg(windows)]
-#[cfg_attr(docsrs, doc(cfg(windows)))]
-impl AsSocket for Socket {
-    fn as_socket(&self) -> BorrowedSocket<'_> {
-        unsafe {
-            let raw_socket = self.as_raw_socket();
-            BorrowedSocket::borrow_raw(raw_socket)
-        }
     }
 }
 
@@ -332,7 +289,12 @@ impl<'m> OutputMessage<'m> {
     }
 }
 
-pub trait SocketExtManual: IsA<Socket> + Sized {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Socket>> Sealed for T {}
+}
+
+pub trait SocketExtManual: sealed::Sealed + IsA<Socket> + Sized {
     #[doc(alias = "g_socket_receive")]
     fn receive<B: AsMut<[u8]>, C: IsA<Cancellable>>(
         &self,
@@ -675,16 +637,18 @@ pub trait SocketExtManual: IsA<Socket> + Sized {
     #[cfg_attr(docsrs, doc(cfg(unix)))]
     #[doc(alias = "get_fd")]
     #[doc(alias = "g_socket_get_fd")]
-    fn fd(&self) -> BorrowedFd<'_> {
-        self.as_ref().as_fd()
+    fn fd<T: FromRawFd>(&self) -> T {
+        unsafe { FromRawFd::from_raw_fd(ffi::g_socket_get_fd(self.as_ref().to_glib_none().0)) }
     }
 
     #[cfg(windows)]
     #[cfg_attr(docsrs, doc(cfg(windows)))]
     #[doc(alias = "get_socket")]
     #[doc(alias = "g_socket_get_fd")]
-    fn socket(&self) -> BorrowedSocket<'_> {
-        self.as_ref().as_socket()
+    fn socket<T: FromRawSocket>(&self) -> T {
+        unsafe {
+            FromRawSocket::from_raw_socket(ffi::g_socket_get_fd(self.as_ref().to_glib_none().0) as _)
+        }
     }
 
     #[doc(alias = "g_socket_create_source")]
@@ -708,20 +672,16 @@ pub trait SocketExtManual: IsA<Socket> + Sized {
             condition: glib::ffi::GIOCondition,
             func: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let func: &RefCell<F> = &*(func as *const RefCell<F>);
-                let mut func = func.borrow_mut();
-                (*func)(
-                    Socket::from_glib_borrow(socket).unsafe_cast_ref(),
-                    from_glib(condition),
-                )
-                .into_glib()
-            }
+            let func: &RefCell<F> = &*(func as *const RefCell<F>);
+            let mut func = func.borrow_mut();
+            (*func)(
+                Socket::from_glib_borrow(socket).unsafe_cast_ref(),
+                from_glib(condition),
+            )
+            .into_glib()
         }
         unsafe extern "C" fn destroy_closure<F>(ptr: glib::ffi::gpointer) {
-            unsafe {
-                let _ = Box::<RefCell<F>>::from_raw(ptr as *mut _);
-            }
+            let _ = Box::<RefCell<F>>::from_raw(ptr as *mut _);
         }
         let cancellable = cancellable.map(|c| c.as_ref());
         let gcancellable = cancellable.to_glib_none();
@@ -806,12 +766,32 @@ pub trait SocketExtManual: IsA<Socket> + Sized {
 impl<O: IsA<Socket>> SocketExtManual for O {}
 
 #[cfg(all(docsrs, not(unix)))]
+pub trait IntoRawFd {
+    fn into_raw_fd(self) -> libc::c_int;
+}
+
+#[cfg(all(docsrs, not(unix)))]
+pub trait FromRawFd {
+    unsafe fn from_raw_fd(fd: libc::c_int) -> Self;
+}
+
+#[cfg(all(docsrs, not(unix)))]
 pub trait AsRawFd {
     fn as_raw_fd(&self) -> RawFd;
 }
 
 #[cfg(all(docsrs, not(unix)))]
 pub type RawFd = libc::c_int;
+
+#[cfg(all(docsrs, not(windows)))]
+pub trait IntoRawSocket {
+    fn into_raw_socket(self) -> u64;
+}
+
+#[cfg(all(docsrs, not(windows)))]
+pub trait FromRawSocket {
+    unsafe fn from_raw_socket(sock: u64) -> Self;
+}
 
 #[cfg(all(docsrs, not(windows)))]
 pub trait AsRawSocket {
@@ -825,9 +805,73 @@ pub type RawSocket = *mut std::os::raw::c_void;
 mod tests {
     #[test]
     #[cfg(unix)]
+    fn socket_messages() {
+        use std::{io, os::unix::io::AsRawFd};
+
+        use super::Socket;
+        use crate::{prelude::*, Cancellable, UnixFDMessage};
+
+        let mut fds = [0 as libc::c_int; 2];
+        let (out_sock, in_sock) = unsafe {
+            let ret = libc::socketpair(libc::AF_UNIX, libc::SOCK_STREAM, 0, fds.as_mut_ptr());
+            if ret != 0 {
+                panic!("{}", io::Error::last_os_error());
+            }
+            (
+                Socket::from_fd(fds[0]).unwrap(),
+                Socket::from_fd(fds[1]).unwrap(),
+            )
+        };
+
+        let fd_msg = UnixFDMessage::new();
+        fd_msg.append_fd(out_sock.as_raw_fd()).unwrap();
+        let vs = [super::OutputVector::new(&[0])];
+        let ctrl_msgs = [fd_msg.upcast()];
+        let mut out_msg = [super::OutputMessage::new(
+            crate::SocketAddress::NONE,
+            vs.as_slice(),
+            ctrl_msgs.as_slice(),
+        )];
+        let written = super::SocketExtManual::send_messages(
+            &out_sock,
+            out_msg.as_mut_slice(),
+            0,
+            Cancellable::NONE,
+        )
+        .unwrap();
+        assert_eq!(written, 1);
+        assert_eq!(out_msg[0].bytes_sent(), 1);
+
+        let mut v = [0u8];
+        let mut vs = [super::InputVector::new(v.as_mut_slice())];
+        let mut ctrl_msgs = super::SocketControlMessages::new();
+        let mut in_msg = [super::InputMessage::new(
+            None,
+            vs.as_mut_slice(),
+            Some(&mut ctrl_msgs),
+        )];
+        let received = super::SocketExtManual::receive_messages(
+            &in_sock,
+            in_msg.as_mut_slice(),
+            0,
+            Cancellable::NONE,
+        )
+        .unwrap();
+
+        assert_eq!(received, 1);
+        assert_eq!(in_msg[0].bytes_received(), 1);
+        assert_eq!(ctrl_msgs.len(), 1);
+        let fds = ctrl_msgs[0]
+            .downcast_ref::<UnixFDMessage>()
+            .unwrap()
+            .fd_list();
+        assert_eq!(fds.length(), 1);
+    }
+    #[test]
+    #[cfg(unix)]
     fn dgram_socket_messages() {
         use super::Socket;
-        use crate::{Cancellable, prelude::*};
+        use crate::{prelude::*, Cancellable};
 
         let addr = crate::InetSocketAddress::from_string("127.0.0.1", 28351).unwrap();
 

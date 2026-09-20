@@ -1,17 +1,17 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`CellAreaContext`].
+//! Traits intended for subclassing [`CellAreaContext`](crate::CellAreaContext).
 
 use std::mem::MaybeUninit;
 
 use glib::translate::*;
 
-use crate::{CellAreaContext, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, CellAreaContext};
 
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait CellAreaContextImpl: ObjectImpl + ObjectSubclass<Type: IsA<CellAreaContext>> {
+pub trait CellAreaContextImpl: CellAreaContextImplExt + ObjectImpl {
     fn reset(&self) {
         self.parent_reset()
     }
@@ -29,9 +29,14 @@ pub trait CellAreaContextImpl: ObjectImpl + ObjectSubclass<Type: IsA<CellAreaCon
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::CellAreaContextImplExt> Sealed for T {}
+}
+
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait CellAreaContextImplExt: CellAreaContextImpl {
+pub trait CellAreaContextImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_reset(&self) {
         unsafe {
             let data = Self::type_data();
@@ -131,12 +136,10 @@ unsafe impl<T: CellAreaContextImpl> IsSubclassable<T> for CellAreaContext {
 unsafe extern "C" fn cell_area_context_reset<T: CellAreaContextImpl>(
     ptr: *mut ffi::GtkCellAreaContext,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.reset()
-    }
+    imp.reset()
 }
 
 unsafe extern "C" fn cell_area_context_get_preferred_height_for_width<T: CellAreaContextImpl>(
@@ -145,14 +148,12 @@ unsafe extern "C" fn cell_area_context_get_preferred_height_for_width<T: CellAre
     minimum_height: *mut libc::c_int,
     natural_height: *mut libc::c_int,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        let (min_height, nat_height) = imp.preferred_height_for_width(width);
-        *minimum_height = min_height;
-        *natural_height = nat_height;
-    }
+    let (min_height, nat_height) = imp.preferred_height_for_width(width);
+    *minimum_height = min_height;
+    *natural_height = nat_height;
 }
 
 unsafe extern "C" fn cell_area_context_get_preferred_width_for_height<T: CellAreaContextImpl>(
@@ -161,14 +162,12 @@ unsafe extern "C" fn cell_area_context_get_preferred_width_for_height<T: CellAre
     minimum_width: *mut libc::c_int,
     natural_width: *mut libc::c_int,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        let (min_width, nat_width) = imp.preferred_width_for_height(height);
-        *minimum_width = min_width;
-        *natural_width = nat_width;
-    }
+    let (min_width, nat_width) = imp.preferred_width_for_height(height);
+    *minimum_width = min_width;
+    *natural_width = nat_width;
 }
 
 unsafe extern "C" fn cell_area_context_allocate<T: CellAreaContextImpl>(
@@ -176,10 +175,8 @@ unsafe extern "C" fn cell_area_context_allocate<T: CellAreaContextImpl>(
     width: i32,
     height: i32,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.allocate(width, height)
-    }
+    imp.allocate(width, height)
 }

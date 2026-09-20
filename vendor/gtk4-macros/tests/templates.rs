@@ -53,9 +53,7 @@ mod imp {
 }
 
 glib::wrapper! {
-    pub struct MyWidget(ObjectSubclass<imp::MyWidget>)
-    @extends gtk::Widget,
-    @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
+    pub struct MyWidget(ObjectSubclass<imp::MyWidget>) @extends gtk::Widget;
 }
 
 #[gtk::test]
@@ -147,9 +145,7 @@ mod imp2 {
 }
 
 glib::wrapper! {
-    pub struct MyWidget2(ObjectSubclass<imp2::MyWidget2>)
-    @extends gtk::Widget,
-    @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
+    pub struct MyWidget2(ObjectSubclass<imp2::MyWidget2>) @extends gtk::Widget;
 }
 
 #[gtk::test]
@@ -196,9 +192,7 @@ mod imp3 {
 }
 
 glib::wrapper! {
-    pub struct MyWidget3(ObjectSubclass<imp3::MyWidget3>)
-    @extends gtk::Widget,
-    @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
+    pub struct MyWidget3(ObjectSubclass<imp3::MyWidget3>) @extends gtk::Widget;
 }
 
 #[gtk::test]
@@ -212,8 +206,7 @@ mod imp4 {
 
     #[derive(Debug, Default, gtk::CompositeTemplate)]
     #[template(string = "
-    using Gtk 4.0;
-    template $MyWidget4 : Widget {
+    template MyWidget4 : Widget {
         Label label {
             label: 'foobar';
         }
@@ -255,9 +248,7 @@ mod imp4 {
 
 #[cfg(feature = "blueprint")]
 glib::wrapper! {
-    pub struct MyWidget4(ObjectSubclass<imp4::MyWidget4>)
-    @extends gtk::Widget,
-    @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
+    pub struct MyWidget4(ObjectSubclass<imp4::MyWidget4>) @extends gtk::Widget;
 }
 
 #[gtk::test]
@@ -304,61 +295,11 @@ mod imp5 {
 
 #[cfg(feature = "blueprint")]
 glib::wrapper! {
-    pub struct MyWidget5(ObjectSubclass<imp5::MyWidget5>)
-    @extends gtk::Widget,
-    @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
+    pub struct MyWidget5(ObjectSubclass<imp5::MyWidget5>) @extends gtk::Widget;
 }
 
 #[gtk::test]
 #[cfg(feature = "blueprint")]
 fn blueprint_file() {
     let _: MyWidget5 = glib::Object::new();
-}
-
-mod imp6 {
-    use super::*;
-
-    #[derive(Default, glib::Properties, gtk::CompositeTemplate)]
-    #[template(string = r#"
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-<template class="TestWidget" parent="GtkWidget">
-<child>
-<object class="GtkWidget" id="widget" />
-</child>
-</template>
-</interface>
-"#)]
-    #[properties(wrapper_type = super::TestWidget)]
-    pub struct TestWidget {
-        #[property(get)]
-        #[template_child]
-        widget: gtk::TemplateChild<gtk::Widget>,
-    }
-
-    #[glib::object_subclass]
-    impl ObjectSubclass for TestWidget {
-        const NAME: &'static str = "TestWidget";
-        type Type = super::TestWidget;
-        type ParentType = gtk::Widget;
-
-        fn class_init(klass: &mut Self::Class) {
-            klass.bind_template();
-        }
-
-        fn instance_init(obj: &glib::subclass::InitializingObject<Self>) {
-            obj.init_template();
-        }
-    }
-
-    #[glib::derived_properties]
-    impl ObjectImpl for TestWidget {}
-    impl WidgetImpl for TestWidget {}
-    impl TestWidget {}
-}
-
-glib::wrapper! {
-    pub struct TestWidget(ObjectSubclass<imp6::TestWidget>)
-    @extends gtk::Widget,
-    @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }

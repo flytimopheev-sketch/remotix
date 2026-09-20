@@ -3,35 +3,20 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AppChooser, Buildable, ConstraintTarget, Dialog, DialogFlags, Native, Root, ShortcutManager,
-    Widget, Window, ffi,
+    ffi, Accessible, AppChooser, Buildable, ConstraintTarget, Dialog, DialogFlags, Native, Root,
+    ShortcutManager, Widget, Window,
 };
 use glib::{
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkAppChooserDialog")]
     pub struct AppChooserDialog(Object<ffi::GtkAppChooserDialog>) @extends Dialog, Window, Widget, @implements Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, AppChooser;
-
-    match fn {
-        type_ => || ffi::gtk_app_chooser_dialog_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkAppChooserDialog")]
-    pub struct AppChooserDialog(Object<ffi::GtkAppChooserDialog>) @extends Dialog, Window, Widget, @implements Buildable, ConstraintTarget, Native, Root, ShortcutManager, AppChooser;
 
     match fn {
         type_ => || ffi::gtk_app_chooser_dialog_get_type(),
@@ -126,16 +111,14 @@ impl AppChooserDialog {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(&from_glib_borrow(this))
-            }
+            let f: &F = &*(f as *const F);
+            f(&from_glib_borrow(this))
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::heading".as_ptr(),
+                b"notify::heading\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_heading_trampoline::<F> as *const (),
                 )),

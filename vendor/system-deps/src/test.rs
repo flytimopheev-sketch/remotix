@@ -1,12 +1,10 @@
 use itertools::Itertools;
-use std::{
-    cell::Cell,
-    collections::HashMap,
-    env,
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::{Mutex, OnceLock},
-};
+use std::cell::Cell;
+use std::collections::HashMap;
+use std::env;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::sync::Mutex;
 
 use assert_matches::assert_matches;
 
@@ -14,40 +12,20 @@ use crate::Dependencies;
 
 use super::{
     BuildFlags, BuildInternalClosureError, Config, EnvVariables, Error, InternalLib, Library,
-    Source,
 };
 
-pub(crate) static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-
-fn create_config(path: &str, env: Vec<(&'static str, &'static str)>) -> Config {
-    // PKG_CONFIG_PATH is read by pkg-config, so we need to actually change the env.
-    // Callers must hold LOCK for the entire duration of the test to avoid races.
-    env::set_var(
-        "PKG_CONFIG_PATH",
-        env::current_dir().unwrap().join("src").join("tests"),
-    );
-    create_config_impl(path, env, None)
+lazy_static! {
+    static ref LOCK: Mutex<()> = Mutex::new(());
 }
 
-// NOTE: You must ensure you call env::remove_var on `TARGET` and `PKG_CONFIG_ALLOW_CROSS` after you
-// invoke pkg-config if `target` is `Some`!
-fn create_config_impl(
-    path: &str,
-    env: Vec<(&'static str, &'static str)>,
-    target: Option<&str>,
-) -> Config {
-    // PKG_CONFIG_PATH is read by pkg-config, so we need to actually change the env.
-    // Callers must hold LOCK for the entire duration of the test to avoid races.
-    env::set_var(
-        "PKG_CONFIG_PATH",
-        env::current_dir().unwrap().join("src").join("tests"),
-    );
-
-    // TARGET and PKG_CONFIG_ALLOW_CROSS are also read by pkg-config, so we need to actually
-    // change the env
-    if let Some(target) = target {
-        env::set_var("TARGET", target);
-        env::set_var("PKG_CONFIG_ALLOW_CROSS", "true");
+fn create_config(path: &str, env: Vec<(&'static str, &'static str)>) -> Config {
+    {
+        // PKG_CONFIG_PATH is read by pkg-config, so we need to actually change the env
+        let _l = LOCK.lock();
+        env::set_var(
+            "PKG_CONFIG_PATH",
+            env::current_dir().unwrap().join("src").join("tests"),
+        );
     }
 
     let mut hash = HashMap::new();
@@ -67,9 +45,6 @@ fn create_config_impl(
         hash.insert(k, v.to_string());
     });
 
-    #[cfg(feature = "binary")]
-    hash.insert("SYSTEM_DEPS_NO_PREBUILT", "".to_string());
-
     Config::new_with_env(EnvVariables::Mock(hash))
 }
 
@@ -77,26 +52,8 @@ fn toml(
     path: &str,
     env: Vec<(&'static str, &'static str)>,
 ) -> Result<(Dependencies, BuildFlags), Error> {
-    // Hold the lock for the entire probe since it depends on PKG_CONFIG_PATH
-    let _l = LOCK.get_or_init(|| Mutex::new(())).lock();
     let libs = create_config(path, env).probe_full()?;
-    let flags = libs.gen_flags(None)?;
-    Ok((libs, flags))
-}
-
-fn toml_with_target(
-    path: &str,
-    env: Vec<(&'static str, &'static str)>,
-    target: &str,
-) -> Result<(Dependencies, BuildFlags), Error> {
-    let _l = LOCK.get_or_init(|| Mutex::new(())).lock();
-    let libs = create_config_impl(path, env, Some(target)).probe_full()?;
-
-    env::remove_var("TARGET");
-    env::remove_var("PKG_CONFIG_ALLOW_CROSS");
-
-    let flags = libs.gen_flags(Some(target))?;
-
+    let flags = libs.gen_flags()?;
     Ok((libs, flags))
 }
 
@@ -149,9 +106,7 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
 "#,
     );
@@ -221,8 +176,9 @@ fn toml_pkg_config_err_version(
                 name: _,
             } => {
                 let s = format!(">= {expected_version}");
-                // Remove trailing quotes, if any
-                let cmd = cmd.trim_end_matches(['"', '\'']);
+                // remove trailing " and ', if any
+                let cmd = cmd.strip_suffix('"').unwrap_or(&cmd);
+                let cmd = cmd.strip_suffix('\'').unwrap_or(cmd);
                 assert!(cmd.ends_with(&s));
             }
             _ => panic!("Wrong pkg-config error type"),
@@ -330,7 +286,6 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_LDFLAGS
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_NO_PKG_CONFIG
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_NO_PREBUILT
 "#,
     );
 }
@@ -359,7 +314,6 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_LDFLAGS
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_NO_PKG_CONFIG
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_NO_PREBUILT
 "#,
     );
 
@@ -389,7 +343,6 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_LDFLAGS
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_NO_PKG_CONFIG
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TEST_LIB_NO_PREBUILT
 "#,
     );
 }
@@ -472,9 +425,7 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
 "#,
     );
@@ -515,9 +466,7 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
 "#,
     );
@@ -565,9 +514,7 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
 "#,
     );
@@ -608,9 +555,7 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
 "#,
     );
@@ -651,9 +596,7 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
 "#,
     );
@@ -699,9 +642,7 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
 ",
     );
@@ -748,9 +689,7 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
 ",
     );
@@ -926,7 +865,6 @@ fn build_internal_fail() {
 
 #[test]
 fn build_internal_always_global() {
-    let _l = LOCK.get_or_init(|| Mutex::new(())).lock();
     let called = Rc::new(Cell::new((false, false)));
     let called_clone = called.clone();
     let called_clone2 = called.clone();
@@ -1021,14 +959,11 @@ fn optional() {
     toml_pkg_config_err_version("toml-optional", "2", vec![]);
 
     // when enabling v3 testmore is now optional
-    {
-        let _l = LOCK.get_or_init(|| Mutex::new(())).lock();
-        let config = create_config("toml-optional", vec![("CARGO_FEATURE_V3", "")]);
-        let libs = config.probe_full().unwrap();
-        assert!(libs.get_by_name("testlib").is_some());
-        assert!(libs.get_by_name("testmore").is_none());
-        assert!(libs.get_by_name("testbadger").is_none());
-    }
+    let config = create_config("toml-optional", vec![("CARGO_FEATURE_V3", "")]);
+    let libs = config.probe_full().unwrap();
+    assert!(libs.get_by_name("testlib").is_some());
+    assert!(libs.get_by_name("testmore").is_none());
+    assert!(libs.get_by_name("testbadger").is_none());
 
     // testlib is no longer optional if enabling v5
     toml_pkg_config_err_version("toml-optional", "5.0", vec![("CARGO_FEATURE_V5", "")]);
@@ -1105,17 +1040,6 @@ fn invalid_cfg() {
     assert_matches!(err, Error::UnsupportedCfg(_));
 }
 
-// FIXME(temporary): MSVC's `is_static_available` workaround in lib.rs forces
-// returning false to dodge rustc's `ar_archive_writer` u32 overflow when
-// bundling huge gst-plugins-rs archives into rlibs. That deliberately stops
-// emitting the `static=` modifier on MSVC even when the user requests static
-// linking via `SYSTEM_DEPS_*_LINK=static`; the linker still resolves
-// `<name>.lib` from the bundle natively, so end linkage stays static — but
-// the literal flag contract this test asserts no longer holds. Drop the
-// cfg-skip when the upstream fix lands
-// (https://github.com/rust-lang/ar_archive_writer/issues/31) or when
-// cerbero/gst-plugins-rs starts shipping smaller archives.
-#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
 #[test]
 fn static_one_lib() {
     let (libraries, flags) = toml(
@@ -1125,7 +1049,7 @@ fn static_one_lib() {
     .unwrap();
 
     let testdata = libraries.get_by_name("testdata").unwrap();
-    assert!(testdata.statik == cfg!(feature = "binary"));
+    assert!(!testdata.statik);
 
     let testlib = libraries.get_by_name("teststaticlib").unwrap();
     assert!(testlib.statik);
@@ -1148,7 +1072,6 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_LDFLAGS
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_NO_PKG_CONFIG
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LIB
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LIB_FRAMEWORK
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_SEARCH_NATIVE
@@ -1158,7 +1081,6 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LDFLAGS
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PKG_CONFIG
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 "#
         .to_string()
         .as_str(),
@@ -1208,16 +1130,12 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
 ",
     );
 }
 
-// FIXME(temporary): see static_one_lib above; same MSVC workaround quirk.
-#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
 #[test]
 fn static_all_libs() {
     let (libraries, flags) = toml("toml-static", vec![("SYSTEM_DEPS_LINK", "static")]).unwrap();
@@ -1246,7 +1164,6 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_LDFLAGS
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_NO_PKG_CONFIG
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTSTATICLIB_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LIB
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LIB_FRAMEWORK
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_SEARCH_NATIVE
@@ -1256,7 +1173,6 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LDFLAGS
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PKG_CONFIG
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 "#,
     );
 }
@@ -1291,7 +1207,6 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LDFLAGS
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PKG_CONFIG
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LIB
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LIB_FRAMEWORK
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_SEARCH_NATIVE
@@ -1301,7 +1216,6 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LDFLAGS
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PKG_CONFIG
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
 "#,
     );
 }
@@ -1349,132 +1263,8 @@ cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIBWITHRPATH_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_BUILD_INTERNAL
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTDATA_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIBWITHRPATH_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIBWITHRPATH_NO_PREBUILT
 cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
-"#,
-    );
-}
-
-#[test]
-fn link_files_from_pkg_config() {
-    let (libraries, flags) = toml_with_target(
-        "toml-link-files",
-        vec![("SYSTEM_DEPS_TESTLINKFILES_LINK", "static")],
-        "x86_64-unknown-linux-musl",
-    )
-    .unwrap();
-
-    let testlib = libraries.get_by_name("testlinkfiles").unwrap();
-    assert!(testlib.statik);
-    assert!(
-        !testlib.link_files.is_empty(),
-        "link_files should be populated from pkg-config"
-    );
-
-    assert_flags(
-        flags,
-        r#"cargo:rustc-link-search=native=./src/tests/lib
-cargo:rustc-link-lib=static=teststatic
-cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
-cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLINKFILES_BUILD_INTERNAL
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLINKFILES_INCLUDE
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLINKFILES_LDFLAGS
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLINKFILES_LIB
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLINKFILES_LIB_FRAMEWORK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLINKFILES_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLINKFILES_NO_PKG_CONFIG
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLINKFILES_NO_PREBUILT
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLINKFILES_SEARCH_FRAMEWORK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLINKFILES_SEARCH_NATIVE
-"#,
-    );
-}
-
-#[test]
-fn link_files_generates_flags() {
-    let lib = Library {
-        name: "testlib".to_string(),
-        source: Source::PkgConfig,
-        version: "1.2.3".to_string(),
-        link_paths: vec![],
-        framework_paths: vec![],
-        include_paths: vec![],
-        libs: vec![],
-        frameworks: vec![],
-        defines: HashMap::new(),
-        statik: true,
-        link_files: vec![
-            PathBuf::from("/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-boost-static-x86_64-unknown-linux-musl-1.87.0/lib/libboost_container.a"),
-            PathBuf::from("/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-boost-static-x86_64-unknown-linux-musl-1.87.0/lib/libboost_context.a"),
-        ],
-        ld_args: vec![],
-    };
-
-    let mut deps = Dependencies::default();
-    deps.add("testlib", lib);
-
-    let flags = deps.gen_flags(Some("x86_64-unknown-linux-musl")).unwrap();
-
-    assert_flags(
-        flags,
-        r#"cargo:rustc-link-search=native=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-boost-static-x86_64-unknown-linux-musl-1.87.0/lib
-cargo:rustc-link-lib=static=boost_container
-cargo:rustc-link-lib=static=boost_context
-cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
-cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_INCLUDE
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LDFLAGS
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LIB
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LIB_FRAMEWORK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PKG_CONFIG
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_SEARCH_FRAMEWORK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_SEARCH_NATIVE
-"#,
-    );
-}
-
-#[test]
-fn link_files_empty_without_target() {
-    let lib = Library {
-        name: "testlib".to_string(),
-        source: Source::PkgConfig,
-        version: "1.2.3".to_string(),
-        link_paths: vec![],
-        framework_paths: vec![],
-        include_paths: vec![],
-        libs: vec![],
-        frameworks: vec![],
-        defines: HashMap::new(),
-        statik: false,
-        link_files: vec![PathBuf::from("/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-boost-1.87.0/lib/libboost_thread.so.1.87.0")],
-        ld_args: vec![],
-    };
-
-    let mut deps = Dependencies::default();
-    deps.add("testlib", lib);
-
-    let flags = deps.gen_flags(None).unwrap();
-
-    assert_flags(
-        flags,
-        r#"cargo:rerun-if-env-changed=SYSTEM_DEPS_BUILD_INTERNAL
-cargo:rerun-if-env-changed=SYSTEM_DEPS_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_BUILD_INTERNAL
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_INCLUDE
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LDFLAGS
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LIB
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LIB_FRAMEWORK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_LINK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PKG_CONFIG
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_NO_PREBUILT
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_SEARCH_FRAMEWORK
-cargo:rerun-if-env-changed=SYSTEM_DEPS_TESTLIB_SEARCH_NATIVE
 "#,
     );
 }

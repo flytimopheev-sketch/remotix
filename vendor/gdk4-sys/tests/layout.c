@@ -11,7 +11,6 @@ int main() {
     printf("%s;%zu;%zu\n", "GdkAxisFlags", sizeof(GdkAxisFlags), alignof(GdkAxisFlags));
     printf("%s;%zu;%zu\n", "GdkAxisUse", sizeof(GdkAxisUse), alignof(GdkAxisUse));
     printf("%s;%zu;%zu\n", "GdkCicpRange", sizeof(GdkCicpRange), alignof(GdkCicpRange));
-    printf("%s;%zu;%zu\n", "GdkColorChannel", sizeof(GdkColorChannel), alignof(GdkColorChannel));
     printf("%s;%zu;%zu\n", "GdkContentProvider", sizeof(GdkContentProvider), alignof(GdkContentProvider));
     printf("%s;%zu;%zu\n", "GdkContentProviderClass", sizeof(GdkContentProviderClass), alignof(GdkContentProviderClass));
     printf("%s;%zu;%zu\n", "GdkCrossingMode", sizeof(GdkCrossingMode), alignof(GdkCrossingMode));
@@ -37,7 +36,6 @@ int main() {
     printf("%s;%zu;%zu\n", "GdkRGBA", sizeof(GdkRGBA), alignof(GdkRGBA));
     printf("%s;%zu;%zu\n", "GdkRectangle", sizeof(GdkRectangle), alignof(GdkRectangle));
     printf("%s;%zu;%zu\n", "GdkScrollDirection", sizeof(GdkScrollDirection), alignof(GdkScrollDirection));
-    printf("%s;%zu;%zu\n", "GdkScrollRelativeDirection", sizeof(GdkScrollRelativeDirection), alignof(GdkScrollRelativeDirection));
     printf("%s;%zu;%zu\n", "GdkScrollUnit", sizeof(GdkScrollUnit), alignof(GdkScrollUnit));
     printf("%s;%zu;%zu\n", "GdkSeat", sizeof(GdkSeat), alignof(GdkSeat));
     printf("%s;%zu;%zu\n", "GdkSeatCapabilities", sizeof(GdkSeatCapabilities), alignof(GdkSeatCapabilities));
@@ -46,7 +44,6 @@ int main() {
     printf("%s;%zu;%zu\n", "GdkTextureError", sizeof(GdkTextureError), alignof(GdkTextureError));
     printf("%s;%zu;%zu\n", "GdkTimeCoord", sizeof(GdkTimeCoord), alignof(GdkTimeCoord));
     printf("%s;%zu;%zu\n", "GdkTitlebarGesture", sizeof(GdkTitlebarGesture), alignof(GdkTitlebarGesture));
-    printf("%s;%zu;%zu\n", "GdkToplevelCapabilities", sizeof(GdkToplevelCapabilities), alignof(GdkToplevelCapabilities));
     printf("%s;%zu;%zu\n", "GdkToplevelState", sizeof(GdkToplevelState), alignof(GdkToplevelState));
     printf("%s;%zu;%zu\n", "GdkTouchpadGesturePhase", sizeof(GdkTouchpadGesturePhase), alignof(GdkTouchpadGesturePhase));
     printf("%s;%zu;%zu\n", "GdkVulkanError", sizeof(GdkVulkanError), alignof(GdkVulkanError));

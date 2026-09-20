@@ -4,7 +4,7 @@ use std::boxed::Box as Box_;
 
 use glib::translate::*;
 
-use crate::{TreeIter, TreeModel, TreeModelFilter, TreePath, ffi, prelude::*};
+use crate::{ffi, prelude::*, TreeIter, TreeModel, TreeModelFilter, TreePath};
 
 impl TreeModelFilter {
     #[doc(alias = "gtk_tree_model_filter_new")]
@@ -22,12 +22,17 @@ impl TreeModelFilter {
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TreeModelFilter>> Sealed for T {}
+}
+
 // rustdoc-stripper-ignore-next
 /// Trait containing manually implemented methods of
 /// [`TreeModelFilter`](crate::TreeModelFilter).
 #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
 #[allow(deprecated)]
-pub trait TreeModelFilterExtManual: IsA<TreeModelFilter> + 'static {
+pub trait TreeModelFilterExtManual: sealed::Sealed + IsA<TreeModelFilter> + 'static {
     #[doc(alias = "gtk_tree_model_filter_set_modify_func")]
     fn set_modify_func<F: Fn(&TreeModel, &TreeIter, i32) -> glib::Value + 'static>(
         &self,
@@ -46,11 +51,9 @@ pub trait TreeModelFilterExtManual: IsA<TreeModelFilter> + 'static {
                 column: i32,
                 user_data: glib::ffi::gpointer,
             ) {
-                unsafe {
-                    let f: &F = &*(user_data as *const F);
-                    let ret = f(&from_glib_borrow(model), &from_glib_borrow(iter), column);
-                    *value = ret.into_raw();
-                }
+                let f: &F = &*(user_data as *const F);
+                let ret = f(&from_glib_borrow(model), &from_glib_borrow(iter), column);
+                *value = ret.into_raw();
             }
 
             unsafe extern "C" fn destroy_func<
@@ -58,9 +61,7 @@ pub trait TreeModelFilterExtManual: IsA<TreeModelFilter> + 'static {
             >(
                 user_data: glib::ffi::gpointer,
             ) {
-                unsafe {
-                    let _callback: Box_<Option<Box_<F>>> = Box_::from_raw(user_data as *mut _);
-                }
+                let _callback: Box_<Option<Box_<F>>> = Box_::from_raw(user_data as *mut _);
             }
             let callback_data: Box_<F> = Box_::new(func);
 

@@ -4,13 +4,13 @@
 #![allow(deprecated)]
 
 use crate::{
-    CairoContext, Cursor, Device, Display, Event, FrameClock, GLContext, ModifierType, Monitor,
-    VulkanContext, ffi,
+    ffi, CairoContext, Cursor, Device, Display, Event, FrameClock, GLContext, ModifierType,
+    Monitor, VulkanContext,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -49,7 +49,12 @@ impl Surface {
     }
 }
 
-pub trait SurfaceExt: IsA<Surface> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Surface>> Sealed for T {}
+}
+
+pub trait SurfaceExt: IsA<Surface> + sealed::Sealed + 'static {
     #[doc(alias = "gdk_surface_beep")]
     fn beep(&self) {
         unsafe {
@@ -57,8 +62,6 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
         }
     }
 
-    #[cfg_attr(feature = "v4_18", deprecated = "Since 4.18")]
-    #[allow(deprecated)]
     #[doc(alias = "gdk_surface_create_cairo_context")]
     fn create_cairo_context(&self) -> CairoContext {
         unsafe {
@@ -249,7 +252,7 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
     }
 
     #[doc(alias = "gdk_surface_set_input_region")]
-    fn set_input_region(&self, region: Option<&cairo::Region>) {
+    fn set_input_region(&self, region: &cairo::Region) {
         unsafe {
             ffi::gdk_surface_set_input_region(
                 self.as_ref().to_glib_none().0,
@@ -280,19 +283,17 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             monitor: *mut ffi::GdkMonitor,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Surface::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(monitor),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Surface::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(monitor),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"enter-monitor".as_ptr(),
+                b"enter-monitor\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     enter_monitor_trampoline::<Self, F> as *const (),
                 )),
@@ -311,20 +312,18 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             event: *mut ffi::GdkEvent,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Surface::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(event),
-                )
-                .into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Surface::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(event),
+            )
+            .into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"event".as_ptr(),
+                b"event\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     event_trampoline::<Self, F> as *const (),
                 )),
@@ -341,20 +340,18 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             height: std::ffi::c_int,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Surface::from_glib_borrow(this).unsafe_cast_ref(),
-                    width,
-                    height,
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Surface::from_glib_borrow(this).unsafe_cast_ref(),
+                width,
+                height,
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"layout".as_ptr(),
+                b"layout\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     layout_trampoline::<Self, F> as *const (),
                 )),
@@ -373,19 +370,17 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             monitor: *mut ffi::GdkMonitor,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Surface::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(monitor),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Surface::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(monitor),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"leave-monitor".as_ptr(),
+                b"leave-monitor\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     leave_monitor_trampoline::<Self, F> as *const (),
                 )),
@@ -407,20 +402,18 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             region: *mut cairo::ffi::cairo_region_t,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Surface::from_glib_borrow(this).unsafe_cast_ref(),
-                    &from_glib_borrow(region),
-                )
-                .into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Surface::from_glib_borrow(this).unsafe_cast_ref(),
+                &from_glib_borrow(region),
+            )
+            .into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"render".as_ptr(),
+                b"render\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     render_trampoline::<Self, F> as *const (),
                 )),
@@ -436,16 +429,14 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Surface::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Surface::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::cursor".as_ptr(),
+                b"notify::cursor\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_cursor_trampoline::<Self, F> as *const (),
                 )),
@@ -461,16 +452,14 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Surface::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Surface::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::height".as_ptr(),
+                b"notify::height\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_height_trampoline::<Self, F> as *const (),
                 )),
@@ -486,16 +475,14 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Surface::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Surface::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::mapped".as_ptr(),
+                b"notify::mapped\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_mapped_trampoline::<Self, F> as *const (),
                 )),
@@ -513,16 +500,14 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Surface::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Surface::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::scale".as_ptr(),
+                b"notify::scale\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_scale_trampoline::<Self, F> as *const (),
                 )),
@@ -541,16 +526,14 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Surface::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Surface::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::scale-factor".as_ptr(),
+                b"notify::scale-factor\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_scale_factor_trampoline::<Self, F> as *const (),
                 )),
@@ -566,16 +549,14 @@ pub trait SurfaceExt: IsA<Surface> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Surface::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Surface::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::width".as_ptr(),
+                b"notify::width\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_width_trampoline::<Self, F> as *const (),
                 )),

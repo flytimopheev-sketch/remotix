@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{File, ffi};
+use crate::{ffi, File};
 use glib::{prelude::*, translate::*};
 use std::boxed::Box as Box_;
 
@@ -35,14 +35,19 @@ impl Vfs {
 unsafe impl Send for Vfs {}
 unsafe impl Sync for Vfs {}
 
-pub trait VfsExt: IsA<Vfs> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Vfs>> Sealed for T {}
+}
+
+pub trait VfsExt: IsA<Vfs> + sealed::Sealed + 'static {
     #[doc(alias = "g_vfs_get_file_for_path")]
     #[doc(alias = "get_file_for_path")]
-    fn file_for_path(&self, path: impl AsRef<std::path::Path>) -> File {
+    fn file_for_path(&self, path: &str) -> File {
         unsafe {
             from_glib_full(ffi::g_vfs_get_file_for_path(
                 self.as_ref().to_glib_none().0,
-                path.as_ref().to_glib_none().0,
+                path.to_glib_none().0,
             ))
         }
     }
@@ -97,18 +102,16 @@ pub trait VfsExt: IsA<Vfs> + 'static {
             identifier: *const std::ffi::c_char,
             user_data: glib::ffi::gpointer,
         ) -> *mut ffi::GFile {
-            unsafe {
-                let vfs = from_glib_borrow(vfs);
-                let identifier: Borrowed<glib::GString> = from_glib_borrow(identifier);
-                let callback = &*(user_data
-                    as *mut Option<Box_<dyn Fn(&Vfs, &str) -> Option<File> + 'static>>);
-                if let Some(ref callback) = *callback {
-                    callback(&vfs, identifier.as_str())
-                } else {
-                    panic!("cannot get closure...")
-                }
-                .to_glib_full()
+            let vfs = from_glib_borrow(vfs);
+            let identifier: Borrowed<glib::GString> = from_glib_borrow(identifier);
+            let callback =
+                &*(user_data as *mut Option<Box_<dyn Fn(&Vfs, &str) -> Option<File> + 'static>>);
+            if let Some(ref callback) = *callback {
+                callback(&vfs, identifier.as_str())
+            } else {
+                panic!("cannot get closure...")
             }
+            .to_glib_full()
         }
         let uri_func = if uri_func_data.is_some() {
             Some(uri_func_func as _)
@@ -122,18 +125,16 @@ pub trait VfsExt: IsA<Vfs> + 'static {
             identifier: *const std::ffi::c_char,
             user_data: glib::ffi::gpointer,
         ) -> *mut ffi::GFile {
-            unsafe {
-                let vfs = from_glib_borrow(vfs);
-                let identifier: Borrowed<glib::GString> = from_glib_borrow(identifier);
-                let callback = &*(user_data
-                    as *mut Option<Box_<dyn Fn(&Vfs, &str) -> Option<File> + 'static>>);
-                if let Some(ref callback) = *callback {
-                    callback(&vfs, identifier.as_str())
-                } else {
-                    panic!("cannot get closure...")
-                }
-                .to_glib_full()
+            let vfs = from_glib_borrow(vfs);
+            let identifier: Borrowed<glib::GString> = from_glib_borrow(identifier);
+            let callback =
+                &*(user_data as *mut Option<Box_<dyn Fn(&Vfs, &str) -> Option<File> + 'static>>);
+            if let Some(ref callback) = *callback {
+                callback(&vfs, identifier.as_str())
+            } else {
+                panic!("cannot get closure...")
             }
+            .to_glib_full()
         }
         let parse_name_func = if parse_name_func_data.is_some() {
             Some(parse_name_func_func as _)
@@ -141,19 +142,15 @@ pub trait VfsExt: IsA<Vfs> + 'static {
             None
         };
         unsafe extern "C" fn uri_destroy_func(data: glib::ffi::gpointer) {
-            unsafe {
-                let _callback = Box_::from_raw(
-                    data as *mut Option<Box_<dyn Fn(&Vfs, &str) -> Option<File> + 'static>>,
-                );
-            }
+            let _callback = Box_::from_raw(
+                data as *mut Option<Box_<dyn Fn(&Vfs, &str) -> Option<File> + 'static>>,
+            );
         }
         let destroy_call4 = Some(uri_destroy_func as _);
         unsafe extern "C" fn parse_name_destroy_func(data: glib::ffi::gpointer) {
-            unsafe {
-                let _callback = Box_::from_raw(
-                    data as *mut Option<Box_<dyn Fn(&Vfs, &str) -> Option<File> + 'static>>,
-                );
-            }
+            let _callback = Box_::from_raw(
+                data as *mut Option<Box_<dyn Fn(&Vfs, &str) -> Option<File> + 'static>>,
+            );
         }
         let destroy_call7 = Some(parse_name_destroy_func as _);
         let super_callback0: Box_<Option<Box_<dyn Fn(&Vfs, &str) -> Option<File> + 'static>>> =

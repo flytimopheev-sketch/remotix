@@ -29,7 +29,6 @@ freetype = ["cairo-sys-rs/freetype", "freetype-rs"]
 script = ["cairo-sys-rs/script"]
 xcb = ["cairo-sys-rs/xcb"]
 xlib = ["cairo-sys-rs/xlib"]
-quartz-surface = ["cairo-sys-rs/quartz-surface"]
 win32-surface = ["cairo-sys-rs/win32-surface"]
 
 [dependencies.glib]
@@ -40,12 +39,13 @@ workspace = true
 cairo-sys-rs.workspace = true
 libc.workspace = true
 bitflags.workspace = true
-freetype-rs = { version = "0.38", optional = true }
+freetype-rs = { version = "0.37", optional = true }
 
 [dev-dependencies]
-tempfile = "3.25"
+tempfile = "3.10"
 float_eq = "1"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--generate-link-to-definition"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]

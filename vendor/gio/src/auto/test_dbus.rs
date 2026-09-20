@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{TestDBusFlags, ffi};
+use crate::{ffi, TestDBusFlags};
 use glib::translate::*;
 
 glib::wrapper! {

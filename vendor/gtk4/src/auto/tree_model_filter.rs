@@ -3,7 +3,7 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-use crate::{TreeDragSource, TreeIter, TreeModel, TreePath, ffi};
+use crate::{ffi, TreeDragSource, TreeIter, TreeModel, TreePath};
 use glib::{prelude::*, translate::*};
 use std::boxed::Box as Box_;
 
@@ -20,7 +20,12 @@ impl TreeModelFilter {
     pub const NONE: Option<&'static TreeModelFilter> = None;
 }
 
-pub trait TreeModelFilterExt: IsA<TreeModelFilter> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::TreeModelFilter>> Sealed for T {}
+}
+
+pub trait TreeModelFilterExt: IsA<TreeModelFilter> + sealed::Sealed + 'static {
     #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
     #[allow(deprecated)]
     #[doc(alias = "gtk_tree_model_filter_clear_cache")]
@@ -41,7 +46,11 @@ pub trait TreeModelFilterExt: IsA<TreeModelFilter> + 'static {
                 filter_iter.to_glib_none_mut().0,
                 mut_override(child_iter.to_glib_none().0),
             ));
-            if ret { Some(filter_iter) } else { None }
+            if ret {
+                Some(filter_iter)
+            } else {
+                None
+            }
         }
     }
 
@@ -124,20 +133,16 @@ pub trait TreeModelFilterExt: IsA<TreeModelFilter> + 'static {
             iter: *mut ffi::GtkTreeIter,
             data: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let model = from_glib_borrow(model);
-                let iter = from_glib_borrow(iter);
-                let callback = &*(data as *mut P);
-                (*callback)(&model, &iter).into_glib()
-            }
+            let model = from_glib_borrow(model);
+            let iter = from_glib_borrow(iter);
+            let callback = &*(data as *mut P);
+            (*callback)(&model, &iter).into_glib()
         }
         let func = Some(func_func::<P> as _);
         unsafe extern "C" fn destroy_func<P: Fn(&TreeModel, &TreeIter) -> bool + 'static>(
             data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let _callback = Box_::from_raw(data as *mut P);
-            }
+            let _callback = Box_::from_raw(data as *mut P);
         }
         let destroy_call3 = Some(destroy_func::<P> as _);
         let super_callback0: Box_<P> = func_data;

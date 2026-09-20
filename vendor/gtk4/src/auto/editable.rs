@@ -4,31 +4,19 @@
 
 #[cfg(feature = "v4_10")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::{Accessible, AccessiblePlatformState};
-use crate::{Buildable, ConstraintTarget, Widget, ffi};
+use crate::AccessiblePlatformState;
+use crate::{ffi, Accessible, Buildable, ConstraintTarget, Widget};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkEditable")]
     pub struct Editable(Interface<ffi::GtkEditable, ffi::GtkEditableInterface>) @requires Widget, Accessible, Buildable, ConstraintTarget;
-
-    match fn {
-        type_ => || ffi::gtk_editable_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkEditable")]
-    pub struct Editable(Interface<ffi::GtkEditable, ffi::GtkEditableInterface>) @requires Widget, Buildable, ConstraintTarget;
 
     match fn {
         type_ => || ffi::gtk_editable_get_type(),
@@ -39,7 +27,12 @@ impl Editable {
     pub const NONE: Option<&'static Editable> = None;
 }
 
-pub trait EditableExt: IsA<Editable> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Editable>> Sealed for T {}
+}
+
+pub trait EditableExt: IsA<Editable> + sealed::Sealed + 'static {
     #[cfg(feature = "v4_10")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
     #[doc(alias = "gtk_editable_delegate_get_accessible_platform_state")]
@@ -88,19 +81,6 @@ pub trait EditableExt: IsA<Editable> + 'static {
                 self.as_ref().to_glib_none().0,
                 start_pos,
                 end_pos,
-            ))
-        }
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "gtk_editable_get_complete_text")]
-    #[doc(alias = "get_complete_text")]
-    #[doc(alias = "complete-text")]
-    fn complete_text(&self) -> glib::GString {
-        unsafe {
-            from_glib_full(ffi::gtk_editable_get_complete_text(
-                self.as_ref().to_glib_none().0,
             ))
         }
     }
@@ -281,16 +261,14 @@ pub trait EditableExt: IsA<Editable> + 'static {
             this: *mut ffi::GtkEditable,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Editable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Editable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"changed".as_ptr(),
+                b"changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     changed_trampoline::<Self, F> as *const (),
                 )),
@@ -310,52 +288,20 @@ pub trait EditableExt: IsA<Editable> + 'static {
             end_pos: std::ffi::c_int,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Editable::from_glib_borrow(this).unsafe_cast_ref(),
-                    start_pos,
-                    end_pos,
-                )
-            }
-        }
-        unsafe {
-            let f: Box_<F> = Box_::new(f);
-            connect_raw(
-                self.as_ptr() as *mut _,
-                c"delete-text".as_ptr(),
-                Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    delete_text_trampoline::<Self, F> as *const (),
-                )),
-                Box_::into_raw(f),
+            let f: &F = &*(f as *const F);
+            f(
+                Editable::from_glib_borrow(this).unsafe_cast_ref(),
+                start_pos,
+                end_pos,
             )
         }
-    }
-
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "complete-text")]
-    fn connect_complete_text_notify<F: Fn(&Self) + 'static>(&self, f: F) -> SignalHandlerId {
-        unsafe extern "C" fn notify_complete_text_trampoline<
-            P: IsA<Editable>,
-            F: Fn(&P) + 'static,
-        >(
-            this: *mut ffi::GtkEditable,
-            _param_spec: glib::ffi::gpointer,
-            f: glib::ffi::gpointer,
-        ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Editable::from_glib_borrow(this).unsafe_cast_ref())
-            }
-        }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::complete-text".as_ptr(),
+                b"delete-text\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
-                    notify_complete_text_trampoline::<Self, F> as *const (),
+                    delete_text_trampoline::<Self, F> as *const (),
                 )),
                 Box_::into_raw(f),
             )
@@ -372,16 +318,14 @@ pub trait EditableExt: IsA<Editable> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Editable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Editable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::cursor-position".as_ptr(),
+                b"notify::cursor-position\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_cursor_position_trampoline::<Self, F> as *const (),
                 )),
@@ -397,16 +341,14 @@ pub trait EditableExt: IsA<Editable> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Editable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Editable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::editable".as_ptr(),
+                b"notify::editable\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_editable_trampoline::<Self, F> as *const (),
                 )),
@@ -425,16 +367,14 @@ pub trait EditableExt: IsA<Editable> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Editable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Editable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::enable-undo".as_ptr(),
+                b"notify::enable-undo\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_enable_undo_trampoline::<Self, F> as *const (),
                 )),
@@ -453,16 +393,14 @@ pub trait EditableExt: IsA<Editable> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Editable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Editable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::max-width-chars".as_ptr(),
+                b"notify::max-width-chars\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_max_width_chars_trampoline::<Self, F> as *const (),
                 )),
@@ -481,16 +419,14 @@ pub trait EditableExt: IsA<Editable> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Editable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Editable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::selection-bound".as_ptr(),
+                b"notify::selection-bound\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_selection_bound_trampoline::<Self, F> as *const (),
                 )),
@@ -506,16 +442,14 @@ pub trait EditableExt: IsA<Editable> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Editable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Editable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::text".as_ptr(),
+                b"notify::text\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_text_trampoline::<Self, F> as *const (),
                 )),
@@ -534,16 +468,14 @@ pub trait EditableExt: IsA<Editable> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Editable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Editable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::width-chars".as_ptr(),
+                b"notify::width-chars\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_width_chars_trampoline::<Self, F> as *const (),
                 )),
@@ -559,16 +491,14 @@ pub trait EditableExt: IsA<Editable> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(Editable::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(Editable::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::xalign".as_ptr(),
+                b"notify::xalign\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_xalign_trampoline::<Self, F> as *const (),
                 )),

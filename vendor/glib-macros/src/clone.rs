@@ -1,11 +1,11 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{ToTokens, quote};
+use quote::{quote, ToTokens};
 use syn::{
-    Attribute, Expr, ExprAsync, ExprClosure, Token,
     parse::{Parse, ParseStream},
     spanned::Spanned,
+    Attribute, Expr, ExprAsync, ExprClosure, Token,
 };
 
 use crate::utils::crate_ident_new;
@@ -104,8 +104,7 @@ impl UpgradeBehaviour {
                     "upgrade failure attribute must not be followed by any other attributes. Found {} more attribute{}",
                     attrs.len() - 1,
                     if attrs.len() > 2 { "s" } else { "" },
-                ),
-            ));
+            )));
         }
 
         let next_attrs = &input.call(Attribute::parse_outer)?;
@@ -116,7 +115,7 @@ impl UpgradeBehaviour {
                     "upgrade failure attribute must not be followed by any other attributes. Found {} more attribute{}",
                     next_attrs.len(),
                     if next_attrs.len() > 1 { "s" } else { "" },
-                ),
+                )
             ));
         }
 
@@ -181,10 +180,12 @@ impl Capture {
         match name {
             Expr::Path(ref p) if p.path.get_ident().is_some() => {
                 if p.path.get_ident().unwrap() == "self" && alias.is_none() {
-                    return Err(syn::Error::new_spanned(
-                        attr,
-                        "capture attribute for `self` requires usage of the `rename_to` attribute property",
-                    ));
+                    return Err(
+                        syn::Error::new_spanned(
+                            attr,
+                            "capture attribute for `self` requires usage of the `rename_to` attribute property",
+                        ),
+                    );
                 }
                 // Nothing to do, it's just an identifier
             }
@@ -192,10 +193,12 @@ impl Capture {
                 // Nothing to do, it's an alias
             }
             _ => {
-                return Err(syn::Error::new_spanned(
-                    attr,
-                    "capture attribute for an expression requires usage of the `rename_to` attribute property",
-                ));
+                return Err(
+                    syn::Error::new_spanned(
+                        attr,
+                        "capture attribute for an expression requires usage of the `rename_to` attribute property",
+                    ),
+                );
             }
         }
 
@@ -263,7 +266,8 @@ impl Capture {
             CaptureKind::Weak => match weak_upgrade_failure_kind {
                 UpgradeBehaviour::Panic => {
                     let err_msg = format!(
-                        "Failed to upgrade `{alias}`. If you don't want to panic, use `#[upgrade_or]`, `#[upgrade_or_else]` or `#[upgrade_or_default]`",
+                        "Failed to upgrade `{}`. If you don't want to panic, use `#[upgrade_or]`, `#[upgrade_or_else]` or `#[upgrade_or_default]`",
+                        alias,
                     );
                     quote! {
                         let Some(#alias) = #crate_ident::clone::Upgrade::upgrade(&#alias) else {
@@ -274,7 +278,7 @@ impl Capture {
                 UpgradeBehaviour::Default
                 | UpgradeBehaviour::Expression(_)
                 | UpgradeBehaviour::Closure(_) => {
-                    let err_msg = format!("Failed to upgrade `{alias}`");
+                    let err_msg = format!("Failed to upgrade `{}`", alias);
                     quote! {
                         let Some(#alias) = #crate_ident::clone::Upgrade::upgrade(&#alias) else {
                             #crate_ident::g_debug!(
@@ -286,7 +290,7 @@ impl Capture {
                     }
                 }
                 UpgradeBehaviour::Unit => {
-                    let err_msg = format!("Failed to upgrade `{alias}`");
+                    let err_msg = format!("Failed to upgrade `{}`", alias);
                     let unit_return = unit_return.unwrap_or_else(|| {
                         quote! { return; }
                     });
@@ -350,8 +354,8 @@ impl Parse for ClosureOrAsync {
 impl ToTokens for ClosureOrAsync {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            ClosureOrAsync::Closure(c) => c.to_tokens(tokens),
-            ClosureOrAsync::Async(a) => a.to_tokens(tokens),
+            ClosureOrAsync::Closure(ref c) => c.to_tokens(tokens),
+            ClosureOrAsync::Async(ref a) => a.to_tokens(tokens),
         }
     }
 }
@@ -364,13 +368,6 @@ struct Clone {
 
 impl Parse for Clone {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if input.is_empty() {
-            return Err(syn::Error::new(
-                Span::call_site(),
-                "expected a closure or async block",
-            ));
-        }
-
         let mut captures: Vec<Capture> = vec![];
         let mut upgrade_behaviour: Option<(UpgradeBehaviour, Span)> = None;
 
@@ -389,55 +386,47 @@ impl Parse for Clone {
                 break;
             };
 
-            match Capture::maybe_parse(&attrs, input)? {
-                Some(capture) => {
-                    if capture.kind == CaptureKind::Watch {
-                        return Err(syn::Error::new_spanned(
-                            &attrs[0],
-                            "watch variable captures are not supported",
-                        ));
-                    }
-
-                    captures.push(capture);
+            if let Some(capture) = Capture::maybe_parse(&attrs, input)? {
+                if capture.kind == CaptureKind::Watch {
+                    return Err(syn::Error::new_spanned(
+                        &attrs[0],
+                        "watch variable captures are not supported",
+                    ));
                 }
-                _ => match UpgradeBehaviour::maybe_parse(&attrs, input)? {
-                    Some(behaviour) => {
-                        if upgrade_behaviour.is_some() {
-                            return Err(syn::Error::new_spanned(
-                                &attrs[0],
-                                "multiple upgrade failure attributes are not supported",
-                            ));
-                        }
 
-                        upgrade_behaviour = Some((behaviour, attrs[0].span()));
-                        break;
-                    }
-                    _ => {
-                        if let Some(ident) = attrs[0].path().get_ident() {
-                            return Err(syn::Error::new_spanned(
-                                &attrs[0],
-                                format!(
-                                    "unsupported attribute `{ident}`: only `strong`, `weak`, `weak_allow_none`, `to_owned`, `upgrade_or`, `upgrade_or_else`, `upgrade_or_default` and `upgrade_or_panic` are supported",
-                                ),
-                            ));
-                        } else {
-                            return Err(syn::Error::new_spanned(
-                                &attrs[0],
-                                "unsupported attribute: only `strong`, `weak`, `weak_allow_none`, `to_owned`, `upgrade_or_else`, `upgrade_or_default` and `upgrade_or_panic` are supported",
-                            ));
-                        }
-                    }
-                },
+                captures.push(capture);
+            } else if let Some(behaviour) = UpgradeBehaviour::maybe_parse(&attrs, input)? {
+                if upgrade_behaviour.is_some() {
+                    return Err(syn::Error::new_spanned(
+                        &attrs[0],
+                        "multiple upgrade failure attributes are not supported",
+                    ));
+                }
+
+                upgrade_behaviour = Some((behaviour, attrs[0].span()));
+                break;
+            } else if let Some(ident) = attrs[0].path().get_ident() {
+                return Err(syn::Error::new_spanned(
+                        &attrs[0],
+                        format!(
+                            "unsupported attribute `{ident}`: only `strong`, `weak`, `weak_allow_none`, `to_owned`, `upgrade_or`, `upgrade_or_else`, `upgrade_or_default` and `upgrade_or_panic` are supported",
+                        ),
+                ));
+            } else {
+                return Err(syn::Error::new_spanned(
+                        &attrs[0],
+                        "unsupported attribute: only `strong`, `weak`, `weak_allow_none`, `to_owned`, `upgrade_or_else`, `upgrade_or_default` and `upgrade_or_panic` are supported",
+                ));
             }
         }
 
-        if let Some((_, ref span)) = upgrade_behaviour
-            && captures.iter().all(|c| c.kind != CaptureKind::Weak)
-        {
-            return Err(syn::Error::new(
-                *span,
-                "upgrade failure attribute can only be used together with weak variable captures",
-            ));
+        if let Some((_, ref span)) = upgrade_behaviour {
+            if captures.iter().all(|c| c.kind != CaptureKind::Weak) {
+                return Err(syn::Error::new(
+                    *span,
+                    "upgrade failure attribute can only be used together with weak variable captures",
+                ));
+            }
         }
 
         let upgrade_behaviour = upgrade_behaviour.map(|x| x.0).unwrap_or_default();
@@ -499,25 +488,26 @@ impl ToTokens for Clone {
                     attrs,
                     lifetimes,
                     constness,
+                    movability,
                     asyncness,
                     capture,
-                    inputs_begin,
+                    or1_token,
                     inputs,
-                    inputs_end,
+                    or2_token,
                     output,
                     body,
-                    ..
                 } = c;
 
                 quote! {
                     #(#attrs)*
                     #lifetimes
                     #constness
+                    #movability
                     #asyncness
                     #capture
-                    #inputs_begin
+                    #or1_token
                     #inputs
-                    #inputs_end
+                    #or2_token
                     #output
                     {
                         #upgrade_failure_closure
@@ -532,7 +522,6 @@ impl ToTokens for Clone {
                     async_token,
                     capture,
                     block,
-                    ..
                 } = a;
 
                 // Directly output the statements instead of the whole block including braces as we

@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{SocketAddressEnumerator, ffi};
+use crate::{ffi, SocketAddressEnumerator};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -18,7 +18,12 @@ impl SocketConnectable {
     pub const NONE: Option<&'static SocketConnectable> = None;
 }
 
-pub trait SocketConnectableExt: IsA<SocketConnectable> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::SocketConnectable>> Sealed for T {}
+}
+
+pub trait SocketConnectableExt: IsA<SocketConnectable> + sealed::Sealed + 'static {
     #[doc(alias = "g_socket_connectable_enumerate")]
     fn enumerate(&self) -> SocketAddressEnumerator {
         unsafe {

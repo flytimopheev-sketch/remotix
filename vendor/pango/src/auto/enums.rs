@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Language, Matrix, ffi};
+use crate::{ffi, Language, Matrix};
 use glib::{prelude::*, translate::*};
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
@@ -74,7 +74,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Alignment {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -195,10 +195,6 @@ pub enum AttrType {
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_50")))]
     #[doc(alias = "PANGO_ATTR_FONT_SCALE")]
     FontScale,
-    #[cfg(feature = "v1_58")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-    #[doc(alias = "PANGO_ATTR_WIDTH")]
-    Width,
     #[doc(hidden)]
     __Unknown(i32),
 }
@@ -262,8 +258,6 @@ impl IntoGlib for AttrType {
             Self::BaselineShift => ffi::PANGO_ATTR_BASELINE_SHIFT,
             #[cfg(feature = "v1_50")]
             Self::FontScale => ffi::PANGO_ATTR_FONT_SCALE,
-            #[cfg(feature = "v1_58")]
-            Self::Width => ffi::PANGO_ATTR_WIDTH,
             Self::__Unknown(value) => value,
         }
     }
@@ -318,8 +312,6 @@ impl FromGlib<ffi::PangoAttrType> for AttrType {
             ffi::PANGO_ATTR_BASELINE_SHIFT => Self::BaselineShift,
             #[cfg(feature = "v1_50")]
             ffi::PANGO_ATTR_FONT_SCALE => Self::FontScale,
-            #[cfg(feature = "v1_58")]
-            ffi::PANGO_ATTR_WIDTH => Self::Width,
             value => Self::__Unknown(value),
         }
     }
@@ -352,7 +344,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for AttrType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -462,7 +454,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for BaselineShift {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -655,7 +647,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for BidiType {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -757,7 +749,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for CoverageLevel {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -869,7 +861,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Direction {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -969,7 +961,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for EllipsizeMode {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -992,120 +984,6 @@ impl ToValue for EllipsizeMode {
 impl From<EllipsizeMode> for glib::Value {
     #[inline]
     fn from(v: EllipsizeMode) -> Self {
-        ToValue::to_value(&v)
-    }
-}
-
-#[cfg(feature = "v1_57")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
-#[non_exhaustive]
-#[doc(alias = "PangoFontColor")]
-pub enum FontColor {
-    #[doc(alias = "PANGO_FONT_COLOR_FORBIDDEN")]
-    Forbidden,
-    #[doc(alias = "PANGO_FONT_COLOR_REQUIRED")]
-    Required,
-    #[doc(alias = "PANGO_FONT_COLOR_DONT_CARE")]
-    DontCare,
-    #[doc(hidden)]
-    __Unknown(i32),
-}
-
-#[cfg(feature = "v1_57")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-#[doc(hidden)]
-impl IntoGlib for FontColor {
-    type GlibType = ffi::PangoFontColor;
-
-    #[inline]
-    fn into_glib(self) -> ffi::PangoFontColor {
-        match self {
-            Self::Forbidden => ffi::PANGO_FONT_COLOR_FORBIDDEN,
-            Self::Required => ffi::PANGO_FONT_COLOR_REQUIRED,
-            Self::DontCare => ffi::PANGO_FONT_COLOR_DONT_CARE,
-            Self::__Unknown(value) => value,
-        }
-    }
-}
-
-#[cfg(feature = "v1_57")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-#[doc(hidden)]
-impl FromGlib<ffi::PangoFontColor> for FontColor {
-    #[inline]
-    unsafe fn from_glib(value: ffi::PangoFontColor) -> Self {
-        match value {
-            ffi::PANGO_FONT_COLOR_FORBIDDEN => Self::Forbidden,
-            ffi::PANGO_FONT_COLOR_REQUIRED => Self::Required,
-            ffi::PANGO_FONT_COLOR_DONT_CARE => Self::DontCare,
-            value => Self::__Unknown(value),
-        }
-    }
-}
-
-#[cfg(feature = "v1_57")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-impl StaticType for FontColor {
-    #[inline]
-    #[doc(alias = "pango_font_color_get_type")]
-    fn static_type() -> glib::Type {
-        unsafe { from_glib(ffi::pango_font_color_get_type()) }
-    }
-}
-
-#[cfg(feature = "v1_57")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-impl glib::HasParamSpec for FontColor {
-    type ParamSpec = glib::ParamSpecEnum;
-    type SetValue = Self;
-    type BuilderFn = fn(&str, Self) -> glib::ParamSpecEnumBuilder<Self>;
-
-    fn param_spec_builder() -> Self::BuilderFn {
-        Self::ParamSpec::builder_with_default
-    }
-}
-
-#[cfg(feature = "v1_57")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-impl glib::value::ValueType for FontColor {
-    type Type = Self;
-}
-
-#[cfg(feature = "v1_57")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-unsafe impl<'a> glib::value::FromValue<'a> for FontColor {
-    type Checker = glib::value::GenericValueTypeChecker<Self>;
-
-    #[inline]
-    unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
-    }
-}
-
-#[cfg(feature = "v1_57")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-impl ToValue for FontColor {
-    #[inline]
-    fn to_value(&self) -> glib::Value {
-        let mut value = glib::Value::for_value_type::<Self>();
-        unsafe {
-            glib::gobject_ffi::g_value_set_enum(value.to_glib_none_mut().0, self.into_glib());
-        }
-        value
-    }
-
-    #[inline]
-    fn value_type(&self) -> glib::Type {
-        Self::static_type()
-    }
-}
-
-#[cfg(feature = "v1_57")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_57")))]
-impl From<FontColor> for glib::Value {
-    #[inline]
-    fn from(v: FontColor) -> Self {
         ToValue::to_value(&v)
     }
 }
@@ -1197,7 +1075,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for FontScale {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1348,7 +1226,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Gravity {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1444,7 +1322,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for GravityHint {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1550,7 +1428,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Overline {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1658,7 +1536,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for RenderPart {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2227,7 +2105,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Script {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2347,7 +2225,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Stretch {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2443,7 +2321,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Style {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2555,7 +2433,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TabAlign {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2669,7 +2547,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TextTransform {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2789,7 +2667,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Underline {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2921,7 +2799,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Variant {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3053,7 +2931,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Weight {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3076,144 +2954,6 @@ impl ToValue for Weight {
 impl From<Weight> for glib::Value {
     #[inline]
     fn from(v: Weight) -> Self {
-        ToValue::to_value(&v)
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
-#[non_exhaustive]
-#[doc(alias = "PangoWidth")]
-pub enum Width {
-    #[doc(alias = "PANGO_WIDTH_ULTRA_CONDENSED")]
-    UltraCondensed,
-    #[doc(alias = "PANGO_WIDTH_EXTRA_CONDENSED")]
-    ExtraCondensed,
-    #[doc(alias = "PANGO_WIDTH_CONDENSED")]
-    Condensed,
-    #[doc(alias = "PANGO_WIDTH_SEMI_CONDENSED")]
-    SemiCondensed,
-    #[doc(alias = "PANGO_WIDTH_NORMAL")]
-    Normal,
-    #[doc(alias = "PANGO_WIDTH_SEMI_EXPANDED")]
-    SemiExpanded,
-    #[doc(alias = "PANGO_WIDTH_EXPANDED")]
-    Expanded,
-    #[doc(alias = "PANGO_WIDTH_EXTRA_EXPANDED")]
-    ExtraExpanded,
-    #[doc(alias = "PANGO_WIDTH_ULTRA_EXPANDED")]
-    UltraExpanded,
-    #[doc(hidden)]
-    __Unknown(i32),
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-#[doc(hidden)]
-impl IntoGlib for Width {
-    type GlibType = ffi::PangoWidth;
-
-    #[inline]
-    fn into_glib(self) -> ffi::PangoWidth {
-        match self {
-            Self::UltraCondensed => ffi::PANGO_WIDTH_ULTRA_CONDENSED,
-            Self::ExtraCondensed => ffi::PANGO_WIDTH_EXTRA_CONDENSED,
-            Self::Condensed => ffi::PANGO_WIDTH_CONDENSED,
-            Self::SemiCondensed => ffi::PANGO_WIDTH_SEMI_CONDENSED,
-            Self::Normal => ffi::PANGO_WIDTH_NORMAL,
-            Self::SemiExpanded => ffi::PANGO_WIDTH_SEMI_EXPANDED,
-            Self::Expanded => ffi::PANGO_WIDTH_EXPANDED,
-            Self::ExtraExpanded => ffi::PANGO_WIDTH_EXTRA_EXPANDED,
-            Self::UltraExpanded => ffi::PANGO_WIDTH_ULTRA_EXPANDED,
-            Self::__Unknown(value) => value,
-        }
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-#[doc(hidden)]
-impl FromGlib<ffi::PangoWidth> for Width {
-    #[inline]
-    unsafe fn from_glib(value: ffi::PangoWidth) -> Self {
-        match value {
-            ffi::PANGO_WIDTH_ULTRA_CONDENSED => Self::UltraCondensed,
-            ffi::PANGO_WIDTH_EXTRA_CONDENSED => Self::ExtraCondensed,
-            ffi::PANGO_WIDTH_CONDENSED => Self::Condensed,
-            ffi::PANGO_WIDTH_SEMI_CONDENSED => Self::SemiCondensed,
-            ffi::PANGO_WIDTH_NORMAL => Self::Normal,
-            ffi::PANGO_WIDTH_SEMI_EXPANDED => Self::SemiExpanded,
-            ffi::PANGO_WIDTH_EXPANDED => Self::Expanded,
-            ffi::PANGO_WIDTH_EXTRA_EXPANDED => Self::ExtraExpanded,
-            ffi::PANGO_WIDTH_ULTRA_EXPANDED => Self::UltraExpanded,
-            value => Self::__Unknown(value),
-        }
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-impl StaticType for Width {
-    #[inline]
-    #[doc(alias = "pango_width_get_type")]
-    fn static_type() -> glib::Type {
-        unsafe { from_glib(ffi::pango_width_get_type()) }
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-impl glib::HasParamSpec for Width {
-    type ParamSpec = glib::ParamSpecEnum;
-    type SetValue = Self;
-    type BuilderFn = fn(&str, Self) -> glib::ParamSpecEnumBuilder<Self>;
-
-    fn param_spec_builder() -> Self::BuilderFn {
-        Self::ParamSpec::builder_with_default
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-impl glib::value::ValueType for Width {
-    type Type = Self;
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-unsafe impl<'a> glib::value::FromValue<'a> for Width {
-    type Checker = glib::value::GenericValueTypeChecker<Self>;
-
-    #[inline]
-    unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-impl ToValue for Width {
-    #[inline]
-    fn to_value(&self) -> glib::Value {
-        let mut value = glib::Value::for_value_type::<Self>();
-        unsafe {
-            glib::gobject_ffi::g_value_set_enum(value.to_glib_none_mut().0, self.into_glib());
-        }
-        value
-    }
-
-    #[inline]
-    fn value_type(&self) -> glib::Type {
-        Self::static_type()
-    }
-}
-
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-impl From<Width> for glib::Value {
-    #[inline]
-    fn from(v: Width) -> Self {
         ToValue::to_value(&v)
     }
 }
@@ -3295,7 +3035,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for WrapMode {
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 

@@ -2,11 +2,8 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-#[cfg(feature = "v1_58")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-use crate::RenderComponent;
 use crate::{
-    Color, Font, Glyph, GlyphItem, GlyphString, Layout, LayoutLine, Matrix, RenderPart, ffi,
+    ffi, Color, Font, Glyph, GlyphItem, GlyphString, Layout, LayoutLine, Matrix, RenderPart,
 };
 use glib::{prelude::*, translate::*};
 
@@ -23,7 +20,12 @@ impl Renderer {
     pub const NONE: Option<&'static Renderer> = None;
 }
 
-pub trait RendererExt: IsA<Renderer> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Renderer>> Sealed for T {}
+}
+
+pub trait RendererExt: IsA<Renderer> + sealed::Sealed + 'static {
     #[doc(alias = "pango_renderer_activate")]
     fn activate(&self) {
         unsafe {
@@ -170,18 +172,6 @@ pub trait RendererExt: IsA<Renderer> + 'static {
         }
     }
 
-    #[cfg(feature = "v1_58")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-    #[doc(alias = "pango_renderer_get_components")]
-    #[doc(alias = "get_components")]
-    fn components(&self) -> RenderComponent {
-        unsafe {
-            from_glib(ffi::pango_renderer_get_components(
-                self.as_ref().to_glib_none().0,
-            ))
-        }
-    }
-
     #[doc(alias = "pango_renderer_get_layout")]
     #[doc(alias = "get_layout")]
     fn layout(&self) -> Option<Layout> {
@@ -233,18 +223,6 @@ pub trait RendererExt: IsA<Renderer> + 'static {
                 self.as_ref().to_glib_none().0,
                 part.into_glib(),
                 color.to_glib_none().0,
-            );
-        }
-    }
-
-    #[cfg(feature = "v1_58")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_58")))]
-    #[doc(alias = "pango_renderer_set_components")]
-    fn set_components(&self, components: RenderComponent) {
-        unsafe {
-            ffi::pango_renderer_set_components(
-                self.as_ref().to_glib_none().0,
-                components.into_glib(),
             );
         }
     }

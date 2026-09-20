@@ -113,7 +113,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for AxisUse {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -223,7 +223,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for CicpRange {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -250,128 +250,6 @@ impl ToValue for CicpRange {
 impl From<CicpRange> for glib::Value {
     #[inline]
     fn from(v: CicpRange) -> Self {
-        skip_assert_initialized!();
-        ToValue::to_value(&v)
-    }
-}
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
-#[non_exhaustive]
-#[doc(alias = "GdkColorChannel")]
-pub enum ColorChannel {
-    #[doc(alias = "GDK_COLOR_CHANNEL_RED")]
-    Red,
-    #[doc(alias = "GDK_COLOR_CHANNEL_GREEN")]
-    Green,
-    #[doc(alias = "GDK_COLOR_CHANNEL_BLUE")]
-    Blue,
-    #[doc(alias = "GDK_COLOR_CHANNEL_ALPHA")]
-    Alpha,
-    #[doc(hidden)]
-    __Unknown(i32),
-}
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-#[doc(hidden)]
-impl IntoGlib for ColorChannel {
-    type GlibType = ffi::GdkColorChannel;
-
-    #[inline]
-    fn into_glib(self) -> ffi::GdkColorChannel {
-        match self {
-            Self::Red => ffi::GDK_COLOR_CHANNEL_RED,
-            Self::Green => ffi::GDK_COLOR_CHANNEL_GREEN,
-            Self::Blue => ffi::GDK_COLOR_CHANNEL_BLUE,
-            Self::Alpha => ffi::GDK_COLOR_CHANNEL_ALPHA,
-            Self::__Unknown(value) => value,
-        }
-    }
-}
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-#[doc(hidden)]
-impl FromGlib<ffi::GdkColorChannel> for ColorChannel {
-    #[inline]
-    unsafe fn from_glib(value: ffi::GdkColorChannel) -> Self {
-        skip_assert_initialized!();
-
-        match value {
-            ffi::GDK_COLOR_CHANNEL_RED => Self::Red,
-            ffi::GDK_COLOR_CHANNEL_GREEN => Self::Green,
-            ffi::GDK_COLOR_CHANNEL_BLUE => Self::Blue,
-            ffi::GDK_COLOR_CHANNEL_ALPHA => Self::Alpha,
-            value => Self::__Unknown(value),
-        }
-    }
-}
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-impl StaticType for ColorChannel {
-    #[inline]
-    #[doc(alias = "gdk_color_channel_get_type")]
-    fn static_type() -> glib::Type {
-        unsafe { from_glib(ffi::gdk_color_channel_get_type()) }
-    }
-}
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-impl glib::HasParamSpec for ColorChannel {
-    type ParamSpec = glib::ParamSpecEnum;
-    type SetValue = Self;
-    type BuilderFn = fn(&str, Self) -> glib::ParamSpecEnumBuilder<Self>;
-
-    fn param_spec_builder() -> Self::BuilderFn {
-        Self::ParamSpec::builder_with_default
-    }
-}
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-impl glib::value::ValueType for ColorChannel {
-    type Type = Self;
-}
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-unsafe impl<'a> glib::value::FromValue<'a> for ColorChannel {
-    type Checker = glib::value::GenericValueTypeChecker<Self>;
-
-    #[inline]
-    unsafe fn from_value(value: &'a glib::Value) -> Self {
-        skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
-    }
-}
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-impl ToValue for ColorChannel {
-    #[inline]
-    fn to_value(&self) -> glib::Value {
-        let mut value = glib::Value::for_value_type::<Self>();
-        unsafe {
-            glib::gobject_ffi::g_value_set_enum(value.to_glib_none_mut().0, self.into_glib());
-        }
-        value
-    }
-
-    #[inline]
-    fn value_type(&self) -> glib::Type {
-        Self::static_type()
-    }
-}
-
-#[cfg(feature = "v4_22")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-impl From<ColorChannel> for glib::Value {
-    #[inline]
-    fn from(v: ColorChannel) -> Self {
         skip_assert_initialized!();
         ToValue::to_value(&v)
     }
@@ -473,7 +351,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for CrossingMode {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -573,7 +451,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for DevicePadFeature {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -693,7 +571,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for DeviceToolType {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -723,8 +601,6 @@ impl From<DeviceToolType> for glib::Value {
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
-#[cfg_attr(docsrs, doc(cfg(target_os = "linux")))]
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
 #[non_exhaustive]
 #[doc(alias = "GdkDmabufError")]
@@ -741,7 +617,6 @@ pub enum DmabufError {
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
 #[doc(hidden)]
 impl IntoGlib for DmabufError {
     type GlibType = ffi::GdkDmabufError;
@@ -759,7 +634,6 @@ impl IntoGlib for DmabufError {
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
 #[doc(hidden)]
 impl FromGlib<ffi::GdkDmabufError> for DmabufError {
     #[inline]
@@ -777,7 +651,6 @@ impl FromGlib<ffi::GdkDmabufError> for DmabufError {
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
 impl glib::error::ErrorDomain for DmabufError {
     #[inline]
     fn domain() -> glib::Quark {
@@ -803,7 +676,6 @@ impl glib::error::ErrorDomain for DmabufError {
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
 impl StaticType for DmabufError {
     #[inline]
     #[doc(alias = "gdk_dmabuf_error_get_type")]
@@ -814,7 +686,6 @@ impl StaticType for DmabufError {
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
 impl glib::HasParamSpec for DmabufError {
     type ParamSpec = glib::ParamSpecEnum;
     type SetValue = Self;
@@ -827,27 +698,24 @@ impl glib::HasParamSpec for DmabufError {
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
 impl glib::value::ValueType for DmabufError {
     type Type = Self;
 }
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
 unsafe impl<'a> glib::value::FromValue<'a> for DmabufError {
     type Checker = glib::value::GenericValueTypeChecker<Self>;
 
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
 impl ToValue for DmabufError {
     #[inline]
     fn to_value(&self) -> glib::Value {
@@ -866,7 +734,6 @@ impl ToValue for DmabufError {
 
 #[cfg(feature = "v4_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
-#[cfg(target_os = "linux")]
 impl From<DmabufError> for glib::Value {
     #[inline]
     fn from(v: DmabufError) -> Self {
@@ -947,7 +814,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for DragCancelReason {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1039,10 +906,6 @@ pub enum EventType {
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_8")))]
     #[doc(alias = "GDK_TOUCHPAD_HOLD")]
     TouchpadHold,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_PAD_DIAL")]
-    PadDial,
     #[doc(hidden)]
     __Unknown(i32),
 }
@@ -1083,8 +946,6 @@ impl IntoGlib for EventType {
             Self::PadGroupMode => ffi::GDK_PAD_GROUP_MODE,
             #[cfg(feature = "v4_8")]
             Self::TouchpadHold => ffi::GDK_TOUCHPAD_HOLD,
-            #[cfg(feature = "v4_20")]
-            Self::PadDial => ffi::GDK_PAD_DIAL,
             Self::__Unknown(value) => value,
         }
     }
@@ -1126,8 +987,6 @@ impl FromGlib<ffi::GdkEventType> for EventType {
             ffi::GDK_PAD_GROUP_MODE => Self::PadGroupMode,
             #[cfg(feature = "v4_8")]
             ffi::GDK_TOUCHPAD_HOLD => Self::TouchpadHold,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_PAD_DIAL => Self::PadDial,
             value => Self::__Unknown(value),
         }
     }
@@ -1161,7 +1020,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for EventType {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1257,7 +1116,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for FullscreenMode {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1388,7 +1247,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for GLError {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1516,7 +1375,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for Gravity {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1632,7 +1491,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for InputSource {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1732,7 +1591,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for KeyMatch {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -1878,158 +1737,6 @@ pub enum MemoryFormat {
     #[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
     #[doc(alias = "GDK_MEMORY_X8B8G8R8")]
     X8b8g8r8,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_B8R8_420")]
-    G8B8r8420,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_R8B8_420")]
-    G8R8b8420,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_B8R8_422")]
-    G8B8r8422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_R8B8_422")]
-    G8R8b8422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_B8R8_444")]
-    G8B8r8444,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_R8B8_444")]
-    G8R8b8444,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G10X6_B10X6R10X6_420")]
-    G10x6B10x6r10x6420,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G12X4_B12X4R12X4_420")]
-    G12x4B12x4r12x4420,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G16_B16R16_420")]
-    G16B16r16420,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_B8_R8_410")]
-    G8B8R8410,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_R8_B8_410")]
-    G8R8B8410,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_B8_R8_411")]
-    G8B8R8411,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_R8_B8_411")]
-    G8R8B8411,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_B8_R8_420")]
-    G8B8R8420,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_R8_B8_420")]
-    G8R8B8420,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_B8_R8_422")]
-    G8B8R8422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_R8_B8_422")]
-    G8R8B8422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_B8_R8_444")]
-    G8B8R8444,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8_R8_B8_444")]
-    G8R8B8444,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8B8G8R8_422")]
-    G8b8g8r8422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G8R8G8B8_422")]
-    G8r8g8b8422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_R8G8B8G8_422")]
-    R8g8b8g8422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_B8G8R8G8_422")]
-    B8g8r8g8422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_X6G10_X6B10_X6R10_420")]
-    X6g10X6b10X6r10420,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_X6G10_X6B10_X6R10_422")]
-    X6g10X6b10X6r10422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_X6G10_X6B10_X6R10_444")]
-    X6g10X6b10X6r10444,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_X4G12_X4B12_X4R12_420")]
-    X4g12X4b12X4r12420,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_X4G12_X4B12_X4R12_422")]
-    X4g12X4b12X4r12422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_X4G12_X4B12_X4R12_444")]
-    X4g12X4b12X4r12444,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G16_B16_R16_420")]
-    G16B16R16420,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G16_B16_R16_422")]
-    G16B16R16422,
-    #[cfg(feature = "v4_20")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-    #[doc(alias = "GDK_MEMORY_G16_B16_R16_444")]
-    G16B16R16444,
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "GDK_MEMORY_ARGB2101010_PREMULTIPLIED")]
-    Argb2101010Premultiplied,
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "GDK_MEMORY_ARGB2101010")]
-    Argb2101010,
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "GDK_MEMORY_XRGB2101010")]
-    Xrgb2101010,
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "GDK_MEMORY_ABGR2101010_PREMULTIPLIED")]
-    Abgr2101010Premultiplied,
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "GDK_MEMORY_ABGR2101010")]
-    Abgr2101010,
-    #[cfg(feature = "v4_24")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_24")))]
-    #[doc(alias = "GDK_MEMORY_XBGR2101010")]
-    Xbgr2101010,
     #[doc(hidden)]
     __Unknown(i32),
 }
@@ -2101,82 +1808,6 @@ impl IntoGlib for MemoryFormat {
             Self::R8g8b8x8 => ffi::GDK_MEMORY_R8G8B8X8,
             #[cfg(feature = "v4_14")]
             Self::X8b8g8r8 => ffi::GDK_MEMORY_X8B8G8R8,
-            #[cfg(feature = "v4_20")]
-            Self::G8B8r8420 => ffi::GDK_MEMORY_G8_B8R8_420,
-            #[cfg(feature = "v4_20")]
-            Self::G8R8b8420 => ffi::GDK_MEMORY_G8_R8B8_420,
-            #[cfg(feature = "v4_20")]
-            Self::G8B8r8422 => ffi::GDK_MEMORY_G8_B8R8_422,
-            #[cfg(feature = "v4_20")]
-            Self::G8R8b8422 => ffi::GDK_MEMORY_G8_R8B8_422,
-            #[cfg(feature = "v4_20")]
-            Self::G8B8r8444 => ffi::GDK_MEMORY_G8_B8R8_444,
-            #[cfg(feature = "v4_20")]
-            Self::G8R8b8444 => ffi::GDK_MEMORY_G8_R8B8_444,
-            #[cfg(feature = "v4_20")]
-            Self::G10x6B10x6r10x6420 => ffi::GDK_MEMORY_G10X6_B10X6R10X6_420,
-            #[cfg(feature = "v4_20")]
-            Self::G12x4B12x4r12x4420 => ffi::GDK_MEMORY_G12X4_B12X4R12X4_420,
-            #[cfg(feature = "v4_20")]
-            Self::G16B16r16420 => ffi::GDK_MEMORY_G16_B16R16_420,
-            #[cfg(feature = "v4_20")]
-            Self::G8B8R8410 => ffi::GDK_MEMORY_G8_B8_R8_410,
-            #[cfg(feature = "v4_20")]
-            Self::G8R8B8410 => ffi::GDK_MEMORY_G8_R8_B8_410,
-            #[cfg(feature = "v4_20")]
-            Self::G8B8R8411 => ffi::GDK_MEMORY_G8_B8_R8_411,
-            #[cfg(feature = "v4_20")]
-            Self::G8R8B8411 => ffi::GDK_MEMORY_G8_R8_B8_411,
-            #[cfg(feature = "v4_20")]
-            Self::G8B8R8420 => ffi::GDK_MEMORY_G8_B8_R8_420,
-            #[cfg(feature = "v4_20")]
-            Self::G8R8B8420 => ffi::GDK_MEMORY_G8_R8_B8_420,
-            #[cfg(feature = "v4_20")]
-            Self::G8B8R8422 => ffi::GDK_MEMORY_G8_B8_R8_422,
-            #[cfg(feature = "v4_20")]
-            Self::G8R8B8422 => ffi::GDK_MEMORY_G8_R8_B8_422,
-            #[cfg(feature = "v4_20")]
-            Self::G8B8R8444 => ffi::GDK_MEMORY_G8_B8_R8_444,
-            #[cfg(feature = "v4_20")]
-            Self::G8R8B8444 => ffi::GDK_MEMORY_G8_R8_B8_444,
-            #[cfg(feature = "v4_20")]
-            Self::G8b8g8r8422 => ffi::GDK_MEMORY_G8B8G8R8_422,
-            #[cfg(feature = "v4_20")]
-            Self::G8r8g8b8422 => ffi::GDK_MEMORY_G8R8G8B8_422,
-            #[cfg(feature = "v4_20")]
-            Self::R8g8b8g8422 => ffi::GDK_MEMORY_R8G8B8G8_422,
-            #[cfg(feature = "v4_20")]
-            Self::B8g8r8g8422 => ffi::GDK_MEMORY_B8G8R8G8_422,
-            #[cfg(feature = "v4_20")]
-            Self::X6g10X6b10X6r10420 => ffi::GDK_MEMORY_X6G10_X6B10_X6R10_420,
-            #[cfg(feature = "v4_20")]
-            Self::X6g10X6b10X6r10422 => ffi::GDK_MEMORY_X6G10_X6B10_X6R10_422,
-            #[cfg(feature = "v4_20")]
-            Self::X6g10X6b10X6r10444 => ffi::GDK_MEMORY_X6G10_X6B10_X6R10_444,
-            #[cfg(feature = "v4_20")]
-            Self::X4g12X4b12X4r12420 => ffi::GDK_MEMORY_X4G12_X4B12_X4R12_420,
-            #[cfg(feature = "v4_20")]
-            Self::X4g12X4b12X4r12422 => ffi::GDK_MEMORY_X4G12_X4B12_X4R12_422,
-            #[cfg(feature = "v4_20")]
-            Self::X4g12X4b12X4r12444 => ffi::GDK_MEMORY_X4G12_X4B12_X4R12_444,
-            #[cfg(feature = "v4_20")]
-            Self::G16B16R16420 => ffi::GDK_MEMORY_G16_B16_R16_420,
-            #[cfg(feature = "v4_20")]
-            Self::G16B16R16422 => ffi::GDK_MEMORY_G16_B16_R16_422,
-            #[cfg(feature = "v4_20")]
-            Self::G16B16R16444 => ffi::GDK_MEMORY_G16_B16_R16_444,
-            #[cfg(feature = "v4_24")]
-            Self::Argb2101010Premultiplied => ffi::GDK_MEMORY_ARGB2101010_PREMULTIPLIED,
-            #[cfg(feature = "v4_24")]
-            Self::Argb2101010 => ffi::GDK_MEMORY_ARGB2101010,
-            #[cfg(feature = "v4_24")]
-            Self::Xrgb2101010 => ffi::GDK_MEMORY_XRGB2101010,
-            #[cfg(feature = "v4_24")]
-            Self::Abgr2101010Premultiplied => ffi::GDK_MEMORY_ABGR2101010_PREMULTIPLIED,
-            #[cfg(feature = "v4_24")]
-            Self::Abgr2101010 => ffi::GDK_MEMORY_ABGR2101010,
-            #[cfg(feature = "v4_24")]
-            Self::Xbgr2101010 => ffi::GDK_MEMORY_XBGR2101010,
             Self::__Unknown(value) => value,
         }
     }
@@ -2249,82 +1880,6 @@ impl FromGlib<ffi::GdkMemoryFormat> for MemoryFormat {
             ffi::GDK_MEMORY_R8G8B8X8 => Self::R8g8b8x8,
             #[cfg(feature = "v4_14")]
             ffi::GDK_MEMORY_X8B8G8R8 => Self::X8b8g8r8,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_B8R8_420 => Self::G8B8r8420,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_R8B8_420 => Self::G8R8b8420,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_B8R8_422 => Self::G8B8r8422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_R8B8_422 => Self::G8R8b8422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_B8R8_444 => Self::G8B8r8444,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_R8B8_444 => Self::G8R8b8444,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G10X6_B10X6R10X6_420 => Self::G10x6B10x6r10x6420,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G12X4_B12X4R12X4_420 => Self::G12x4B12x4r12x4420,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G16_B16R16_420 => Self::G16B16r16420,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_B8_R8_410 => Self::G8B8R8410,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_R8_B8_410 => Self::G8R8B8410,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_B8_R8_411 => Self::G8B8R8411,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_R8_B8_411 => Self::G8R8B8411,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_B8_R8_420 => Self::G8B8R8420,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_R8_B8_420 => Self::G8R8B8420,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_B8_R8_422 => Self::G8B8R8422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_R8_B8_422 => Self::G8R8B8422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_B8_R8_444 => Self::G8B8R8444,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8_R8_B8_444 => Self::G8R8B8444,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8B8G8R8_422 => Self::G8b8g8r8422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G8R8G8B8_422 => Self::G8r8g8b8422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_R8G8B8G8_422 => Self::R8g8b8g8422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_B8G8R8G8_422 => Self::B8g8r8g8422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_X6G10_X6B10_X6R10_420 => Self::X6g10X6b10X6r10420,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_X6G10_X6B10_X6R10_422 => Self::X6g10X6b10X6r10422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_X6G10_X6B10_X6R10_444 => Self::X6g10X6b10X6r10444,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_X4G12_X4B12_X4R12_420 => Self::X4g12X4b12X4r12420,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_X4G12_X4B12_X4R12_422 => Self::X4g12X4b12X4r12422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_X4G12_X4B12_X4R12_444 => Self::X4g12X4b12X4r12444,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G16_B16_R16_420 => Self::G16B16R16420,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G16_B16_R16_422 => Self::G16B16R16422,
-            #[cfg(feature = "v4_20")]
-            ffi::GDK_MEMORY_G16_B16_R16_444 => Self::G16B16R16444,
-            #[cfg(feature = "v4_24")]
-            ffi::GDK_MEMORY_ARGB2101010_PREMULTIPLIED => Self::Argb2101010Premultiplied,
-            #[cfg(feature = "v4_24")]
-            ffi::GDK_MEMORY_ARGB2101010 => Self::Argb2101010,
-            #[cfg(feature = "v4_24")]
-            ffi::GDK_MEMORY_XRGB2101010 => Self::Xrgb2101010,
-            #[cfg(feature = "v4_24")]
-            ffi::GDK_MEMORY_ABGR2101010_PREMULTIPLIED => Self::Abgr2101010Premultiplied,
-            #[cfg(feature = "v4_24")]
-            ffi::GDK_MEMORY_ABGR2101010 => Self::Abgr2101010,
-            #[cfg(feature = "v4_24")]
-            ffi::GDK_MEMORY_XBGR2101010 => Self::Xbgr2101010,
             value => Self::__Unknown(value),
         }
     }
@@ -2358,7 +1913,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for MemoryFormat {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2470,7 +2025,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for NotifyType {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2578,7 +2133,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for ScrollDirection {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2601,124 +2156,6 @@ impl ToValue for ScrollDirection {
 impl From<ScrollDirection> for glib::Value {
     #[inline]
     fn from(v: ScrollDirection) -> Self {
-        skip_assert_initialized!();
-        ToValue::to_value(&v)
-    }
-}
-
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
-#[non_exhaustive]
-#[doc(alias = "GdkScrollRelativeDirection")]
-pub enum ScrollRelativeDirection {
-    #[doc(alias = "GDK_SCROLL_RELATIVE_DIRECTION_IDENTICAL")]
-    Identical,
-    #[doc(alias = "GDK_SCROLL_RELATIVE_DIRECTION_INVERTED")]
-    Inverted,
-    #[doc(alias = "GDK_SCROLL_RELATIVE_DIRECTION_UNKNOWN")]
-    Unknown,
-    #[doc(hidden)]
-    __Unknown(i32),
-}
-
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-#[doc(hidden)]
-impl IntoGlib for ScrollRelativeDirection {
-    type GlibType = ffi::GdkScrollRelativeDirection;
-
-    #[inline]
-    fn into_glib(self) -> ffi::GdkScrollRelativeDirection {
-        match self {
-            Self::Identical => ffi::GDK_SCROLL_RELATIVE_DIRECTION_IDENTICAL,
-            Self::Inverted => ffi::GDK_SCROLL_RELATIVE_DIRECTION_INVERTED,
-            Self::Unknown => ffi::GDK_SCROLL_RELATIVE_DIRECTION_UNKNOWN,
-            Self::__Unknown(value) => value,
-        }
-    }
-}
-
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-#[doc(hidden)]
-impl FromGlib<ffi::GdkScrollRelativeDirection> for ScrollRelativeDirection {
-    #[inline]
-    unsafe fn from_glib(value: ffi::GdkScrollRelativeDirection) -> Self {
-        skip_assert_initialized!();
-
-        match value {
-            ffi::GDK_SCROLL_RELATIVE_DIRECTION_IDENTICAL => Self::Identical,
-            ffi::GDK_SCROLL_RELATIVE_DIRECTION_INVERTED => Self::Inverted,
-            ffi::GDK_SCROLL_RELATIVE_DIRECTION_UNKNOWN => Self::Unknown,
-            value => Self::__Unknown(value),
-        }
-    }
-}
-
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-impl StaticType for ScrollRelativeDirection {
-    #[inline]
-    #[doc(alias = "gdk_scroll_relative_direction_get_type")]
-    fn static_type() -> glib::Type {
-        unsafe { from_glib(ffi::gdk_scroll_relative_direction_get_type()) }
-    }
-}
-
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-impl glib::HasParamSpec for ScrollRelativeDirection {
-    type ParamSpec = glib::ParamSpecEnum;
-    type SetValue = Self;
-    type BuilderFn = fn(&str, Self) -> glib::ParamSpecEnumBuilder<Self>;
-
-    fn param_spec_builder() -> Self::BuilderFn {
-        Self::ParamSpec::builder_with_default
-    }
-}
-
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-impl glib::value::ValueType for ScrollRelativeDirection {
-    type Type = Self;
-}
-
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-unsafe impl<'a> glib::value::FromValue<'a> for ScrollRelativeDirection {
-    type Checker = glib::value::GenericValueTypeChecker<Self>;
-
-    #[inline]
-    unsafe fn from_value(value: &'a glib::Value) -> Self {
-        skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
-    }
-}
-
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-impl ToValue for ScrollRelativeDirection {
-    #[inline]
-    fn to_value(&self) -> glib::Value {
-        let mut value = glib::Value::for_value_type::<Self>();
-        unsafe {
-            glib::gobject_ffi::g_value_set_enum(value.to_glib_none_mut().0, self.into_glib());
-        }
-        value
-    }
-
-    #[inline]
-    fn value_type(&self) -> glib::Type {
-        Self::static_type()
-    }
-}
-
-#[cfg(feature = "v4_20")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_20")))]
-impl From<ScrollRelativeDirection> for glib::Value {
-    #[inline]
-    fn from(v: ScrollRelativeDirection) -> Self {
         skip_assert_initialized!();
         ToValue::to_value(&v)
     }
@@ -2806,7 +2243,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for ScrollUnit {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -2922,7 +2359,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for SubpixelLayout {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3042,7 +2479,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for SurfaceEdge {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3185,7 +2622,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TextureError {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3303,7 +2740,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TitlebarGesture {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3411,7 +2848,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for TouchpadGesturePhase {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 
@@ -3530,7 +2967,7 @@ unsafe impl<'a> glib::value::FromValue<'a> for VulkanError {
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
         skip_assert_initialized!();
-        unsafe { from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0)) }
+        from_glib(glib::gobject_ffi::g_value_get_enum(value.to_glib_none().0))
     }
 }
 

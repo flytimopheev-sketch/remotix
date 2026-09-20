@@ -6,8 +6,8 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "v2_66")))]
 use crate::FileSetContentsFlags;
 use crate::{
-    Bytes, ChecksumType, Error, FileTest, FormatSizeFlags, Pid, Source, SpawnFlags, UserDirectory,
-    ffi, translate::*,
+    ffi, translate::*, Bytes, ChecksumType, Error, FileTest, FormatSizeFlags, Pid, Source,
+    SpawnFlags, UserDirectory,
 };
 use std::boxed::Box as Box_;
 
@@ -34,7 +34,7 @@ pub fn base64_decode(text: &str) -> Vec<u8> {
 //}
 
 //#[doc(alias = "g_base64_decode_step")]
-//pub fn base64_decode_step(in_: &[&str], out: Vec<u8>, state: &mut i32, save: &mut u32) -> usize {
+//pub fn base64_decode_step(in_: &[u8], out: Vec<u8>, state: &mut i32, save: &mut u32) -> usize {
 //    unsafe { TODO: call ffi:g_base64_decode_step() }
 //}
 
@@ -407,14 +407,6 @@ pub fn monotonic_time() -> i64 {
     unsafe { ffi::g_get_monotonic_time() }
 }
 
-#[cfg(feature = "v2_88")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v2_88")))]
-#[doc(alias = "g_get_monotonic_time_ns")]
-#[doc(alias = "get_monotonic_time_ns")]
-pub fn monotonic_time_ns() -> u64 {
-    unsafe { ffi::g_get_monotonic_time_ns() }
-}
-
 #[doc(alias = "g_get_num_processors")]
 #[doc(alias = "get_num_processors")]
 pub fn num_processors() -> u32 {
@@ -636,7 +628,7 @@ pub fn set_application_name(application_name: &str) {
 }
 
 #[doc(alias = "g_setenv")]
-pub unsafe fn setenv(
+pub fn setenv(
     variable: impl AsRef<std::ffi::OsStr>,
     value: impl AsRef<std::ffi::OsStr>,
     overwrite: bool,
@@ -725,11 +717,9 @@ pub fn spawn_async(
 ) -> Result<Pid, crate::Error> {
     let child_setup_data: Box_<Option<Box_<dyn FnOnce() + 'static>>> = Box_::new(child_setup);
     unsafe extern "C" fn child_setup_func(data: ffi::gpointer) {
-        unsafe {
-            let callback = Box_::from_raw(data as *mut Option<Box_<dyn FnOnce() + 'static>>);
-            let callback = (*callback).expect("cannot get closure...");
-            callback()
-        }
+        let callback = Box_::from_raw(data as *mut Option<Box_<dyn FnOnce() + 'static>>);
+        let callback = (*callback).expect("cannot get closure...");
+        callback()
     }
     let child_setup = if child_setup_data.is_some() {
         Some(child_setup_func as _)
@@ -827,7 +817,7 @@ pub fn spawn_command_line_async(
 //}
 
 //#[doc(alias = "g_spawn_sync")]
-//pub fn spawn_sync(working_directory: Option<impl AsRef<std::path::Path>>, argv: &[&std::path::Path], envp: &[&std::path::Path], flags: SpawnFlags, child_setup: Option<&mut dyn FnMut()>, standard_output: Vec<u8>, standard_error: Vec<u8>) -> Result<i32, crate::Error> {
+//pub fn spawn_sync(working_directory: Option<impl AsRef<std::path::Path>>, argv: &[&std::path::Path], envp: &[&std::path::Path], flags: SpawnFlags, child_setup: Option<&mut dyn (FnMut())>, standard_output: Vec<u8>, standard_error: Vec<u8>) -> Result<i32, crate::Error> {
 //    unsafe { TODO: call ffi:g_spawn_sync() }
 //}
 
@@ -836,13 +826,22 @@ pub fn spawn_command_line_async(
 //    unsafe { TODO: call ffi:g_stat() }
 //}
 
+//#[cfg(unix)]
+//#[cfg_attr(docsrs, doc(cfg(unix)))]
+//#[cfg(feature = "v2_64")]
+//#[cfg_attr(docsrs, doc(cfg(feature = "v2_64")))]
+//#[doc(alias = "g_unix_get_passwd_entry")]
+//pub fn unix_get_passwd_entry(user_name: &str) -> Result</*Unimplemented*/Option<Basic: Pointer>, crate::Error> {
+//    unsafe { TODO: call ffi:g_unix_get_passwd_entry() }
+//}
+
 #[doc(alias = "g_unlink")]
 pub fn unlink(filename: impl AsRef<std::path::Path>) -> i32 {
     unsafe { ffi::g_unlink(filename.as_ref().to_glib_none().0) }
 }
 
 #[doc(alias = "g_unsetenv")]
-pub unsafe fn unsetenv(variable: impl AsRef<std::ffi::OsStr>) {
+pub fn unsetenv(variable: impl AsRef<std::ffi::OsStr>) {
     unsafe {
         ffi::g_unsetenv(variable.as_ref().to_glib_none().0);
     }

@@ -23,7 +23,7 @@ See also:
 
 ## Minimum supported Rust version
 
-Currently, the minimum supported Rust version is `1.83`.
+Currently, the minimum supported Rust version is `1.70`.
 
 ## "Hello, World!" example program
 
@@ -182,8 +182,6 @@ gtk = { git = "https://github.com/gtk-rs/gtk4-rs.git", package = "gtk4" }
 
 | Feature | Description |
 | ---     | ----------- |
-| `v4_22` | Enable the new APIs part of GTK 4.22 |
-| `v4_20` | Enable the new APIs part of GTK 4.20 |
 | `v4_18` | Enable the new APIs part of GTK 4.18 |
 | `v4_16` | Enable the new APIs part of GTK 4.16 |
 | `v4_14` | Enable the new APIs part of GTK 4.14 |
@@ -193,9 +191,6 @@ gtk = { git = "https://github.com/gtk-rs/gtk4-rs.git", package = "gtk4" }
 | `v4_6` | Enable the new APIs part of GTK 4.6 |
 | `v4_4` | Enable the new APIs part of GTK 4.4 |
 | `v4_2` | Enable the new APIs part of GTK 4.2 |
-| `gnome_50` | Enable all version feature flags of this crate and its dependencies to match the GNOME 50 SDK |
-| `gnome_49` | Enable all version feature flags of this crate and its dependencies to match the GNOME 49 SDK |
-| `gnome_48` | Enable all version feature flags of this crate and its dependencies to match the GNOME 48 SDK |
 | `gnome_47` | Enable all version feature flags of this crate and its dependencies to match the GNOME 47 SDK |
 | `gnome_46` | Enable all version feature flags of this crate and its dependencies to match the GNOME 46 SDK |
 | `gnome_45` | Enable all version feature flags of this crate and its dependencies to match the GNOME 45 SDK |

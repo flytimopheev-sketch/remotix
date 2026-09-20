@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Filter, ffi};
+use crate::{ffi, Filter};
 
 glib::wrapper! {
     #[doc(alias = "GtkCustomFilter")]

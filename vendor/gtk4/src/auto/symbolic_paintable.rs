@@ -18,7 +18,12 @@ impl SymbolicPaintable {
     pub const NONE: Option<&'static SymbolicPaintable> = None;
 }
 
-pub trait SymbolicPaintableExt: IsA<SymbolicPaintable> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::SymbolicPaintable>> Sealed for T {}
+}
+
+pub trait SymbolicPaintableExt: IsA<SymbolicPaintable> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_symbolic_paintable_snapshot_symbolic")]
     fn snapshot_symbolic(
         &self,
@@ -36,31 +41,6 @@ pub trait SymbolicPaintableExt: IsA<SymbolicPaintable> + 'static {
                 height,
                 colors.to_glib_none().0,
                 n_colors,
-            );
-        }
-    }
-
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    #[doc(alias = "gtk_symbolic_paintable_snapshot_with_weight")]
-    fn snapshot_with_weight(
-        &self,
-        snapshot: &impl IsA<gdk::Snapshot>,
-        width: f64,
-        height: f64,
-        colors: &[gdk::RGBA],
-        weight: f64,
-    ) {
-        let n_colors = colors.len() as _;
-        unsafe {
-            ffi::gtk_symbolic_paintable_snapshot_with_weight(
-                self.as_ref().to_glib_none().0,
-                snapshot.as_ref().to_glib_none().0,
-                width,
-                height,
-                colors.to_glib_none().0,
-                n_colors,
-                weight,
             );
         }
     }

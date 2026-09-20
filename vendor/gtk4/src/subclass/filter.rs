@@ -1,13 +1,13 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`Filter`].
+//! Traits intended for subclassing [`Filter`](crate::Filter).
 
-use glib::{Object, translate::*};
+use glib::{translate::*, Object};
 
-use crate::{Filter, FilterMatch, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, Filter, FilterMatch};
 
-pub trait FilterImpl: ObjectImpl + ObjectSubclass<Type: IsA<Filter>> {
+pub trait FilterImpl: FilterImplExt + ObjectImpl {
     #[doc(alias = "get_strictness")]
     fn strictness(&self) -> FilterMatch {
         self.parent_strictness()
@@ -17,7 +17,12 @@ pub trait FilterImpl: ObjectImpl + ObjectSubclass<Type: IsA<Filter>> {
     }
 }
 
-pub trait FilterImplExt: FilterImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::FilterImplExt> Sealed for T {}
+}
+
+pub trait FilterImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_strictness(&self) -> FilterMatch {
         unsafe {
             let data = Self::type_data();
@@ -61,22 +66,18 @@ unsafe impl<T: FilterImpl> IsSubclassable<T> for Filter {
 unsafe extern "C" fn filter_get_strictness<T: FilterImpl>(
     ptr: *mut ffi::GtkFilter,
 ) -> ffi::GtkFilterMatch {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.strictness().into_glib()
-    }
+    imp.strictness().into_glib()
 }
 
 unsafe extern "C" fn filter_match<T: FilterImpl>(
     ptr: *mut ffi::GtkFilter,
     itemptr: *mut glib::gobject_ffi::GObject,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.match_(&from_glib_borrow(itemptr)).into_glib()
-    }
+    imp.match_(&from_glib_borrow(itemptr)).into_glib()
 }

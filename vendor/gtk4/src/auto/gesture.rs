@@ -3,11 +3,11 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-use crate::{EventController, EventSequenceState, ffi};
+use crate::{ffi, EventController, EventSequenceState};
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
@@ -25,7 +25,12 @@ impl Gesture {
     pub const NONE: Option<&'static Gesture> = None;
 }
 
-pub trait GestureExt: IsA<Gesture> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Gesture>> Sealed for T {}
+}
+
+pub trait GestureExt: IsA<Gesture> + sealed::Sealed + 'static {
     #[doc(alias = "gtk_gesture_get_bounding_box")]
     #[doc(alias = "get_bounding_box")]
     fn bounding_box(&self) -> Option<gdk::Rectangle> {
@@ -35,7 +40,11 @@ pub trait GestureExt: IsA<Gesture> + 'static {
                 self.as_ref().to_glib_none().0,
                 rect.to_glib_none_mut().0,
             ));
-            if ret { Some(rect) } else { None }
+            if ret {
+                Some(rect)
+            } else {
+                None
+            }
         }
     }
 
@@ -229,21 +238,19 @@ pub trait GestureExt: IsA<Gesture> + 'static {
             sequence: *mut gdk::ffi::GdkEventSequence,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Gesture::from_glib_borrow(this).unsafe_cast_ref(),
-                    Option::<gdk::EventSequence>::from_glib_borrow(sequence)
-                        .as_ref()
-                        .as_ref(),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Gesture::from_glib_borrow(this).unsafe_cast_ref(),
+                Option::<gdk::EventSequence>::from_glib_borrow(sequence)
+                    .as_ref()
+                    .as_ref(),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"begin".as_ptr(),
+                b"begin\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     begin_trampoline::<Self, F> as *const (),
                 )),
@@ -265,21 +272,19 @@ pub trait GestureExt: IsA<Gesture> + 'static {
             sequence: *mut gdk::ffi::GdkEventSequence,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Gesture::from_glib_borrow(this).unsafe_cast_ref(),
-                    Option::<gdk::EventSequence>::from_glib_borrow(sequence)
-                        .as_ref()
-                        .as_ref(),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Gesture::from_glib_borrow(this).unsafe_cast_ref(),
+                Option::<gdk::EventSequence>::from_glib_borrow(sequence)
+                    .as_ref()
+                    .as_ref(),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"cancel".as_ptr(),
+                b"cancel\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     cancel_trampoline::<Self, F> as *const (),
                 )),
@@ -301,21 +306,19 @@ pub trait GestureExt: IsA<Gesture> + 'static {
             sequence: *mut gdk::ffi::GdkEventSequence,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Gesture::from_glib_borrow(this).unsafe_cast_ref(),
-                    Option::<gdk::EventSequence>::from_glib_borrow(sequence)
-                        .as_ref()
-                        .as_ref(),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Gesture::from_glib_borrow(this).unsafe_cast_ref(),
+                Option::<gdk::EventSequence>::from_glib_borrow(sequence)
+                    .as_ref()
+                    .as_ref(),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"end".as_ptr(),
+                b"end\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     end_trampoline::<Self, F> as *const (),
                 )),
@@ -340,22 +343,20 @@ pub trait GestureExt: IsA<Gesture> + 'static {
             state: ffi::GtkEventSequenceState,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Gesture::from_glib_borrow(this).unsafe_cast_ref(),
-                    Option::<gdk::EventSequence>::from_glib_borrow(sequence)
-                        .as_ref()
-                        .as_ref(),
-                    from_glib(state),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Gesture::from_glib_borrow(this).unsafe_cast_ref(),
+                Option::<gdk::EventSequence>::from_glib_borrow(sequence)
+                    .as_ref()
+                    .as_ref(),
+                from_glib(state),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"sequence-state-changed".as_ptr(),
+                b"sequence-state-changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     sequence_state_changed_trampoline::<Self, F> as *const (),
                 )),
@@ -377,21 +378,19 @@ pub trait GestureExt: IsA<Gesture> + 'static {
             sequence: *mut gdk::ffi::GdkEventSequence,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    Gesture::from_glib_borrow(this).unsafe_cast_ref(),
-                    Option::<gdk::EventSequence>::from_glib_borrow(sequence)
-                        .as_ref()
-                        .as_ref(),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                Gesture::from_glib_borrow(this).unsafe_cast_ref(),
+                Option::<gdk::EventSequence>::from_glib_borrow(sequence)
+                    .as_ref()
+                    .as_ref(),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"update".as_ptr(),
+                b"update\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     update_trampoline::<Self, F> as *const (),
                 )),

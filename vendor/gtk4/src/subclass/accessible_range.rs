@@ -1,19 +1,25 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for implementing the [`AccessibleRange`] interface.
+//! Traits intended for implementing the
+//! [`AccessibleRange`](crate::AccessibleRange) interface.
 
 use glib::translate::*;
 
-use crate::{AccessibleRange, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, AccessibleRange};
 
-pub trait AccessibleRangeImpl: AccessibleImpl + ObjectSubclass<Type: IsA<AccessibleRange>> {
+pub trait AccessibleRangeImpl: WidgetImpl {
     fn set_current_value(&self, value: f64) -> bool {
         self.parent_set_current_value(value)
     }
 }
 
-pub trait AccessibleRangeImplExt: AccessibleRangeImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::AccessibleRangeImplExt> Sealed for T {}
+}
+
+pub trait AccessibleRangeImplExt: sealed::Sealed + ObjectSubclass {
     // Returns true if the operation was performed, false otherwise
     fn parent_set_current_value(&self, value: f64) -> bool {
         unsafe {
@@ -50,10 +56,8 @@ unsafe extern "C" fn accessible_range_set_current_value<T: AccessibleRangeImpl>(
     accessible_range: *mut ffi::GtkAccessibleRange,
     value: f64,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(accessible_range as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(accessible_range as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.set_current_value(value).into_glib()
-    }
+    imp.set_current_value(value).into_glib()
 }

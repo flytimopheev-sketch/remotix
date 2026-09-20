@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Gravity, PopupLayout, Surface, ffi};
+use crate::{ffi, Gravity, PopupLayout, Surface};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -18,7 +18,12 @@ impl Popup {
     pub const NONE: Option<&'static Popup> = None;
 }
 
-pub trait PopupExt: IsA<Popup> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::Popup>> Sealed for T {}
+}
+
+pub trait PopupExt: IsA<Popup> + sealed::Sealed + 'static {
     #[doc(alias = "gdk_popup_get_autohide")]
     #[doc(alias = "get_autohide")]
     #[doc(alias = "autohide")]

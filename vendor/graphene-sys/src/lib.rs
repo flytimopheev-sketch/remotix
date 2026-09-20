@@ -13,18 +13,18 @@
 
 use glib_sys as glib;
 
-#[allow(unused_imports)]
-use libc::{FILE, intptr_t, off_t, size_t, ssize_t, time_t, uintptr_t};
 #[cfg(unix)]
 #[allow(unused_imports)]
 use libc::{dev_t, gid_t, pid_t, socklen_t, uid_t};
+#[allow(unused_imports)]
+use libc::{intptr_t, off_t, size_t, ssize_t, time_t, uintptr_t, FILE};
 #[allow(unused_imports)]
 use std::ffi::{
     c_char, c_double, c_float, c_int, c_long, c_short, c_uchar, c_uint, c_ulong, c_ushort, c_void,
 };
 
 #[allow(unused_imports)]
-use glib::{GType, gboolean, gconstpointer, gpointer};
+use glib::{gboolean, gconstpointer, gpointer, GType};
 
 // Enums
 pub type graphene_euler_order_t = c_int;
@@ -71,19 +71,6 @@ pub const GRAPHENE_VEC3_LEN: c_int = 3;
 pub const GRAPHENE_VEC4_LEN: c_int = 4;
 
 // Records
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct graphene_box2d_t {
-    pub minmax: graphene_vec4_t,
-}
-
-impl ::std::fmt::Debug for graphene_box2d_t {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        f.debug_struct(&format!("graphene_box2d_t @ {self:p}"))
-            .finish()
-    }
-}
-
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct graphene_box_t {
@@ -367,185 +354,7 @@ impl ::std::fmt::Debug for graphene_vec4_t {
     }
 }
 
-unsafe extern "C" {
-
-    //=========================================================================
-    // graphene_box2d_t
-    //=========================================================================
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_get_type() -> GType;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_alloc() -> *mut graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_contains_box(
-        a: *const graphene_box2d_t,
-        b: *const graphene_box2d_t,
-    ) -> bool;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_contains_point(
-        box_: *const graphene_box2d_t,
-        point: *const graphene_point_t,
-    ) -> bool;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_contains_rect(
-        box_: *const graphene_box2d_t,
-        rect: *const graphene_rect_t,
-    ) -> bool;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_equal(a: *const graphene_box2d_t, b: *const graphene_box2d_t) -> bool;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_expand(
-        box_: *const graphene_box2d_t,
-        point: *const graphene_point_t,
-        res: *mut graphene_box2d_t,
-    );
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_expand_scalar(
-        box_: *const graphene_box2d_t,
-        scalar: c_float,
-        res: *mut graphene_box2d_t,
-    );
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_expand_vec2(
-        box_: *const graphene_box2d_t,
-        vec: *const graphene_vec2_t,
-        res: *mut graphene_box2d_t,
-    );
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_free(box_: *mut graphene_box2d_t);
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_get_center(box_: *const graphene_box2d_t, center: *mut graphene_point_t);
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_get_height(box_: *const graphene_box2d_t) -> c_float;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_get_max(box_: *const graphene_box2d_t, max: *mut graphene_point_t);
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_get_min(box_: *const graphene_box2d_t, min: *mut graphene_point_t);
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_get_minmax(
-        box_: *const graphene_box2d_t,
-        min: *mut graphene_point_t,
-        max: *mut graphene_point_t,
-    );
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_get_size(box_: *const graphene_box2d_t, size: *mut graphene_vec2_t);
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_get_vertices(
-        box_: *const graphene_box2d_t,
-        vertices: *mut [graphene_vec2_t; 4],
-    );
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_get_width(box_: *const graphene_box2d_t) -> c_float;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_init(
-        box_: *mut graphene_box2d_t,
-        min: *const graphene_point_t,
-        max: *const graphene_point_t,
-    ) -> *mut graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_init_from_box(
-        box_: *mut graphene_box2d_t,
-        src: *const graphene_box2d_t,
-    ) -> *mut graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_init_from_points(
-        box_: *mut graphene_box2d_t,
-        n_points: c_uint,
-        points: *const graphene_point_t,
-    ) -> *mut graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_init_from_rect(
-        box_: *mut graphene_box2d_t,
-        src: *const graphene_rect_t,
-    ) -> *mut graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_init_from_vec2(
-        box_: *mut graphene_box2d_t,
-        min: *const graphene_vec2_t,
-        max: *const graphene_vec2_t,
-    ) -> *mut graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_init_from_vectors(
-        box_: *mut graphene_box2d_t,
-        n_vectors: c_uint,
-        vectors: *const graphene_vec2_t,
-    ) -> *mut graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_intersection(
-        a: *const graphene_box2d_t,
-        b: *const graphene_box2d_t,
-        res: *mut graphene_box2d_t,
-    ) -> bool;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_intersects(
-        a: *const graphene_box2d_t,
-        b: *const graphene_box2d_t,
-    ) -> bool;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_scale_offset(
-        box_: *const graphene_box2d_t,
-        scale: *const graphene_vec2_t,
-        offset: *const graphene_point_t,
-        res: *mut graphene_box2d_t,
-    );
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_to_float(box_: *const graphene_box2d_t, v: *mut [c_float; 4]);
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_to_rect(box_: *const graphene_box2d_t, rect: *mut graphene_rect_t);
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_union(
-        a: *const graphene_box2d_t,
-        b: *const graphene_box2d_t,
-        res: *mut graphene_box2d_t,
-    );
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_empty() -> *const graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_infinite() -> *const graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_minus_one() -> *const graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_one() -> *const graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_one_minus_one() -> *const graphene_box2d_t;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box2d_zero() -> *const graphene_box2d_t;
+extern "C" {
 
     //=========================================================================
     // graphene_box_t
@@ -583,13 +392,6 @@ unsafe extern "C" {
     pub fn graphene_box_get_height(box_: *const graphene_box_t) -> c_float;
     pub fn graphene_box_get_max(box_: *const graphene_box_t, max: *mut graphene_point3d_t);
     pub fn graphene_box_get_min(box_: *const graphene_box_t, min: *mut graphene_point3d_t);
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_box_get_minmax(
-        box_: *const graphene_box_t,
-        min: *mut graphene_point3d_t,
-        max: *mut graphene_point3d_t,
-    );
     pub fn graphene_box_get_size(box_: *const graphene_box_t, size: *mut graphene_vec3_t);
     pub fn graphene_box_get_vertices(
         box_: *const graphene_box_t,
@@ -1124,12 +926,6 @@ unsafe extern "C" {
         b: *const graphene_point_t,
         d_x: *mut c_float,
         d_y: *mut c_float,
-    ) -> c_float;
-    #[cfg(feature = "v1_12")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
-    pub fn graphene_point_distance_squared(
-        a: *const graphene_point_t,
-        b: *const graphene_point_t,
     ) -> c_float;
     pub fn graphene_point_equal(a: *const graphene_point_t, b: *const graphene_point_t) -> bool;
     pub fn graphene_point_free(p: *mut graphene_point_t);

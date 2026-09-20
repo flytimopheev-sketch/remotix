@@ -1,15 +1,15 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`IMContext`].
+//! Traits intended for subclassing [`IMContext`](crate::IMContext).
 
-use glib::{GString, translate::*};
+use glib::{translate::*, GString};
 use pango::AttrList;
 
-use crate::{IMContext, Widget, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, IMContext, Widget};
 
 #[allow(clippy::upper_case_acronyms)]
-pub trait IMContextImpl: ObjectImpl + ObjectSubclass<Type: IsA<IMContext>> {
+pub trait IMContextImpl: IMContextImplExt + ObjectImpl {
     fn commit(&self, string: &str) {
         self.parent_commit(string)
     }
@@ -59,16 +59,6 @@ pub trait IMContextImpl: ObjectImpl + ObjectSubclass<Type: IsA<IMContext>> {
     fn set_surrounding(&self, text: &str, cursor_index: i32) {
         self.parent_set_surrounding(text, cursor_index)
     }
-    #[cfg(feature = "v4_2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_2")))]
-    fn set_surrounding_with_selection(&self, text: &str, cursor_index: i32, anchor_index: i32) {
-        self.parent_set_surrounding_with_selection(text, cursor_index, anchor_index)
-    }
-    #[cfg(feature = "v4_2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_2")))]
-    fn surrounding_with_selection(&self) -> Option<(glib::GString, i32, i32)> {
-        self.parent_surrounding_with_selection()
-    }
     fn set_use_preedit(&self, use_preedit: bool) {
         self.parent_set_use_preedit(use_preedit)
     }
@@ -82,15 +72,15 @@ pub trait IMContextImpl: ObjectImpl + ObjectSubclass<Type: IsA<IMContext>> {
     fn activate_osk_with_event(&self, event: Option<&gdk::Event>) -> bool {
         self.parent_activate_osk_with_event(event)
     }
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    fn invalid_composition(&self, string: &str) -> bool {
-        self.parent_invalid_composition(string)
-    }
+}
+
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IMContextImplExt> Sealed for T {}
 }
 
 #[allow(clippy::upper_case_acronyms)]
-pub trait IMContextImplExt: IMContextImpl {
+pub trait IMContextImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_commit(&self, string: &str) {
         unsafe {
             let data = Self::type_data();
@@ -301,59 +291,6 @@ pub trait IMContextImplExt: IMContextImpl {
         }
     }
 
-    #[cfg(feature = "v4_2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_2")))]
-    fn parent_set_surrounding_with_selection(
-        &self,
-        text: &str,
-        cursor_index: i32,
-        anchor_index: i32,
-    ) {
-        unsafe {
-            let data = Self::type_data();
-            let parent_class = data.as_ref().parent_class() as *mut ffi::GtkIMContextClass;
-            if let Some(f) = (*parent_class).set_surrounding_with_selection {
-                f(
-                    self.obj().unsafe_cast_ref::<IMContext>().to_glib_none().0,
-                    text.to_glib_none().0,
-                    text.len() as i32,
-                    cursor_index,
-                    anchor_index,
-                )
-            }
-        }
-    }
-    #[cfg(feature = "v4_2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_2")))]
-    fn parent_surrounding_with_selection(&self) -> Option<(glib::GString, i32, i32)> {
-        unsafe {
-            let data = Self::type_data();
-            let parent_class = data.as_ref().parent_class() as *mut ffi::GtkIMContextClass;
-            if let Some(f) = (*parent_class).get_surrounding_with_selection {
-                let mut cursor_index = std::mem::MaybeUninit::uninit();
-                let mut anchor_index = std::mem::MaybeUninit::uninit();
-                let mut text = std::ptr::null_mut();
-                let res = f(
-                    self.obj().unsafe_cast_ref::<IMContext>().to_glib_none().0,
-                    &mut text,
-                    cursor_index.as_mut_ptr(),
-                    anchor_index.as_mut_ptr(),
-                );
-                if from_glib(res) {
-                    Some((
-                        glib::GString::from_glib_none(text),
-                        cursor_index.assume_init(),
-                        anchor_index.assume_init(),
-                    ))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }
-    }
-
     fn parent_set_use_preedit(&self, use_preedit: bool) {
         unsafe {
             let data = Self::type_data();
@@ -395,23 +332,6 @@ pub trait IMContextImplExt: IMContextImpl {
             }
         }
     }
-
-    #[cfg(feature = "v4_22")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-    fn parent_invalid_composition(&self, string: &str) -> bool {
-        unsafe {
-            let data = Self::type_data();
-            let parent_class = data.as_ref().parent_class() as *mut ffi::GtkIMContextClass;
-            if let Some(f) = (*parent_class).invalid_composition {
-                from_glib(f(
-                    self.obj().unsafe_cast_ref::<IMContext>().to_glib_none().0,
-                    string.to_glib_none().0,
-                ))
-            } else {
-                false
-            }
-        }
-    }
 }
 
 impl<T: IMContextImpl> IMContextImplExt for T {}
@@ -439,14 +359,6 @@ unsafe impl<T: IMContextImpl> IsSubclassable<T> for IMContext {
         klass.set_cursor_location = Some(im_context_set_cursor_location::<T>);
         klass.set_surrounding = Some(im_context_set_surrounding::<T>);
         klass.set_use_preedit = Some(im_context_set_use_preedit::<T>);
-        #[cfg(feature = "v4_2")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "v4_2")))]
-        {
-            klass.set_surrounding_with_selection =
-                Some(im_context_set_surrounding_with_selection::<T>);
-            klass.get_surrounding_with_selection =
-                Some(im_context_get_surrounding_with_selection::<T>);
-        };
         #[cfg(feature = "v4_10")]
         #[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
         {
@@ -457,11 +369,6 @@ unsafe impl<T: IMContextImpl> IsSubclassable<T> for IMContext {
         {
             klass.activate_osk_with_event = Some(im_context_activate_osk_with_event::<T>);
         };
-        #[cfg(feature = "v4_22")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "v4_22")))]
-        {
-            klass.invalid_composition = Some(im_context_invalid_composition::<T>);
-        };
     }
 }
 
@@ -469,13 +376,11 @@ unsafe extern "C" fn im_context_commit<T: IMContextImpl>(
     ptr: *mut ffi::GtkIMContext,
     stringptr: *const libc::c_char,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let string: Borrowed<GString> = from_glib_borrow(stringptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let string: Borrowed<GString> = from_glib_borrow(stringptr);
 
-        imp.commit(string.as_str())
-    }
+    imp.commit(string.as_str())
 }
 
 unsafe extern "C" fn im_context_delete_surrounding<T: IMContextImpl>(
@@ -483,42 +388,34 @@ unsafe extern "C" fn im_context_delete_surrounding<T: IMContextImpl>(
     offset: i32,
     n_chars: i32,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.delete_surrounding(offset, n_chars).into_glib()
-    }
+    imp.delete_surrounding(offset, n_chars).into_glib()
 }
 
 unsafe extern "C" fn im_context_filter_keypress<T: IMContextImpl>(
     ptr: *mut ffi::GtkIMContext,
     eventptr: *mut gdk::ffi::GdkEvent,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let event: Borrowed<gdk::Event> = from_glib_borrow(eventptr);
-        imp.filter_keypress(&event).into_glib()
-    }
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let event: Borrowed<gdk::Event> = from_glib_borrow(eventptr);
+    imp.filter_keypress(&event).into_glib()
 }
 
 unsafe extern "C" fn im_context_focus_in<T: IMContextImpl>(ptr: *mut ffi::GtkIMContext) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.focus_in()
-    }
+    imp.focus_in()
 }
 
 unsafe extern "C" fn im_context_focus_out<T: IMContextImpl>(ptr: *mut ffi::GtkIMContext) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.focus_out()
-    }
+    imp.focus_out()
 }
 
 unsafe extern "C" fn im_context_get_preedit_string<T: IMContextImpl>(
@@ -527,16 +424,14 @@ unsafe extern "C" fn im_context_get_preedit_string<T: IMContextImpl>(
     attrs_ptr: *mut *mut pango::ffi::PangoAttrList,
     cursor_index_ptr: *mut libc::c_int,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        let (text, attrs, cursor_idx) = imp.preedit_string();
+    let (text, attrs, cursor_idx) = imp.preedit_string();
 
-        *text_ptr = text.into_glib_ptr();
-        *cursor_index_ptr = cursor_idx;
-        *attrs_ptr = attrs.into_glib_ptr();
-    }
+    *text_ptr = text.into_glib_ptr();
+    *cursor_index_ptr = cursor_idx;
+    *attrs_ptr = attrs.into_glib_ptr();
 }
 
 unsafe extern "C" fn im_context_get_surrounding<T: IMContextImpl>(
@@ -544,96 +439,77 @@ unsafe extern "C" fn im_context_get_surrounding<T: IMContextImpl>(
     text_ptr: *mut *mut libc::c_char,
     cursor_index_ptr: *mut libc::c_int,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        match imp.surrounding() {
-            Some((text, cursor_idx)) => {
-                *text_ptr = text.into_glib_ptr();
-                *cursor_index_ptr = cursor_idx;
-                true.into_glib()
-            }
-            _ => {
-                *text_ptr = std::ptr::null_mut();
-                *cursor_index_ptr = 0;
-                false.into_glib()
-            }
-        }
+    if let Some((text, cursor_idx)) = imp.surrounding() {
+        *text_ptr = text.into_glib_ptr();
+        *cursor_index_ptr = cursor_idx;
+        true.into_glib()
+    } else {
+        *text_ptr = std::ptr::null_mut();
+        *cursor_index_ptr = 0;
+        false.into_glib()
     }
 }
 
 unsafe extern "C" fn im_context_preedit_changed<T: IMContextImpl>(ptr: *mut ffi::GtkIMContext) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.preedit_changed()
-    }
+    imp.preedit_changed()
 }
 
 unsafe extern "C" fn im_context_preedit_end<T: IMContextImpl>(ptr: *mut ffi::GtkIMContext) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.preedit_end()
-    }
+    imp.preedit_end()
 }
 
 unsafe extern "C" fn im_context_preedit_start<T: IMContextImpl>(ptr: *mut ffi::GtkIMContext) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.preedit_start()
-    }
+    imp.preedit_start()
 }
 
 unsafe extern "C" fn im_context_reset<T: IMContextImpl>(ptr: *mut ffi::GtkIMContext) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.reset()
-    }
+    imp.reset()
 }
 
 unsafe extern "C" fn im_context_retrieve_surrounding<T: IMContextImpl>(
     ptr: *mut ffi::GtkIMContext,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.retrieve_surrounding().into_glib()
-    }
+    imp.retrieve_surrounding().into_glib()
 }
 
 unsafe extern "C" fn im_context_set_client_widget<T: IMContextImpl>(
     ptr: *mut ffi::GtkIMContext,
     widgetptr: *mut ffi::GtkWidget,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let widget: Borrowed<Option<Widget>> = from_glib_borrow(widgetptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let widget: Borrowed<Option<Widget>> = from_glib_borrow(widgetptr);
 
-        imp.set_client_widget(widget.as_ref().as_ref());
-    }
+    imp.set_client_widget(widget.as_ref().as_ref());
 }
 
 unsafe extern "C" fn im_context_set_cursor_location<T: IMContextImpl>(
     ptr: *mut ffi::GtkIMContext,
     areaptr: *mut gdk::ffi::GdkRectangle,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let area = from_glib_borrow(areaptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let area = from_glib_borrow(areaptr);
 
-        imp.set_cursor_location(&area);
-    }
+    imp.set_cursor_location(&area);
 }
 
 unsafe extern "C" fn im_context_set_surrounding<T: IMContextImpl>(
@@ -642,112 +518,50 @@ unsafe extern "C" fn im_context_set_surrounding<T: IMContextImpl>(
     length: i32,
     cursor_index: i32,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let text: Borrowed<GString> = from_glib_borrow(textptr);
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
+    let text: Borrowed<GString> = from_glib_borrow(textptr);
 
-        // length == -1 if text is null-terminated
-        let text = if length == -1 {
-            &text[..]
-        } else {
-            &text[0..(length as usize)]
-        };
+    // length == -1 if text is null-terminated
+    let text = if length == -1 {
+        &text[..]
+    } else {
+        &text[0..(length as usize)]
+    };
 
-        imp.set_surrounding(text, cursor_index)
-    }
+    imp.set_surrounding(text, cursor_index)
 }
 
 unsafe extern "C" fn im_context_set_use_preedit<T: IMContextImpl>(
     ptr: *mut ffi::GtkIMContext,
     use_preedit: glib::ffi::gboolean,
 ) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-
-        imp.set_use_preedit(from_glib(use_preedit))
-    }
-}
-
-#[cfg(feature = "v4_2")]
-unsafe extern "C" fn im_context_set_surrounding_with_selection<T: IMContextImpl>(
-    ptr: *mut ffi::GtkIMContext,
-    text: *const libc::c_char,
-    len: i32,
-    cursor_index: i32,
-    anchor_index: i32,
-) {
-    let instance = unsafe { &*(ptr as *mut T::Instance) };
+    let instance = &*(ptr as *mut T::Instance);
     let imp = instance.imp();
-    let text = unsafe { glib::GStr::from_ptr(text) };
-    let text = if len == -1 {
-        text.as_str()
-    } else {
-        &text[..len as usize]
-    };
 
-    imp.set_surrounding_with_selection(text, cursor_index, anchor_index)
-}
-
-#[cfg(feature = "v4_2")]
-unsafe extern "C" fn im_context_get_surrounding_with_selection<T: IMContextImpl>(
-    ptr: *mut ffi::GtkIMContext,
-    textptr: *mut *mut libc::c_char,
-    cursor_indexptr: *mut libc::c_int,
-    anchor_indexptr: *mut libc::c_int,
-) -> glib::ffi::gboolean {
-    let instance = unsafe { &*(ptr as *mut T::Instance) };
-    let imp = instance.imp();
-    match imp.surrounding_with_selection() {
-        Some((text, cursor_index, anchor_index)) => {
-            unsafe {
-                *cursor_indexptr = cursor_index;
-                *anchor_indexptr = anchor_index;
-                *textptr = text.into_glib_ptr();
-            }
-            true.into_glib()
-        }
-        None => false.into_glib(),
-    }
+    imp.set_use_preedit(from_glib(use_preedit))
 }
 
 #[cfg(feature = "v4_10")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 unsafe extern "C" fn im_context_activate_osk<T: IMContextImpl>(ptr: *mut ffi::GtkIMContext) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.activate_osk()
-    }
+    imp.activate_osk()
 }
 
 #[cfg(feature = "v4_14")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v4_14")))]
 unsafe extern "C" fn im_context_activate_osk_with_event<T: IMContextImpl>(
     ptr: *mut ffi::GtkIMContext,
     eventptr: *mut gdk::ffi::GdkEvent,
 ) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        let event: Borrowed<Option<gdk::Event>> = from_glib_borrow(eventptr);
+    let event: Borrowed<Option<gdk::Event>> = from_glib_borrow(eventptr);
 
-        imp.activate_osk_with_event(event.as_ref().as_ref())
-            .into_glib()
-    }
-}
-
-#[cfg(feature = "v4_22")]
-unsafe extern "C" fn im_context_invalid_composition<T: IMContextImpl>(
-    ptr: *mut ffi::GtkIMContext,
-    stringptr: *const libc::c_char,
-) -> glib::ffi::gboolean {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
-        let text: Borrowed<GString> = from_glib_borrow(stringptr);
-
-        imp.invalid_composition(&text).into_glib()
-    }
+    imp.activate_osk_with_event(event.as_ref().as_ref())
+        .into_glib()
 }

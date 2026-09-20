@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{ffi, translate::*};
+use crate::{ffi, translate::*, MainContext};
 
 crate::wrapper! {
     #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -38,15 +38,6 @@ impl Source {
     //    unsafe { TODO: call ffi:g_source_add_unix_fd() }
     //}
 
-    #[cfg(feature = "v2_90")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_90")))]
-    #[doc(alias = "g_source_clear_ready_time")]
-    pub fn clear_ready_time(&self) {
-        unsafe {
-            ffi::g_source_clear_ready_time(self.to_glib_none().0);
-        }
-    }
-
     #[doc(alias = "g_source_destroy")]
     pub fn destroy(&self) {
         unsafe {
@@ -58,6 +49,12 @@ impl Source {
     #[doc(alias = "get_can_recurse")]
     pub fn can_recurse(&self) -> bool {
         unsafe { from_glib(ffi::g_source_get_can_recurse(self.to_glib_none().0)) }
+    }
+
+    #[doc(alias = "g_source_get_context")]
+    #[doc(alias = "get_context")]
+    pub fn context(&self) -> Option<MainContext> {
+        unsafe { from_glib_none(ffi::g_source_get_context(self.to_glib_none().0)) }
     }
 
     #[doc(alias = "g_source_get_name")]
@@ -78,37 +75,10 @@ impl Source {
         unsafe { ffi::g_source_get_ready_time(self.to_glib_none().0) }
     }
 
-    #[cfg(feature = "v2_90")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_90")))]
-    #[doc(alias = "g_source_get_ready_time_ns")]
-    #[doc(alias = "get_ready_time_ns")]
-    pub fn ready_time_ns(&self) -> Option<u64> {
-        unsafe {
-            let mut ready_time = std::mem::MaybeUninit::uninit();
-            let ret = from_glib(ffi::g_source_get_ready_time_ns(
-                self.to_glib_none().0,
-                ready_time.as_mut_ptr(),
-            ));
-            if ret {
-                Some(ready_time.assume_init())
-            } else {
-                None
-            }
-        }
-    }
-
     #[doc(alias = "g_source_get_time")]
     #[doc(alias = "get_time")]
     pub fn time(&self) -> i64 {
         unsafe { ffi::g_source_get_time(self.to_glib_none().0) }
-    }
-
-    #[cfg(feature = "v2_90")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v2_90")))]
-    #[doc(alias = "g_source_get_time_ns")]
-    #[doc(alias = "get_time_ns")]
-    pub fn time_ns(&self) -> u64 {
-        unsafe { ffi::g_source_get_time_ns(self.to_glib_none().0) }
     }
 
     #[doc(alias = "g_source_is_destroyed")]

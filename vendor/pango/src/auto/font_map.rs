@@ -2,7 +2,7 @@
 // from gir-files (https://github.com/gtk-rs/gir-files)
 // DO NOT EDIT
 
-use crate::{Context, Font, FontDescription, FontFamily, Fontset, Language, ffi};
+use crate::{ffi, Context, Font, FontDescription, FontFamily, Fontset, Language};
 use glib::{prelude::*, translate::*};
 
 glib::wrapper! {
@@ -18,7 +18,12 @@ impl FontMap {
     pub const NONE: Option<&'static FontMap> = None;
 }
 
-pub trait FontMapExt: IsA<FontMap> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::FontMap>> Sealed for T {}
+}
+
+pub trait FontMapExt: IsA<FontMap> + sealed::Sealed + 'static {
     #[cfg(feature = "v1_56")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_56")))]
     #[doc(alias = "pango_font_map_add_font_file")]
@@ -59,7 +64,7 @@ pub trait FontMapExt: IsA<FontMap> + 'static {
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_46")))]
     #[doc(alias = "pango_font_map_get_family")]
     #[doc(alias = "get_family")]
-    fn family(&self, name: &str) -> Option<FontFamily> {
+    fn family(&self, name: &str) -> FontFamily {
         unsafe {
             from_glib_none(ffi::pango_font_map_get_family(
                 self.as_ref().to_glib_none().0,

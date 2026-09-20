@@ -52,14 +52,12 @@ macro_rules! for_stream_constructors {
             height: f64,
             stream: *mut W,
         ) -> Result<Self, crate::error::Error> {
-            unsafe {
-                Ok(Self(Surface::_for_raw_stream(
-                    ffi::$constructor_ffi,
-                    width,
-                    height,
-                    stream,
-                )?))
-            }
+            Ok(Self(Surface::_for_raw_stream(
+                ffi::$constructor_ffi,
+                width,
+                height,
+                stream,
+            )?))
         }
     };
 }
@@ -202,7 +200,7 @@ struct MutableCallbackEnvironment {
 // so code outside of the `catch_unwind` call must never panic.
 extern "C" fn write_callback<W: io::Write + 'static>(
     env: *mut c_void,
-    data: *const c_uchar,
+    data: *mut c_uchar,
     length: c_uint,
 ) -> ffi::cairo_status_t {
     // This is consistent with the type of `env` in `Surface::_for_stream`.
@@ -213,44 +211,43 @@ extern "C" fn write_callback<W: io::Write + 'static>(
     // If this is called by cairo, the surface is still alive.
     let env: &CallbackEnvironment = unsafe { &*env };
 
-    match env.mutable.try_borrow_mut() {
-        Ok(mut mutable) => {
-            if let MutableCallbackEnvironment {
-                stream:
-                    Some((
-                        stream,
-                        // Don’t attempt another write, if a previous one errored or panicked:
-                        io_error @ None,
-                    )),
-                unwind_payload: unwind_payload @ None,
-            } = &mut *mutable
-            {
-                // Safety: `write_callback<W>` was instantiated in `Surface::_for_stream`
-                // with a W parameter consistent with the box that was unsized to `Box<dyn Any>`.
-                let stream = unsafe { AnyExt::downcast_mut_unchecked::<W>(&mut **stream) };
-                // Safety: this is the callback contract from cairo’s API
-                let data = unsafe {
-                    if data.is_null() || length == 0 {
-                        &[]
-                    } else {
-                        std::slice::from_raw_parts(data, length as usize)
-                    }
-                };
-                // Because `<W as Write>::write_all` is a generic,
-                // we must conservatively assume that it can panic.
-                let result = std::panic::catch_unwind(AssertUnwindSafe(|| stream.write_all(data)));
-                match result {
-                    Ok(Ok(())) => return ffi::STATUS_SUCCESS,
-                    Ok(Err(error)) => {
-                        *io_error = Some(error);
-                    }
-                    Err(payload) => {
-                        *unwind_payload = Some(payload);
-                    }
+    if let Ok(mut mutable) = env.mutable.try_borrow_mut() {
+        if let MutableCallbackEnvironment {
+            stream:
+                Some((
+                    stream,
+                    // Don’t attempt another write, if a previous one errored or panicked:
+                    io_error @ None,
+                )),
+            unwind_payload: unwind_payload @ None,
+        } = &mut *mutable
+        {
+            // Safety: `write_callback<W>` was instantiated in `Surface::_for_stream`
+            // with a W parameter consistent with the box that was unsized to `Box<dyn Any>`.
+            let stream = unsafe { AnyExt::downcast_mut_unchecked::<W>(&mut **stream) };
+            // Safety: this is the callback contract from cairo’s API
+            let data = unsafe {
+                if data.is_null() || length == 0 {
+                    &[]
+                } else {
+                    std::slice::from_raw_parts(data, length as usize)
+                }
+            };
+            // Because `<W as Write>::write_all` is a generic,
+            // we must conservatively assume that it can panic.
+            let result = std::panic::catch_unwind(AssertUnwindSafe(|| stream.write_all(data)));
+            match result {
+                Ok(Ok(())) => return ffi::STATUS_SUCCESS,
+                Ok(Err(error)) => {
+                    *io_error = Some(error);
+                }
+                Err(payload) => {
+                    *unwind_payload = Some(payload);
                 }
             }
         }
-        _ => env.saw_already_borrowed.set(true),
+    } else {
+        env.saw_already_borrowed.set(true)
     }
     Error::WriteError.into()
 }
@@ -272,10 +269,8 @@ impl<W: io::Write> io::Write for RawStream<W> {
 trait AnyExt {
     /// Any::downcast_mut, but YOLO
     unsafe fn downcast_mut_unchecked<T>(&mut self) -> &mut T {
-        unsafe {
-            let ptr = self as *mut Self as *mut T;
-            &mut *ptr
-        }
+        let ptr = self as *mut Self as *mut T;
+        &mut *ptr
     }
 }
 impl AnyExt for dyn Any {}

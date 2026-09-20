@@ -3,36 +3,21 @@
 // DO NOT EDIT
 #![allow(deprecated)]
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
-use crate::Accessible;
 use crate::{
-    AccessibleRole, Align, Buildable, CellEditable, CellLayout, ConstraintTarget, LayoutManager,
-    Overflow, ScrollType, SensitivityType, TreeIter, TreeModel, Widget, ffi,
+    ffi, Accessible, AccessibleRole, Align, Buildable, CellEditable, CellLayout, ConstraintTarget,
+    LayoutManager, Overflow, ScrollType, SensitivityType, TreeIter, TreeModel, Widget,
 };
 use glib::{
     object::ObjectType as _,
     prelude::*,
-    signal::{SignalHandlerId, connect_raw},
+    signal::{connect_raw, SignalHandlerId},
     translate::*,
 };
 use std::boxed::Box as Box_;
 
-#[cfg(feature = "v4_10")]
-#[cfg_attr(docsrs, doc(cfg(feature = "v4_10")))]
 glib::wrapper! {
     #[doc(alias = "GtkComboBox")]
     pub struct ComboBox(Object<ffi::GtkComboBox, ffi::GtkComboBoxClass>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, CellEditable, CellLayout;
-
-    match fn {
-        type_ => || ffi::gtk_combo_box_get_type(),
-    }
-}
-
-#[cfg(not(feature = "v4_10"))]
-glib::wrapper! {
-    #[doc(alias = "GtkComboBox")]
-    pub struct ComboBox(Object<ffi::GtkComboBox, ffi::GtkComboBoxClass>) @extends Widget, @implements Buildable, ConstraintTarget, CellEditable, CellLayout;
 
     match fn {
         type_ => || ffi::gtk_combo_box_get_type(),
@@ -391,7 +376,12 @@ impl ComboBoxBuilder {
     }
 }
 
-pub trait ComboBoxExt: IsA<ComboBox> + 'static {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::IsA<super::ComboBox>> Sealed for T {}
+}
+
+pub trait ComboBoxExt: IsA<ComboBox> + sealed::Sealed + 'static {
     #[cfg_attr(feature = "v4_10", deprecated = "Since 4.10")]
     #[allow(deprecated)]
     #[doc(alias = "gtk_combo_box_get_active_id")]
@@ -416,7 +406,11 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
                 self.as_ref().to_glib_none().0,
                 iter.to_glib_none_mut().0,
             ));
-            if ret { Some(iter) } else { None }
+            if ret {
+                Some(iter)
+            } else {
+                None
+            }
         }
     }
 
@@ -630,20 +624,16 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             iter: *mut ffi::GtkTreeIter,
             data: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let model = from_glib_borrow(model);
-                let iter = from_glib_borrow(iter);
-                let callback = &*(data as *mut P);
-                (*callback)(&model, &iter).into_glib()
-            }
+            let model = from_glib_borrow(model);
+            let iter = from_glib_borrow(iter);
+            let callback = &*(data as *mut P);
+            (*callback)(&model, &iter).into_glib()
         }
         let func = Some(func_func::<P> as _);
         unsafe extern "C" fn destroy_func<P: Fn(&TreeModel, &TreeIter) -> bool + 'static>(
             data: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let _callback = Box_::from_raw(data as *mut P);
-            }
+            let _callback = Box_::from_raw(data as *mut P);
         }
         let destroy_call3 = Some(destroy_func::<P> as _);
         let super_callback0: Box_<P> = func_data;
@@ -680,16 +670,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             this: *mut ffi::GtkComboBox,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"activate".as_ptr(),
+                b"activate\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     activate_trampoline::<Self, F> as *const (),
                 )),
@@ -710,16 +698,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             this: *mut ffi::GtkComboBox,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"changed".as_ptr(),
+                b"changed\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     changed_trampoline::<Self, F> as *const (),
                 )),
@@ -741,20 +727,18 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             path: *mut std::ffi::c_char,
             f: glib::ffi::gpointer,
         ) -> *mut std::ffi::c_char {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    ComboBox::from_glib_borrow(this).unsafe_cast_ref(),
-                    &glib::GString::from_glib_borrow(path),
-                )
-                .to_glib_full()
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                ComboBox::from_glib_borrow(this).unsafe_cast_ref(),
+                &glib::GString::from_glib_borrow(path),
+            )
+            .to_glib_full()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"format-entry-text".as_ptr(),
+                b"format-entry-text\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     format_entry_text_trampoline::<Self, F> as *const (),
                 )),
@@ -773,19 +757,17 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             scroll_type: ffi::GtkScrollType,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(
-                    ComboBox::from_glib_borrow(this).unsafe_cast_ref(),
-                    from_glib(scroll_type),
-                )
-            }
+            let f: &F = &*(f as *const F);
+            f(
+                ComboBox::from_glib_borrow(this).unsafe_cast_ref(),
+                from_glib(scroll_type),
+            )
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"move-active".as_ptr(),
+                b"move-active\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     move_active_trampoline::<Self, F> as *const (),
                 )),
@@ -804,16 +786,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             this: *mut ffi::GtkComboBox,
             f: glib::ffi::gpointer,
         ) -> glib::ffi::gboolean {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref()).into_glib()
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref()).into_glib()
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"popdown".as_ptr(),
+                b"popdown\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     popdown_trampoline::<Self, F> as *const (),
                 )),
@@ -832,16 +812,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             this: *mut ffi::GtkComboBox,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"popup".as_ptr(),
+                b"popup\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     popup_trampoline::<Self, F> as *const (),
                 )),
@@ -861,16 +839,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::active".as_ptr(),
+                b"notify::active\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_active_trampoline::<Self, F> as *const (),
                 )),
@@ -886,16 +862,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::active-id".as_ptr(),
+                b"notify::active-id\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_active_id_trampoline::<Self, F> as *const (),
                 )),
@@ -914,16 +888,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::button-sensitivity".as_ptr(),
+                b"notify::button-sensitivity\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_button_sensitivity_trampoline::<Self, F> as *const (),
                 )),
@@ -939,16 +911,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::child".as_ptr(),
+                b"notify::child\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_child_trampoline::<Self, F> as *const (),
                 )),
@@ -967,16 +937,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::entry-text-column".as_ptr(),
+                b"notify::entry-text-column\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_entry_text_column_trampoline::<Self, F> as *const (),
                 )),
@@ -992,16 +960,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::has-frame".as_ptr(),
+                b"notify::has-frame\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_has_frame_trampoline::<Self, F> as *const (),
                 )),
@@ -1017,16 +983,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::id-column".as_ptr(),
+                b"notify::id-column\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_id_column_trampoline::<Self, F> as *const (),
                 )),
@@ -1042,16 +1006,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::model".as_ptr(),
+                b"notify::model\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_model_trampoline::<Self, F> as *const (),
                 )),
@@ -1070,16 +1032,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::popup-fixed-width".as_ptr(),
+                b"notify::popup-fixed-width\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_popup_fixed_width_trampoline::<Self, F> as *const (),
                 )),
@@ -1098,16 +1058,14 @@ pub trait ComboBoxExt: IsA<ComboBox> + 'static {
             _param_spec: glib::ffi::gpointer,
             f: glib::ffi::gpointer,
         ) {
-            unsafe {
-                let f: &F = &*(f as *const F);
-                f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
-            }
+            let f: &F = &*(f as *const F);
+            f(ComboBox::from_glib_borrow(this).unsafe_cast_ref())
         }
         unsafe {
             let f: Box_<F> = Box_::new(f);
             connect_raw(
                 self.as_ptr() as *mut _,
-                c"notify::popup-shown".as_ptr(),
+                b"notify::popup-shown\0".as_ptr() as *const _,
                 Some(std::mem::transmute::<*const (), unsafe extern "C" fn()>(
                     notify_popup_shown_trampoline::<Self, F> as *const (),
                 )),

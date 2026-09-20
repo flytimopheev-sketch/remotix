@@ -28,6 +28,8 @@ generate = [
     "GLib.NormalizeMode",
     "GLib.OptionArg",
     "GLib.OptionFlags",
+    "GLib.RegexCompileFlags",
+    "GLib.RegexMatchFlags",
     "GLib.SeekType",
     "GLib.SpawnFlags",
     "GLib.Time",
@@ -231,9 +233,7 @@ status = "generate"
         [object.function.return]
         string_type = "os_string"
     [[object.function]]
-    name = "setenv"
-    unsafe = true
-
+    pattern = "setenv"
         [[object.function.parameter]]
         name = "variable"
         string_type = "os_string"
@@ -251,8 +251,6 @@ status = "generate"
         string_type = "os_string"
     [[object.function]]
     name = "unsetenv"
-    unsafe = true
-
         [[object.function.parameter]]
         name = "variable"
         string_type = "os_string"
@@ -279,13 +277,16 @@ status = "generate"
     ignore = true
     [[object.function]]
     pattern = "unix_.+"
-    ignore = true # part of GLibUnix
+    cfg_condition = "unix"
     [[object.function]]
     name = "spawn_command_line_async"
     cfg_condition = "unix"
         [[object.function.parameter]]
         name = "command_line"
         string_type = "os_string"
+    [[object.function]]
+    name = "unix_open_pipe"
+    manual = true
     [[object.function]]
     name = "convert_with_fallback"
     manual = true
@@ -329,8 +330,12 @@ status = "generate"
     # Need manual bindings to be useful
     ignore = true
     [[object.function]]
-    name = "timeout_source_new_ns"
+    name = "unix_signal_source_new"
     # Need manual bindings to be useful
+    ignore = true
+    [[object.function]]
+    pattern = "unix_fd.*"
+    # Need manual binding for RawFd
     ignore = true
     [[object.function]]
     name = "close"
@@ -342,6 +347,10 @@ status = "generate"
     ignore = true
     [[object.function]]
     name = "log_writer_supports_color"
+    # Need manual binding for RawFd
+    ignore = true
+    [[object.function]]
+    name = "unix_set_fd_nonblocking"
     # Need manual binding for RawFd
     ignore = true
     [[object.function]]
@@ -428,6 +437,12 @@ status = "generate"
     [[object.function]]
     name = "timeout_add_seconds_once"
     ignore = true # we have a manual impl already
+    [[object.function]]
+    name = "unix_signal_add"
+    ignore = true
+    [[object.function]]
+    name = "unix_signal_add_full"
+    ignore = true
     [[object.function]]
     pattern = "rc_box_.+"
     #need manual implementation
@@ -713,7 +728,6 @@ concurrency = "send+sync"
     name = "push_thread_default"
     # implemented with a guard type
     manual = true
-    rename = "with_thread_default"
 
     [[object.function]]
     name = "pop_thread_default"
@@ -799,20 +813,6 @@ status = "generate"
     manual = true
 
 [[object]]
-name = "GLib.RegexCompileFlags"
-status = "generate"
-    [[object.member]]
-    name = "default"
-    version = "2.0"
-
-[[object]]
-name = "GLib.RegexMatchFlags"
-status = "generate"
-    [[object.member]]
-    name = "default"
-    version = "2.0"
-
-[[object]]
 name = "GLib.Source"
 status = "generate"
 concurrency = "send+sync"
@@ -836,17 +836,6 @@ concurrency = "send+sync"
     pattern = "remove"
     # parameter type
     ignore = true
-
-    [[object.function]]
-    name = "dup_context"
-    # implemented as the normal getter
-    manual = true
-
-    [[object.function]]
-    name = "get_context"
-    # implemented conditionally around this or
-    # dup_context() (see above)
-    manual = true
 
 [[object]]
 name = "GLib.ThreadPool"

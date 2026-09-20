@@ -2,9 +2,9 @@
 
 use std::path::Path;
 
-use glib::{Object, translate::*};
+use glib::{translate::*, Object};
 
-use crate::{Builder, ffi, prelude::*};
+use crate::{ffi, prelude::*, Builder};
 
 impl Builder {
     #[doc(alias = "gtk_builder_new_from_file")]

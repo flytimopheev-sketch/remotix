@@ -1,19 +1,24 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // rustdoc-stripper-ignore-next
-//! Traits intended for subclassing [`FlowBoxChild`].
+//! Traits intended for subclassing [`FlowBoxChild`](crate::FlowBoxChild).
 
 use glib::translate::*;
 
-use crate::{FlowBoxChild, ffi, prelude::*, subclass::prelude::*};
+use crate::{ffi, prelude::*, subclass::prelude::*, FlowBoxChild};
 
-pub trait FlowBoxChildImpl: WidgetImpl + ObjectSubclass<Type: IsA<FlowBoxChild>> {
+pub trait FlowBoxChildImpl: FlowBoxChildImplExt + WidgetImpl {
     fn activate(&self) {
         self.parent_activate()
     }
 }
 
-pub trait FlowBoxChildImplExt: FlowBoxChildImpl {
+mod sealed {
+    pub trait Sealed {}
+    impl<T: super::FlowBoxChildImplExt> Sealed for T {}
+}
+
+pub trait FlowBoxChildImplExt: sealed::Sealed + ObjectSubclass {
     fn parent_activate(&self) {
         unsafe {
             let data = Self::type_data();
@@ -41,10 +46,8 @@ unsafe impl<T: FlowBoxChildImpl> IsSubclassable<T> for FlowBoxChild {
 }
 
 unsafe extern "C" fn child_activate<T: FlowBoxChildImpl>(ptr: *mut ffi::GtkFlowBoxChild) {
-    unsafe {
-        let instance = &*(ptr as *mut T::Instance);
-        let imp = instance.imp();
+    let instance = &*(ptr as *mut T::Instance);
+    let imp = instance.imp();
 
-        imp.activate()
-    }
+    imp.activate()
 }
