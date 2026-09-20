@@ -9,6 +9,10 @@
 //!
 //! This crate does not ensure ciphertexts are authentic! Thus ciphertext integrity
 //! is not verified, which can lead to serious vulnerabilities!
+//! [RustCrypto/AEADs] provide simple authenticated encryption,
+//! which is much less error-prone than manual integrity verification.
+//!
+//! [RustCrypto/AEADs]: https://github.com/RustCrypto/AEADs
 //!
 //! # Example
 //! ```
@@ -43,14 +47,12 @@
 //! // encrypt/decrypt from buffer to buffer
 //! // buffer length must be equal to input length
 //! let mut buf1 = [0u8; 34];
-//! cipher
-//!     .apply_keystream_b2b(&plaintext, &mut buf1)
-//!     .unwrap();
+//! cipher.apply_keystream_b2b(&plaintext, &mut buf1);
 //! assert_eq!(buf1[..], ciphertext[..]);
 //!
 //! let mut buf2 = [0u8; 34];
 //! cipher.seek(0u32);
-//! cipher.apply_keystream_b2b(&buf1, &mut buf2).unwrap();
+//! cipher.apply_keystream_b2b(&buf1, &mut buf2);
 //! assert_eq!(buf2[..], plaintext[..]);
 //! ```
 //!
@@ -63,12 +65,10 @@
 )]
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![warn(missing_docs, rust_2018_idioms)]
+#![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 
-pub mod flavors;
-
-mod backend;
 mod ctr_core;
+pub mod flavors;
 
 pub use cipher;
 pub use flavors::CtrFlavor;

@@ -1,7 +1,4 @@
-use ghash::{
-    universal_hash::{KeyInit, UniversalHash},
-    GHash,
-};
+use ghash::{GHash, universal_hash::UniversalHash};
 use hex_literal::hex;
 
 //

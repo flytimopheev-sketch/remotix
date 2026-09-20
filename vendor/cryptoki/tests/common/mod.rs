@@ -1,0 +1,91 @@
+// Copyright 2021 Contributors to the Parsec project.
+// SPDX-License-Identifier: Apache-2.0
+use cryptoki::context::Function;
+use cryptoki::context::{CInitializeArgs, CInitializeFlags, Pkcs11};
+use cryptoki::error::{Error, RvError};
+use cryptoki::object::{Attribute, ObjectClass};
+use cryptoki::session::{Session, UserType};
+use cryptoki::slot::Slot;
+use cryptoki::types::AuthPin;
+use std::env;
+
+// The default user pin
+pub static USER_PIN: &str = "fedcba123456";
+// The default SO pin
+pub static SO_PIN: &str = "abcdef654321";
+
+fn get_pkcs11_path() -> String {
+    env::var("TEST_PKCS11_MODULE")
+        .unwrap_or_else(|_| "/usr/local/lib/softhsm/libsofthsm2.so".to_string())
+}
+
+// Used to simulate different library behaviors.
+// For SoftHSM, just create the environment variable TEST_PRETEND_LIBRARY with "softhsm"
+// This is used to interface a shim library during testing, while appearing to be using the real library.
+#[allow(dead_code)]
+pub fn get_pretend_library() -> String {
+    env::var("TEST_PRETEND_LIBRARY")
+        .unwrap_or_else(|_| "".to_string())
+        .to_lowercase()
+}
+
+#[allow(dead_code)]
+pub fn is_softhsm() -> bool {
+    get_pretend_library() == "softhsm" || get_pkcs11_path().contains("softhsm")
+}
+
+#[allow(dead_code)]
+pub fn is_kryoptic() -> bool {
+    get_pretend_library() == "kryoptic" || get_pkcs11_path().contains("kryoptic")
+}
+
+#[allow(dead_code)]
+pub fn is_fips(session: &Session) -> bool {
+    let template = vec![Attribute::Class(ObjectClass::VALIDATION)];
+
+    match session.find_objects(&template) {
+        Ok(l) => !l.is_empty(),
+        Err(_) => false,
+    }
+}
+
+pub fn get_pkcs11() -> Pkcs11 {
+    Pkcs11::new(get_pkcs11_path()).unwrap()
+}
+
+pub fn init_pins() -> (Pkcs11, Slot) {
+    let pkcs11 = get_pkcs11();
+
+    // initialize the library (ignore error if already initialized)
+    pkcs11
+        .initialize(CInitializeArgs::new(CInitializeFlags::OS_LOCKING_OK))
+        .or_else(|err| match err {
+            Error::Pkcs11(RvError::CryptokiAlreadyInitialized, Function::Initialize) => Ok(()),
+            _ => Err(err),
+        })
+        .unwrap();
+
+    // find a slot, get the first one
+    let slot = pkcs11.get_slots_with_token().unwrap().remove(0);
+
+    let so_pin = AuthPin::new(SO_PIN.into());
+    pkcs11.init_token(slot, &so_pin, "Test Token").unwrap();
+
+    {
+        // open a session
+        let session = pkcs11.open_rw_session(slot).unwrap();
+        // log in the session
+        session.login(UserType::So, Some(&so_pin)).unwrap();
+        session.init_pin(&AuthPin::new(USER_PIN.into())).unwrap();
+    }
+
+    (pkcs11, slot)
+}
+
+#[allow(dead_code)]
+pub fn get_firmware_version(pkcs11: &Pkcs11, slot: Slot) -> (u8, u8) {
+    let info = pkcs11.get_slot_info(slot).unwrap();
+
+    let v = info.firmware_version();
+    (v.major(), v.minor())
+}

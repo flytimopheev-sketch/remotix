@@ -30,8 +30,8 @@ certain 32-bit PowerPC CPUs and some non-ARM microcontrollers).
 
 Licensed under either of:
 
- * [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
- * [MIT license](http://opensource.org/licenses/MIT)
+ * [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+ * [MIT license](https://opensource.org/licenses/MIT)
 
 at your option.
 
@@ -43,12 +43,12 @@ dual licensed as above, without any additional terms or conditions.
 
 [//]: # (badges)
 
-[crate-image]: https://buildstats.info/crate/aes-gcm
+[crate-image]: https://img.shields.io/crates/v/aes-gcm
 [crate-link]: https://crates.io/crates/aes-gcm
 [docs-image]: https://docs.rs/aes-gcm/badge.svg
 [docs-link]: https://docs.rs/aes-gcm/
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
-[rustc-image]: https://img.shields.io/badge/rustc-1.56+-blue.svg
+[rustc-image]: https://img.shields.io/badge/rustc-1.85+-blue.svg
 [chat-image]: https://img.shields.io/badge/zulip-join_chat-blue.svg
 [chat-link]: https://rustcrypto.zulipchat.com/#narrow/stream/260038-AEADs
 [build-image]: https://github.com/RustCrypto/AEADs/workflows/aes-gcm/badge.svg?branch=master&event=push
@@ -57,5 +57,5 @@ dual licensed as above, without any additional terms or conditions.
 [//]: # (general links)
 
 [1]: https://en.wikipedia.org/wiki/Authenticated_encryption
-[2]: https://research.nccgroup.com/2020/02/26/public-report-rustcrypto-aes-gcm-and-chacha20poly1305-implementation-review/
+[2]: https://web.archive.org/web/20240108154854/https://research.nccgroup.com/wp-content/uploads/2020/02/NCC_Group_MobileCoin_RustCrypto_AESGCM_ChaCha20Poly1305_Implementation_Review_2020-02-12_v1.0.pdf
 [3]: https://www.mobilecoin.com/

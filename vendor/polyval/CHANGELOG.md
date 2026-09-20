@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.3 (2026-07-16)
+### Fixed
+- Restore accidentally removed `Zeroize` impl on `FieldElement` ([#350])
+
+[#350]: https://github.com/RustCrypto/universal-hashes/pull/350
+
+## 0.7.2 (2026-07-11)
+### Changed
+- Tweak zeroization ([#343])
+
+### Fixed
+- Actually detect `avx`+`pclmulqdq` as [#317] actually was detecting 256-bit PCLMULQDQ ([#347])
+
+[#343]: https://github.com/RustCrypto/universal-hashes/pull/343
+[#347]: https://github.com/RustCrypto/universal-hashes/pull/347
+
+## 0.7.1 (2026-02-28)
+### Fixed
+- Detect `avx`+`pclmulqdq` features on `x86`/`x86_64` targets ([#317], [#318])
+
+[#317]: https://github.com/RustCrypto/universal-hashes/pull/317
+[#318]: https://github.com/RustCrypto/universal-hashes/pull/318
+
+## 0.7.0 (2026-02-27) [YANKED]
+
+NOTE: yanked due to SIGILL bug which was fixed in [#317].
+
+### Added
+- `hazmat` feature that exposes `FieldElement` type ([#279])
+
+### Changed
+- Edition changed to 2024 and MSRV bumped to 1.85 ([#228])
+- Relax MSRV policy and allow MSRV bumps in patch releases
+- Replace `polyval_force_soft` with `polyval_backend="soft"` ([#259])
+- Use `cpubits` crate for `soft` backend selection ([#261])
+- Bump `cpufeatures` to v0.3 ([#292])
+- Use [Reduction/Field algorithm] for parallel block processing on `aarch64`/`x86(_64)` ([#294])
+- `polyval::mulx` moved to `FieldElement::mulx` ([#296])
+- Update to `universal-hash` v0.6 ([#310])
+
+### Removed
+- `cfg(polyval_armv8)` - now enabled by default ([#214])
+
+[#214]: https://github.com/RustCrypto/universal-hashes/pull/214
+[#228]: https://github.com/RustCrypto/universal-hashes/pull/228
+[#259]: https://github.com/RustCrypto/universal-hashes/pull/259
+[#261]: https://github.com/RustCrypto/universal-hashes/pull/261
+[#279]: https://github.com/RustCrypto/universal-hashes/pull/279
+[#292]: https://github.com/RustCrypto/universal-hashes/pull/292
+[#294]: https://github.com/RustCrypto/universal-hashes/pull/294
+[#296]: https://github.com/RustCrypto/universal-hashes/pull/296
+[#310]: https://github.com/RustCrypto/universal-hashes/pull/310
+[Reduction/Field algorithm]: https://eprint.iacr.org/2025/2171
+
 ## 0.6.2 (2022-03-03)
 ### Added
 - add `new_with_init_block` ([#195])

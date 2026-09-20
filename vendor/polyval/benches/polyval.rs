@@ -1,11 +1,10 @@
+//! POLYVAL benchmarks.
+
 #![feature(test)]
 
 extern crate test;
 
-use polyval::{
-    universal_hash::{KeyInit, UniversalHash},
-    Polyval,
-};
+use polyval::{Polyval, universal_hash::UniversalHash};
 use test::Bencher;
 
 // TODO(tarcieri): move this into the `universal-hash` crate
@@ -26,7 +25,7 @@ macro_rules! bench {
     };
 }
 
-bench!(bench1_10, 10);
-bench!(bench2_100, 100);
-bench!(bench3_1000, 1000);
-bench!(bench3_10000, 10000);
+bench!(bench_polyval_1_10, 10);
+bench!(bench_polyval_2_100, 100);
+bench!(bench_polyval_3_1000, 1000);
+bench!(bench_polyval_4_10000, 10000);

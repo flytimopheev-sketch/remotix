@@ -12,36 +12,22 @@
 //!
 //! Simple usage (allocating, no associated data):
 //!
-//! ```
+#![cfg_attr(feature = "getrandom", doc = "```")]
+#![cfg_attr(not(feature = "getrandom"), doc = "```ignore")]
+//! # fn main() -> Result<(), Box<dyn core::error::Error>> {
+//! // NOTE: requires the `getrandom` feature is enabled
+//!
 //! use aes_gcm::{
-//!     aead::{Aead, AeadCore, KeyInit, OsRng},
-//!     Aes256Gcm, Nonce, Key // Or `Aes128Gcm`
+//!     aead::{Aead, AeadCore, Generate, Key, KeyInit},
+//!     Aes256Gcm, Nonce, // Or `Aes128Gcm`
 //! };
 //!
-//! # fn gen_key() -> Result<(), core::array::TryFromSliceError> {
-//! // The encryption key can be generated randomly:
-//! # #[cfg(all(feature = "getrandom", feature = "std"))] {
-//! let key = Aes256Gcm::generate_key(OsRng);
-//! # }
-//!
-//! // Transformed from a byte array:
-//! let key: &[u8; 32] = &[42; 32];
-//! let key: &Key<Aes256Gcm> = key.into();
-//!
-//! // Note that you can get byte array from slice using the `TryInto` trait:
-//! let key: &[u8] = &[42; 32];
-//! let key: [u8; 32] = key.try_into()?;
-//! # Ok(()) }
-//!
-//! # fn main() -> Result<(), aes_gcm::Error> {
-//! // Alternatively, the key can be transformed directly from a byte slice
-//! // (panicks on length mismatch):
-//! # let key: &[u8] = &[42; 32];
-//! let key = Key::<Aes256Gcm>::from_slice(key);
-//!
+//! let key = Key::<Aes256Gcm>::generate();
 //! let cipher = Aes256Gcm::new(&key);
-//! let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
+//!
+//! let nonce = Nonce::generate(); // MUST be unique per message
 //! let ciphertext = cipher.encrypt(&nonce, b"plaintext message".as_ref())?;
+//!
 //! let plaintext = cipher.decrypt(&nonce, ciphertext.as_ref())?;
 //! assert_eq!(&plaintext, b"plaintext message");
 //! # Ok(())
@@ -53,101 +39,103 @@
 //! This crate has an optional `alloc` feature which can be disabled in e.g.
 //! microcontroller environments that don't have a heap.
 //!
-//! The [`AeadInPlace::encrypt_in_place`] and [`AeadInPlace::decrypt_in_place`]
+//! The [`AeadInOut::encrypt_in_place`] and [`AeadInOut::decrypt_in_place`]
 //! methods accept any type that impls the [`aead::Buffer`] trait which
 //! contains the plaintext for encryption or ciphertext for decryption.
 //!
-//! Note that if you enable the `heapless` feature of this crate,
-//! you will receive an impl of [`aead::Buffer`] for `heapless::Vec`
-//! (re-exported from the [`aead`] crate as [`aead::heapless::Vec`]),
-//! which can then be passed as the `buffer` parameter to the in-place encrypt
+//! Enabling the `arrayvec` feature of this crate will provide an impl of
+//! [`aead::Buffer`] for `arrayvec::ArrayVec` (re-exported from the [`aead`] crate as
+//! [`aead::arrayvec::ArrayVec`]), and enabling the `bytes` feature of this crate will
+//! provide an impl of [`aead::Buffer`] for `bytes::BytesMut` (re-exported from the
+//! [`aead`] crate as [`aead::bytes::BytesMut`]).
+//!
+//! It can then be passed as the `buffer` parameter to the in-place encrypt
 //! and decrypt methods:
 //!
+#![cfg_attr(all(feature = "getrandom", feature = "arrayvec"), doc = "```")]
 #![cfg_attr(
-    all(feature = "getrandom", feature = "heapless", feature = "std"),
-    doc = "```"
-)]
-#![cfg_attr(
-    not(all(feature = "getrandom", feature = "heapless", feature = "std")),
+    not(all(feature = "getrandom", feature = "arrayvec")),
     doc = "```ignore"
 )]
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # fn main() -> Result<(), Box<dyn core::error::Error>> {
+//! // NOTE: requires the `arrayvec` and `getrandom` features are enabled
+//!
 //! use aes_gcm::{
-//!     aead::{AeadCore, AeadInPlace, KeyInit, OsRng, heapless::Vec},
+//!     aead::{AeadCore, AeadInOut, Generate, Key, KeyInit, arrayvec::ArrayVec},
 //!     Aes256Gcm, Nonce, // Or `Aes128Gcm`
 //! };
 //!
-//! let key = Aes256Gcm::generate_key(&mut OsRng);
+//! let key = Key::<Aes256Gcm>::generate();
 //! let cipher = Aes256Gcm::new(&key);
-//! let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
 //!
-//! let mut buffer: Vec<u8, 128> = Vec::new(); // Note: buffer needs 16-bytes overhead for auth tag
-//! buffer.extend_from_slice(b"plaintext message");
+//! let nonce = Nonce::generate(); // MUST be unique per message
+//! let mut buffer: ArrayVec<u8, 128> = ArrayVec::new(); // Note: buffer needs 16-bytes overhead for auth tag
+//! buffer.try_extend_from_slice(b"plaintext message").unwrap();
 //!
 //! // Encrypt `buffer` in-place, replacing the plaintext contents with ciphertext
 //! cipher.encrypt_in_place(&nonce, b"", &mut buffer)?;
 //!
 //! // `buffer` now contains the message ciphertext
-//! assert_ne!(&buffer, b"plaintext message");
+//! assert_ne!(buffer.as_ref(), b"plaintext message");
 //!
 //! // Decrypt `buffer` in-place, replacing its ciphertext context with the original plaintext
 //! cipher.decrypt_in_place(&nonce, b"", &mut buffer)?;
-//! assert_eq!(&buffer, b"plaintext message");
+//! assert_eq!(buffer.as_ref(), b"plaintext message");
 //! # Ok(())
 //! # }
-//! ```
-//!
-//! Similarly, enabling the `arrayvec` feature of this crate will provide an impl of
-//! [`aead::Buffer`] for `arrayvec::ArrayVec` (re-exported from the [`aead`] crate as
-//! [`aead::arrayvec::ArrayVec`]).
 
-pub use aead::{self, AeadCore, AeadInPlace, Error, Key, KeyInit, KeySizeUser};
+pub use aead::{self, AeadCore, AeadInOut, Error, Key, KeyInit, KeySizeUser};
 
 #[cfg(feature = "aes")]
 pub use aes;
 
+use aead::{TagPosition, inout::InOutBuf};
+
 use cipher::{
-    consts::{U0, U16},
-    generic_array::{ArrayLength, GenericArray},
-    BlockCipher, BlockEncrypt, BlockSizeUser, InnerIvInit, StreamCipherCore,
+    BlockCipherEncrypt, BlockSizeUser, InnerIvInit, StreamCipherCore,
+    array::{Array, ArraySize},
+    consts::U16,
 };
 use core::marker::PhantomData;
-use ghash::{universal_hash::UniversalHash, GHash};
+use ghash::{GHash, universal_hash::UniversalHash};
 
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
 #[cfg(feature = "aes")]
-use aes::{cipher::consts::U12, Aes128, Aes256};
+use aes::{Aes128, Aes256, cipher::consts::U12};
 
-/// Maximum length of associated data.
-pub const A_MAX: u64 = 1 << 36;
+/// Maximum length of associated data in bytes.
+pub const A_MAX: u64 = (1 << 61) - 1;
 
-/// Maximum length of plaintext.
-pub const P_MAX: u64 = 1 << 36;
-
-/// Maximum length of ciphertext.
-pub const C_MAX: u64 = (1 << 36) + 16;
+/// Maximum length of plaintext in bytes.
+pub const P_MAX: u64 = (1 << 36) - 32;
 
 /// AES-GCM nonces.
-pub type Nonce<NonceSize> = GenericArray<u8, NonceSize>;
+pub type Nonce<NonceSize> = Array<u8, NonceSize>;
 
 /// AES-GCM tags.
-pub type Tag<TagSize = U16> = GenericArray<u8, TagSize>;
+pub type Tag<TagSize = U16> = Array<u8, TagSize>;
 
 /// Trait implemented for valid tag sizes, i.e.
 /// [`U12`][consts::U12], [`U13`][consts::U13], [`U14`][consts::U14],
 /// [`U15`][consts::U15] and [`U16`][consts::U16].
+/// When the crate feature `hazmat` is enabled, [`U4`][consts::U4] and
+/// [`U8`][consts::U8] are also supported.
 pub trait TagSize: private::SealedTagSize {}
 
 impl<T: private::SealedTagSize> TagSize for T {}
 
 mod private {
-    use aead::generic_array::ArrayLength;
-    use cipher::{consts, Unsigned};
+    use cipher::{array::ArraySize, consts, typenum::Unsigned};
 
     // Sealed traits stop other crates from implementing any traits that use it.
-    pub trait SealedTagSize: ArrayLength<u8> + Unsigned {}
+    pub trait SealedTagSize: ArraySize + Unsigned {}
+
+    #[cfg(feature = "hazmat")]
+    impl SealedTagSize for consts::U4 {}
+    #[cfg(feature = "hazmat")]
+    impl SealedTagSize for consts::U8 {}
 
     impl SealedTagSize for consts::U12 {}
     impl SealedTagSize for consts::U13 {}
@@ -167,7 +155,7 @@ pub type Aes128Gcm = AesGcm<Aes128, U12>;
 pub type Aes256Gcm = AesGcm<Aes256, U12>;
 
 /// AES block.
-type Block = GenericArray<u8, U16>;
+type Block = Array<u8, U16>;
 
 /// Counter mode with a 32-bit big endian counter.
 type Ctr32BE<Aes> = ctr::CtrCore<Aes, ctr::flavors::Ctr32BE>;
@@ -189,6 +177,14 @@ type Ctr32BE<Aes> = ctr::CtrCore<Aes, ctr::flavors::Ctr32BE>;
 /// the default of 128-bits.
 ///
 /// If in doubt, use the built-in [`Aes128Gcm`] and [`Aes256Gcm`] type aliases.
+///
+/// # ⚠️ WARNING: Hazmat!
+///
+/// When using short authentication tags, namely 32-bit tags with `typenum::U4` or
+/// 64-bit tags with `typenum::U8` (which require the crate feature `hazmat`), it is
+/// **RECOMMENDED** that a key not be used for more than the maximum invocations of
+/// authenticated decryption specified in Table 1 or Table 2 of NIST SP 800-38D,
+/// respectively.
 #[derive(Clone)]
 pub struct AesGcm<Aes, NonceSize, TagSize = U16>
 where
@@ -217,7 +213,7 @@ where
 
 impl<Aes, NonceSize, TagSize> KeyInit for AesGcm<Aes, NonceSize, TagSize>
 where
-    Aes: BlockSizeUser<BlockSize = U16> + BlockEncrypt + KeyInit,
+    Aes: BlockSizeUser<BlockSize = U16> + BlockCipherEncrypt + KeyInit,
     TagSize: self::TagSize,
 {
     fn new(key: &Key<Self>) -> Self {
@@ -227,7 +223,7 @@ where
 
 impl<Aes, NonceSize, TagSize> From<Aes> for AesGcm<Aes, NonceSize, TagSize>
 where
-    Aes: BlockSizeUser<BlockSize = U16> + BlockEncrypt,
+    Aes: BlockSizeUser<BlockSize = U16> + BlockCipherEncrypt,
     TagSize: self::TagSize,
 {
     fn from(cipher: Aes) -> Self {
@@ -250,25 +246,25 @@ where
 
 impl<Aes, NonceSize, TagSize> AeadCore for AesGcm<Aes, NonceSize, TagSize>
 where
-    NonceSize: ArrayLength<u8>,
+    NonceSize: ArraySize,
     TagSize: self::TagSize,
 {
     type NonceSize = NonceSize;
     type TagSize = TagSize;
-    type CiphertextOverhead = U0;
+    const TAG_POSITION: TagPosition = TagPosition::Postfix;
 }
 
-impl<Aes, NonceSize, TagSize> AeadInPlace for AesGcm<Aes, NonceSize, TagSize>
+impl<Aes, NonceSize, TagSize> AeadInOut for AesGcm<Aes, NonceSize, TagSize>
 where
-    Aes: BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
-    NonceSize: ArrayLength<u8>,
+    Aes: BlockSizeUser<BlockSize = U16> + BlockCipherEncrypt,
+    NonceSize: ArraySize,
     TagSize: self::TagSize,
 {
-    fn encrypt_in_place_detached(
+    fn encrypt_inout_detached(
         &self,
         nonce: &Nonce<NonceSize>,
         associated_data: &[u8],
-        buffer: &mut [u8],
+        mut buffer: InOutBuf<'_, '_, u8>,
     ) -> Result<Tag<TagSize>, Error> {
         if buffer.len() as u64 > P_MAX || associated_data.len() as u64 > A_MAX {
             return Err(Error);
@@ -278,20 +274,20 @@ where
 
         // TODO(tarcieri): interleave encryption with GHASH
         // See: <https://github.com/RustCrypto/AEADs/issues/74>
-        ctr.apply_keystream_partial(buffer.into());
+        ctr.apply_keystream_partial(buffer.reborrow());
 
-        let full_tag = self.compute_tag(mask, associated_data, buffer);
-        Ok(Tag::clone_from_slice(&full_tag[..TagSize::to_usize()]))
+        let full_tag = self.compute_tag(mask, associated_data, buffer.get_out());
+        Ok(Tag::try_from(&full_tag[..TagSize::to_usize()]).expect("tag size mismatch"))
     }
 
-    fn decrypt_in_place_detached(
+    fn decrypt_inout_detached(
         &self,
         nonce: &Nonce<NonceSize>,
         associated_data: &[u8],
-        buffer: &mut [u8],
+        buffer: InOutBuf<'_, '_, u8>,
         tag: &Tag<TagSize>,
     ) -> Result<(), Error> {
-        if buffer.len() as u64 > C_MAX || associated_data.len() as u64 > A_MAX {
+        if buffer.len() as u64 > P_MAX || associated_data.len() as u64 > A_MAX {
             return Err(Error);
         }
 
@@ -299,11 +295,11 @@ where
 
         // TODO(tarcieri): interleave encryption with GHASH
         // See: <https://github.com/RustCrypto/AEADs/issues/74>
-        let expected_tag = self.compute_tag(mask, associated_data, buffer);
+        let expected_tag = self.compute_tag(mask, associated_data, buffer.get_in());
 
         use subtle::ConstantTimeEq;
         if expected_tag[..TagSize::to_usize()].ct_eq(tag).into() {
-            ctr.apply_keystream_partial(buffer.into());
+            ctr.apply_keystream_partial(buffer);
             Ok(())
         } else {
             Err(Error)
@@ -313,8 +309,8 @@ where
 
 impl<Aes, NonceSize, TagSize> AesGcm<Aes, NonceSize, TagSize>
 where
-    Aes: BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
-    NonceSize: ArrayLength<u8>,
+    Aes: BlockSizeUser<BlockSize = U16> + BlockCipherEncrypt,
+    NonceSize: ArraySize,
     TagSize: self::TagSize,
 {
     /// Initialize counter mode.

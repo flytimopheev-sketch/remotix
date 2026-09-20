@@ -10,11 +10,17 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2021"
-rust-version = "1.56"
+edition = "2024"
+rust-version = "1.85"
 name = "ghash"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["RustCrypto Developers"]
+build = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 description = """
 Universal hash over GF(2^128) useful for constructing a Message Authentication Code (MAC),
 as in the AES-GCM authenticated encryption cipher.
@@ -33,11 +39,27 @@ categories = [
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/RustCrypto/universal-hashes"
 
-[dependencies.opaque-debug]
-version = "0.3"
+[features]
+zeroize = [
+    "polyval/zeroize",
+    "dep:zeroize",
+]
+
+[lib]
+name = "ghash"
+path = "src/lib.rs"
+
+[[test]]
+name = "lib"
+path = "tests/lib.rs"
+
+[[bench]]
+name = "ghash"
+path = "benches/ghash.rs"
 
 [dependencies.polyval]
-version = "0.6.2"
+version = "0.7"
+features = ["hazmat"]
 
 [dependencies.zeroize]
 version = "1"
@@ -45,7 +67,4 @@ optional = true
 default-features = false
 
 [dev-dependencies.hex-literal]
-version = "0.3"
-
-[features]
-std = ["polyval/std"]
+version = "1"

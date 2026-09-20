@@ -2,3 +2,5 @@
 * -text
 # Spec-файл собирается на Linux — всегда LF
 *.spec text eol=lf
+# Shell-скрипты запускаются на Linux — всегда LF (CRLF ломает bash)
+*.sh text eol=lf

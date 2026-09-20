@@ -1,8 +1,7 @@
 //! Counter Mode with a 32-bit little endian counter
 
 use cipher::{
-    consts::U16, generic_array::GenericArray, KeyIvInit, StreamCipher, StreamCipherSeek,
-    StreamCipherSeekCore,
+    KeyIvInit, StreamCipher, StreamCipherSeek, StreamCipherSeekCore, array::Array, consts::U16,
 };
 use hex_literal::hex;
 
@@ -13,7 +12,7 @@ const NONCE1: &[u8; 16] = &hex!("11111111111111111111111111111111");
 const NONCE2: &[u8; 16] = &hex!("FEFFFFFF222222222222222222222222");
 
 /// Compute nonce as used by AES-GCM-SIV
-fn nonce(bytes: &[u8; 16]) -> GenericArray<u8, U16> {
+fn nonce(bytes: &[u8; 16]) -> Array<u8, U16> {
     let mut n = *bytes;
     n[15] |= 0x80;
     n.into()
@@ -94,3 +93,33 @@ cipher::iv_state_test!(
     ctr::CtrCore<aes::Aes128, ctr::flavors::Ctr32LE>,
     apply_ks,
 );
+
+#[test]
+fn set_iv() {
+    use ctr::cipher::{IvState, SetIvState, StreamCipherCore};
+
+    let key = Default::default();
+    let iv = Default::default();
+    let mut mode = ctr::CtrCore::<aes::Aes128, ctr::flavors::Ctr32LE>::new(&key, &iv);
+
+    let mut blocks = [Default::default(); 16];
+
+    mode.apply_keystream_blocks(&mut blocks);
+    let iv = mode.iv_state();
+
+    let mut buf1 = blocks;
+    let mut buf2 = blocks;
+
+    mode.peek(|m| m.apply_keystream_blocks(&mut buf1));
+    assert_eq!(mode.iv_state(), iv);
+
+    mode.apply_keystream_blocks(&mut blocks);
+    let iv2 = mode.iv_state();
+
+    mode.set_iv(&iv);
+    mode.apply_keystream_blocks(&mut buf2);
+
+    assert_eq!(blocks, buf1);
+    assert_eq!(blocks, buf2);
+    assert_eq!(mode.iv_state(), iv2);
+}

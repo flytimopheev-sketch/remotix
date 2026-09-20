@@ -10,11 +10,17 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2021"
-rust-version = "1.56"
+edition = "2024"
+rust-version = "1.85"
 name = "aes-gcm"
-version = "0.10.3"
+version = "0.11.0-rc.4"
 authors = ["RustCrypto Developers"]
+build = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 description = """
 Pure Rust implementation of the AES-GCM (Galois/Counter Mode)
 Authenticated Encryption with Associated Data (AEAD) Cipher
@@ -35,7 +41,6 @@ categories = [
 ]
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/RustCrypto/AEADs"
-resolver = "1"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -44,22 +49,51 @@ rustdoc-args = [
     "docsrs",
 ]
 
+[features]
+alloc = ["aead/alloc"]
+arrayvec = ["aead/arrayvec"]
+bytes = ["aead/bytes"]
+default = [
+    "aes",
+    "alloc",
+    "getrandom",
+]
+getrandom = ["aead/getrandom"]
+hazmat = []
+rand_core = ["aead/rand_core"]
+
+[lib]
+name = "aes_gcm"
+path = "src/lib.rs"
+
+[[test]]
+name = "aes128gcm"
+path = "tests/aes128gcm.rs"
+
+[[test]]
+name = "aes256gcm"
+path = "tests/aes256gcm.rs"
+
+[[test]]
+name = "other_ivlen"
+path = "tests/other_ivlen.rs"
+
 [dependencies.aead]
-version = "0.5"
+version = "0.6.0-rc.10"
 default-features = false
 
 [dependencies.aes]
-version = "0.8"
+version = "0.9"
 optional = true
 
 [dependencies.cipher]
-version = "0.4"
+version = "0.5"
 
 [dependencies.ctr]
-version = "0.9"
+version = "0.10"
 
 [dependencies.ghash]
-version = "0.5"
+version = "0.6"
 default-features = false
 
 [dependencies.subtle]
@@ -72,29 +106,12 @@ optional = true
 default-features = false
 
 [dev-dependencies.aead]
-version = "0.5"
-features = ["dev"]
+version = "0.6.0-rc.10"
+features = [
+    "alloc",
+    "dev",
+]
 default-features = false
 
 [dev-dependencies.hex-literal]
-version = "0.3"
-
-[features]
-alloc = ["aead/alloc"]
-arrayvec = ["aead/arrayvec"]
-default = [
-    "aes",
-    "alloc",
-    "getrandom",
-]
-getrandom = [
-    "aead/getrandom",
-    "rand_core",
-]
-heapless = ["aead/heapless"]
-rand_core = ["aead/rand_core"]
-std = [
-    "aead/std",
-    "alloc",
-]
-stream = ["aead/stream"]
+version = "1"

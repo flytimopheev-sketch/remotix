@@ -1,41 +1,50 @@
-//! 64-bit counter falvors.
+//! 64-bit counter flavors.
 use super::CtrFlavor;
 use cipher::{
-    generic_array::{ArrayLength, GenericArray},
-    typenum::{PartialDiv, PartialQuot, Unsigned, U8},
+    array::{Array, ArraySize},
+    typenum::{PartialDiv, PartialQuot, U8, Unsigned},
 };
-
-#[cfg(feature = "zeroize")]
-use cipher::zeroize::{Zeroize, ZeroizeOnDrop};
+use core::fmt;
 
 type ChunkSize = U8;
 type Chunks<B> = PartialQuot<B, ChunkSize>;
 const CS: usize = ChunkSize::USIZE;
 
 #[derive(Clone)]
-pub struct CtrNonce64<N: ArrayLength<u64>> {
+pub struct CtrNonce64<N: ArraySize> {
     ctr: u64,
-    nonce: GenericArray<u64, N>,
+    nonce: Array<u64, N>,
 }
 
-#[cfg(feature = "zeroize")]
-impl<N: ArrayLength<u64>> Drop for CtrNonce64<N> {
+impl<N: ArraySize> fmt::Debug for CtrNonce64<N> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("CtrNonce64 { ... }")
+    }
+}
+
+impl<N: ArraySize> Drop for CtrNonce64<N> {
     fn drop(&mut self) {
-        self.ctr.zeroize();
-        self.nonce.zeroize();
+        #[cfg(feature = "zeroize")]
+        {
+            use cipher::zeroize::Zeroize;
+            self.ctr.zeroize();
+            self.nonce.zeroize();
+        }
     }
 }
 
 #[cfg(feature = "zeroize")]
-impl<N: ArrayLength<u64>> ZeroizeOnDrop for CtrNonce64<N> {}
+impl<N: ArraySize> cipher::zeroize::ZeroizeOnDrop for CtrNonce64<N> {}
 
 /// 64-bit big endian counter flavor.
+#[derive(Clone, Copy, Debug)]
 pub enum Ctr64BE {}
 
 impl<B> CtrFlavor<B> for Ctr64BE
 where
-    B: ArrayLength<u8> + PartialDiv<ChunkSize>,
-    Chunks<B>: ArrayLength<u64>,
+    B: ArraySize + PartialDiv<ChunkSize>,
+    Chunks<B>: ArraySize,
 {
     type CtrNonce = CtrNonce64<Chunks<B>>;
     type Backend = u64;
@@ -43,12 +52,12 @@ where
 
     #[inline]
     fn remaining(cn: &Self::CtrNonce) -> Option<usize> {
-        (core::u64::MAX - cn.ctr).try_into().ok()
+        (u64::MAX - cn.ctr).try_into().ok()
     }
 
     #[inline(always)]
-    fn current_block(cn: &Self::CtrNonce) -> GenericArray<u8, B> {
-        let mut block = GenericArray::<u8, B>::default();
+    fn current_block(cn: &Self::CtrNonce) -> Array<u8, B> {
+        let mut block = Array::<u8, B>::default();
         for i in 0..Chunks::<B>::USIZE {
             let t = if i == Chunks::<B>::USIZE - 1 {
                 cn.ctr.wrapping_add(cn.nonce[i]).to_be_bytes()
@@ -61,17 +70,19 @@ where
     }
 
     #[inline]
-    fn next_block(cn: &mut Self::CtrNonce) -> GenericArray<u8, B> {
+    fn next_block(cn: &mut Self::CtrNonce) -> Array<u8, B> {
         let block = Self::current_block(cn);
         cn.ctr = cn.ctr.wrapping_add(1);
         block
     }
 
     #[inline]
-    fn from_nonce(block: &GenericArray<u8, B>) -> Self::CtrNonce {
-        let mut nonce = GenericArray::<u64, Chunks<B>>::default();
+    fn from_nonce(block: &Array<u8, B>) -> Self::CtrNonce {
+        let mut nonce = Array::<u64, Chunks<B>>::default();
         for i in 0..Chunks::<B>::USIZE {
-            let chunk = block[CS * i..][..CS].try_into().unwrap();
+            let chunk = block[CS * i..][..CS]
+                .try_into()
+                .expect("should be the correct size");
             nonce[i] = if i == Chunks::<B>::USIZE - 1 {
                 u64::from_be_bytes(chunk)
             } else {
@@ -93,13 +104,14 @@ where
     }
 }
 
-/// 64-bit big endian counter flavor.
+/// 64-bit little endian counter flavor.
+#[derive(Clone, Copy, Debug)]
 pub enum Ctr64LE {}
 
 impl<B> CtrFlavor<B> for Ctr64LE
 where
-    B: ArrayLength<u8> + PartialDiv<ChunkSize>,
-    Chunks<B>: ArrayLength<u64>,
+    B: ArraySize + PartialDiv<ChunkSize>,
+    Chunks<B>: ArraySize,
 {
     type CtrNonce = CtrNonce64<Chunks<B>>;
     type Backend = u64;
@@ -107,12 +119,12 @@ where
 
     #[inline]
     fn remaining(cn: &Self::CtrNonce) -> Option<usize> {
-        (core::u64::MAX - cn.ctr).try_into().ok()
+        (u64::MAX - cn.ctr).try_into().ok()
     }
 
     #[inline(always)]
-    fn current_block(cn: &Self::CtrNonce) -> GenericArray<u8, B> {
-        let mut block = GenericArray::<u8, B>::default();
+    fn current_block(cn: &Self::CtrNonce) -> Array<u8, B> {
+        let mut block = Array::<u8, B>::default();
         for i in 0..Chunks::<B>::USIZE {
             let t = if i == 0 {
                 cn.ctr.wrapping_add(cn.nonce[i]).to_le_bytes()
@@ -125,17 +137,19 @@ where
     }
 
     #[inline]
-    fn next_block(cn: &mut Self::CtrNonce) -> GenericArray<u8, B> {
+    fn next_block(cn: &mut Self::CtrNonce) -> Array<u8, B> {
         let block = Self::current_block(cn);
         cn.ctr = cn.ctr.wrapping_add(1);
         block
     }
 
     #[inline]
-    fn from_nonce(block: &GenericArray<u8, B>) -> Self::CtrNonce {
-        let mut nonce = GenericArray::<u64, Chunks<B>>::default();
+    fn from_nonce(block: &Array<u8, B>) -> Self::CtrNonce {
+        let mut nonce = Array::<u64, Chunks<B>>::default();
         for i in 0..Chunks::<B>::USIZE {
-            let chunk = block[CS * i..][..CS].try_into().unwrap();
+            let chunk = block[CS * i..][..CS]
+                .try_into()
+                .expect("should be the correct size");
             nonce[i] = if i == 0 {
                 u64::from_le_bytes(chunk)
             } else {

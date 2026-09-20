@@ -22,7 +22,7 @@
 ## Стек
 
 Rust (stable) · GTK4 (gtk4-rs) · rusqlite (SQLite, bundled) · argon2 ·
-aes-gcm · ssh2 (libssh2) · FreeRDP (FFI/ironrdp) для RDP · rfb/libvncclient
+aes-gcm · ssh2 (libssh2) · IronRDP (чистый Rust) для RDP · rfb/libvncclient
 для VNC · RPM-упаковка для РЕД ОС.
 
 ## Сборка
@@ -31,8 +31,10 @@ aes-gcm · ssh2 (libssh2) · FreeRDP (FFI/ironrdp) для RDP · rfb/libvncclien
 cargo build --release
 ```
 
-Требуются dev-пакеты: `gtk4-devel`, `libssh2-devel`, `freerdp-devel`,
-`openssl-devel`.
+Требуются dev-пакеты: `gtk4-devel` (`libgtk-4-dev`), `libssh2-devel`,
+`openssl-devel`, `vte-2.91-gtk4-dev` (`libvte-2.91-gtk4-dev`), `pkg-config`
+и `gcc`. FreeRDP не нужен: RDP реализован на IronRDP, все crate-зависимости
+лежат в `vendor/` и собираются офлайн (`.cargo/config.toml`).
 
 ## Структура проекта
 
