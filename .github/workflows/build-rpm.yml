@@ -5,130 +5,154 @@ on:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Тег релиза, к которому прикрепить RPM (например v1.0.0). Пусто — только артефакт.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
 
+env:
+  EL9_ROOT: /opt/el9
+
 jobs:
   build-rpm:
     runs-on: ubuntu-24.04
-    # Сборка выполняется внутри EL9 (AlmaLinux 9) — та же платформенная база,
-    # что у РЕД ОС 8: glibc 2.34, OpenSSL 3, GTK4. Пакет, собранный на Ubuntu,
-    # требует GLIBC/GTK/OpenSSL из Ubuntu и на РЕД ОС не запускается.
-    container:
-      image: almalinux:9
-      options: --user root
+    # Docker не используется: окружение сборки — AlmaLinux 9 (EL9), полученный
+    # через chroot в rootfs с зеркала Linux Containers. Это та же платформенная
+    # база, что у РЕД ОС 8: glibc 2.34, OpenSSL 3, GTK4 4.6. Пакет, собранный на
+    # Ubuntu, требует GLIBC/GTK/OpenSSL из Ubuntu и на РЕД ОС не запускается.
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install build dependencies (EL9)
-        run: |
-          dnf -y install dnf-plugins-core epel-release rsync tar gzip
-          dnf config-manager --set-enabled crb
-          dnf -y install --setopt=install_weak_deps=False \
-            gcc make perl pkg-config \
-            gtk4-devel pango-devel cairo-devel cairo-gobject-devel \
-            gdk-pixbuf2-devel graphene-devel libepoxy-devel \
-            glib2-devel openssl-devel \
-            zlib-devel dejavu-sans-fonts \
-            rpm-build xorg-x11-server-Xvfb
+      - name: Окружение EL9 (AlmaLinux 9 в chroot — без Docker)
+        run: bash packaging/ci/el9-chroot.sh setup
 
-      - name: Install Rust (stable)
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup.sh
-          sh /tmp/rustup.sh -y --profile minimal --default-toolchain stable
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Исходники внутрь окружения
+        run: bash packaging/ci/el9-chroot.sh copy-in "$GITHUB_WORKSPACE" /root/remotix
 
-      - name: Vendor crates (offline dependencies)
+      - name: Vendor crates (offline-зависимости)
         run: |
+          bash packaging/ci/el9-chroot.sh sh <<'EOS'
+          cd /root/remotix
           # vendor/ пересоздаём через cargo vendor — контрольные суммы
-          # гарантированно совпадают с Cargo.lock
-          rm -rf vendor .cargo
-          cargo vendor vendor > /dev/null
+          # гарантированно совпадают с Cargo.lock. Штатный .cargo/config.toml
+          # (source replacement + offline) на время вендоринга убираем, иначе
+          # cargo не пойдёт в crates.io.
+          mv .cargo/config.toml /tmp/cargo-config.toml
+          rm -rf vendor
+          CARGO_NET_OFFLINE=false cargo vendor vendor > /dev/null
           mkdir -p .cargo
-          cat > .cargo/config.toml <<'EOF'
-          [source.crates-io]
-          replace-with = "vendored-sources"
+          mv /tmp/cargo-config.toml .cargo/config.toml
+          echo "vendor: $(ls vendor | wc -l) крейтов"
+          EOS
 
-          [source.vendored-sources]
-          directory = "vendor"
+      - name: Сборка релизного бинарника (EL9)
+        run: bash packaging/ci/el9-chroot.sh run 'cd /root/remotix && cargo build --release --offline'
 
-          [net]
-          offline = true
-          EOF
-
-      - name: Build release binary
-        run: cargo build --release --offline
-
-      - name: Smoke test (приложение должно запускаться)
+      - name: Smoke-тест (приложение должно запускаться)
         run: |
+          bash packaging/ci/el9-chroot.sh sh <<'EOS'
+          cd /root/remotix
           # Реальный запуск GUI в виртуальном X-сервере: если бинарнику не
           # хватает библиотек/символов или он падает при старте — job падает.
           export GSK_RENDERER=cairo
           export REMOTIX_MASTER_PASSWORD=ci-smoke-test
+          # timeout возвращает 124, когда приложение дожило до таймаута: это
+          # ожидаемый успех, поэтому set -e на время запуска выключаем.
+          set +e
           timeout 20 xvfb-run -a ./target/release/remotix > /tmp/smoke.log 2>&1
           code=$?
+          set -e
           echo "exit code: $code (124 = приложение работало до таймаута)"
           cat /tmp/smoke.log || true
           if [ "$code" -ne 124 ]; then
             echo "::error::приложение завершилось с кодом $code — RPM не собираем"
             exit 1
           fi
+          EOS
 
-      - name: Show ELF dependencies
+      - name: Зависимости ELF и максимальная требуемая версия glibc
         run: |
+          bash packaging/ci/el9-chroot.sh sh <<'EOS'
+          cd /root/remotix
           ldd target/release/remotix
           echo '--- максимальная требуемая версия glibc ---'
           objdump -T target/release/remotix | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+          EOS
 
-      - name: Prepare RPM sources
+      - name: Подготовка исходников RPM
         run: |
-          VERSION=1.0.0
-          NAME=remotix-${VERSION}
-          mkdir -p "$HOME/rpmbuild/SOURCES"
+          bash packaging/ci/el9-chroot.sh sh <<'EOS'
+          cd /root/remotix
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          NAME=remotix-$VERSION
+          mkdir -p /root/rpmbuild/SOURCES
 
-          # Дерево исходников без служебных каталогов (vendor оставляем: он
-          # попадает и в Source0, и отдельным архивом Source1)
-          rsync -a --exclude .git --exclude target --exclude .github ./ "/tmp/$NAME/"
+          # Дерево исходников без служебных каталогов (vendor попадает и в
+          # Source0, и отдельным архивом Source1 — так требует spec).
+          rm -rf /tmp/$NAME
+          mkdir -p /tmp/$NAME
+          rsync -a --exclude .git --exclude target --exclude .github ./ /tmp/$NAME/
 
-          tar -czf "$HOME/rpmbuild/SOURCES/remotix-vendor-${VERSION}.tar.gz" -C "/tmp/$NAME" vendor
-          cp "/tmp/$NAME/Cargo.lock" "$HOME/rpmbuild/SOURCES/"
-          tar -czf "$HOME/rpmbuild/SOURCES/${NAME}.tar.gz" -C /tmp "$NAME"
+          tar -czf /root/rpmbuild/SOURCES/remotix-vendor-$VERSION.tar.gz -C /tmp/$NAME vendor
+          cp /tmp/$NAME/Cargo.lock /root/rpmbuild/SOURCES/
+          tar -czf /root/rpmbuild/SOURCES/$NAME.tar.gz -C /tmp $NAME
+          ls -lh /root/rpmbuild/SOURCES/
+          EOS
 
-      - name: Build RPM
+      - name: Сборка RPM
         run: |
-          # Зависимости установлены через dnf (см. выше); --nodeps отключает
-          # проверку BuildRequires по именам пакетов РЕД ОС (cargo/rust идут
-          # из rustup, а не из rpm).
-          rpmbuild -ba packaging/remotix.spec --nodeps
+          bash packaging/ci/el9-chroot.sh sh <<'EOS'
+          cd /root/remotix
+          # Зависимости уже установлены через dnf (см. el9-chroot.sh setup);
+          # --nodeps отключает проверку BuildRequires по именам пакетов РЕД ОС
+          # (cargo/rust идут из rustup, а не из rpm-пакетов). dist пуст, чтобы
+          # имя пакета совпадало с ранее опубликованной сборкой
+          # (remotix-1.0.0-1.x86_64.rpm) и не зависело от состава окружения.
+          rpmbuild -ba packaging/remotix.spec --nodeps --define 'dist %{nil}'
+          EOS
 
-      - name: Check RPM dependencies
+      - name: Проверка RPM
         run: |
-          rpm -qpi "$HOME"/rpmbuild/RPMS/*/remotix-*.rpm | head -20
+          bash packaging/ci/el9-chroot.sh sh <<'EOS'
+          ls -lh /root/rpmbuild/RPMS/*/ /root/rpmbuild/SRPMS/
+          rpm -qpi /root/rpmbuild/RPMS/*/remotix-*.rpm | head -20
           echo '--- Requires ---'
-          rpm -qp --requires "$HOME"/rpmbuild/RPMS/*/remotix-*.rpm
+          rpm -qp --requires /root/rpmbuild/RPMS/*/remotix-*.rpm
+          echo '--- файлы пакета ---'
+          rpm -qlp /root/rpmbuild/RPMS/*/remotix-*.rpm
+          EOS
 
-      - name: Show results
+      - name: Забрать RPM из окружения
         run: |
-          ls -lh "$HOME/rpmbuild/RPMS/"*/ "$HOME/rpmbuild/SRPMS/"
-
-      - name: Collect artifacts
-        run: |
-          mkdir -p dist
-          cp "$HOME"/rpmbuild/RPMS/*/remotix-*.rpm dist/
-          cp "$HOME"/rpmbuild/SRPMS/remotix-*.rpm dist/
-          ls -lh dist/
+          bash packaging/ci/el9-chroot.sh copy-out /root/rpmbuild/RPMS/x86_64 dist
+          bash packaging/ci/el9-chroot.sh copy-out /root/rpmbuild/SRPMS dist
+          ls -lh dist/*.rpm
 
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:
           name: remotix-rpm
-          path: dist/remotix-*.rpm
+          path: dist/*.rpm
           if-no-files-found: error
 
-      - name: Attach RPM to release
+      - name: Прикрепить RPM к релизу (push тега v*)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/remotix-*.rpm
+          files: dist/*.rpm
+
+      - name: Прикрепить RPM к релизу (ручной запуск)
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.publish_release }}
+          files: dist/*.rpm
+
+      - name: Размонтировать окружение EL9
+        if: always()
+        run: bash packaging/ci/el9-chroot.sh teardown

@@ -43,15 +43,27 @@ cargo build --release
 
 ## Сборка RPM через GitHub Actions
 
-CI (`.github/workflows/build-rpm.yml`) собирает пакет **внутри контейнера
-AlmaLinux 9** — это тот же уровень платформы, что у РЕД ОС 8 (glibc 2.34,
-OpenSSL 3, GTK4 4.6+), поэтому бинарник запускается на целевой системе.
-Пакет, собранный на Ubuntu 24.04 (glibc 2.39, GTK 4.14), на РЕД ОС падал при
-запуске: «error while loading shared libraries: libvte-2.91-gtk4.so.0».
+CI (`.github/workflows/build-rpm.yml`) собирает пакет **внутри пользовательского
+окружения AlmaLinux 9 (EL9)** — это тот же уровень платформы, что у РЕД ОС 8
+(glibc 2.34, OpenSSL 3, GTK4 4.6+), поэтому бинарник запускается на целевой
+системе. Пакет, собранный на Ubuntu 24.04 (glibc 2.39, GTK 4.14), на РЕД ОС
+падал при запуске: «error while loading shared libraries:
+libvte-2.91-gtk4.so.0».
+
+**Docker не используется.** Окружение EL9 разворачивается обычным `chroot` в
+rootfs AlmaLinux 9 (`rootfs.tar.xz` с зеркала Linux Containers) с помощью
+`packaging/ci/el9-chroot.sh`: скрипт скачивает rootfs, монтирует `proc`/`sys`/
+`dev`, ставит зависимости сборки через `dnf` и rustup, а затем выполняет сборку,
+smoke-тест и `rpmbuild` внутри окружения. Docker-демон и `container:` в workflow
+не нужны — можно переехать на self-hosted runner без контейнерных движков.
 
 Перед упаковкой CI выполняет **smoke-тест**: запускает собранное приложение
 в виртуальном X-сервере (`xvfb-run`) и требует, чтобы оно оставалось живым
 (иначе сборка пакета считается неуспешной).
+
+Собранные пакеты (бинарный и src) CI прикладывает к релизу: автоматически при
+push тега `v*`, либо вручную — запуск workflow с указанием тега релиза в поле
+`publish_release`.
 
 ## Структура проекта
 
