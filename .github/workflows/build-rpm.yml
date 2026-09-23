@@ -94,9 +94,12 @@ jobs:
 
           # Дерево исходников без служебных каталогов (vendor попадает и в
           # Source0, и отдельным архивом Source1 — так требует spec).
+          # .github удаляем точечно: в vendor/* есть свои .github, их терять
+          # нельзя — cargo проверяет контрольные суммы по .cargo-checksum.json.
           rm -rf /tmp/$NAME
           mkdir -p /tmp/$NAME
-          rsync -a --exclude .git --exclude target --exclude .github ./ /tmp/$NAME/
+          rsync -a ./ /tmp/$NAME/
+          rm -rf /tmp/$NAME/.github
 
           tar -czf /root/rpmbuild/SOURCES/remotix-vendor-$VERSION.tar.gz -C /tmp/$NAME vendor
           cp /tmp/$NAME/Cargo.lock /root/rpmbuild/SOURCES/
