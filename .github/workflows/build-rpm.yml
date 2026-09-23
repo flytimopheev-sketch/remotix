@@ -94,9 +94,10 @@ jobs:
 
           # Дерево исходников без служебных каталогов (vendor попадает и в
           # Source0, и отдельным архивом Source1 — так требует spec).
+          # target/ — артефакты предыдущей сборки (гигабайты), в SRPM не нужны.
           # .github удаляем точечно: в vendor/* есть свои .github, их терять
           # нельзя — cargo проверяет контрольные суммы по .cargo-checksum.json.
-          rm -rf /tmp/$NAME
+          rm -rf /root/remotix/target /tmp/$NAME
           mkdir -p /tmp/$NAME
           rsync -a ./ /tmp/$NAME/
           rm -rf /tmp/$NAME/.github
