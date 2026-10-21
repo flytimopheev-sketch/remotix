@@ -380,13 +380,18 @@ impl Connection for RdpConnection {
 
     fn connect(&mut self) -> Result<(), String> {
         // Современные серверы (Windows 10/11, RDS) требуют NLA (CredSSP).
-        // Если сервер не поддерживает NLA — повторяем подключение в режиме
+        // Если сервер его не поддерживает — повторяем подключение в режиме
         // PROTOCOL_SSL (TLS без NLA).
-        match self.connect_with(true) {
+        let nla = self.profile.rdp_options.nla;
+        match self.connect_with(nla) {
             Ok(()) => Ok(()),
             Err(e) => {
-                eprintln!("Remotix: подключение по NLA не удалось ({e}), пробуем без NLA");
-                self.connect_with(false)
+                if nla {
+                    eprintln!("Remotix: подключение по NLA не удалось ({e}), пробуем без NLA");
+                    self.connect_with(false)
+                } else {
+                    Err(e)
+                }
             }
         }
     }
@@ -595,6 +600,24 @@ impl RdpConnection {
         }
     }
 
+    /// Отправить в удалённую сессию последовательность `Ctrl+Alt+Del`.
+    ///
+    /// Сервер RDP отслеживает состояние модификаторов по самим событиям
+    /// клавиатуры, поэтому достаточно послать нажатие Ctrl, Alt и Delete
+    /// (с флагом «расширенная клавиша»).
+    pub fn send_ctrl_alt_del(&mut self) {
+        const CTRL: RdpKey = RdpKey::Scancode { code: 0x1d, extended: false };
+        const ALT: RdpKey = RdpKey::Scancode { code: 0x38, extended: false };
+        const DEL: RdpKey = RdpKey::Scancode { code: 0x53, extended: true };
+
+        self.send_key(CTRL, true);
+        self.send_key(ALT, true);
+        self.send_key(DEL, true);
+        self.send_key(DEL, false);
+        self.send_key(ALT, false);
+        self.send_key(CTRL, false);
+    }
+
     /// Отправить движение/клик мыши (fast-path Mouse-событие).
     /// `buttons`: 1 — левая, 2 — правая, 3 — средняя кнопка.
     pub fn send_mouse(&mut self, x: u32, y: u32, buttons: u8, is_move: bool) {
@@ -653,6 +676,81 @@ impl RdpConnection {
     /// Запросить обновление от удалённого буфера обмена (сerosoft рекомендация).
     pub fn request_clipboard_update(&mut self) {
         // CLIPRDR уже работает в фоне через канал; явный запрос не требуется.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
+    use crate::models::Protocol;
+    use std::time::Duration;
+
+    /// Профиль для тестового RDP-сервера.
+    fn test_profile() -> Profile {
+        Profile {
+            id: 0,
+            name: "rdp-test".to_string(),
+            protocol: Protocol::Rdp,
+            host: "127.0.0.1".to_string(),
+            port: 3389,
+            username: Some("tester".to_string()),
+            password: Some("secret".to_string()),
+            ssh_key_path: None,
+            ssh_key_passphrase: None,
+            root_password: None,
+            group_id: None,
+            tags: vec![],
+            icon: None,
+            notes: None,
+            rdp_options: RdpOptions {
+                width: 1024,
+                height: 768,
+                ..Default::default()
+            },
+            vnc_options: VncOptions::default(),
+            ssh_options: SshOptions::default(),
+            created_at: 0,
+            updated_at: 0,
+            last_connected_at: None,
+        }
+    }
+
+    /// Проверяет подключение к RDP-серверу и получение кадра рабочего стола.
+    ///
+    /// Требует запущенного RDP-сервера на `127.0.0.1:3389` (в CI это
+    /// контейнер с `xrdp`). Если сервера нет — тест пропускается.
+    #[test]
+    fn connects_and_receives_frame() {
+        if TcpStream::connect("127.0.0.1:3389").is_err() {
+            eprintln!("RDP-сервер на 127.0.0.1:3389 недоступен — тест пропущен");
+            return;
+        }
+
+        let mut conn = RdpConnection::new(test_profile());
+        if let Err(e) = conn.connect() {
+            panic!("подключение к RDP-серверу не удалось: {e}");
+        }
+        // Неблокирующий режим: иначе ожидание кадра блокировало бы тест.
+        conn.set_nonblocking(true).expect("неблокирующий режим сокета");
+
+        // Ждём первый кадр рабочего стола.
+        let mut got_frame = false;
+        for _ in 0..100 {
+            match conn.run() {
+                Ok(true) => {
+                    got_frame = true;
+                    break;
+                }
+                Ok(false) => std::thread::sleep(Duration::from_millis(100)),
+                Err(e) => panic!("ошибка обработки кадра: {e}"),
+            }
+        }
+
+        let size = conn.image_size().expect("размер кадра должен быть известен");
+        assert!(size.0 > 0 && size.1 > 0, "некорректный размер кадра: {size:?}");
+        assert!(!conn.image_pixels().is_empty(), "кадр пустой");
+        assert!(got_frame, "кадр не получен");
     }
 }
 

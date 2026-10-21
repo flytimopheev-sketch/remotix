@@ -53,6 +53,15 @@ jobs:
       - name: Сборка релизного бинарника (EL9)
         run: bash packaging/ci/el9-chroot.sh run 'cd /root/remotix && cargo build --release --offline'
 
+      - name: Юнит-тесты
+        run: |
+          bash packaging/ci/el9-chroot.sh sh <<'EOS'
+          cd /root/remotix
+          # Тесты криптографии и репозитория выполняются всегда; тесты SSH и RDP
+          # требуют живых серверов и в CI пропускаются.
+          cargo test --offline 2>&1 | tail -25
+          EOS
+
       - name: Smoke-тест (приложение должно запускаться)
         run: |
           bash packaging/ci/el9-chroot.sh sh <<'EOS'

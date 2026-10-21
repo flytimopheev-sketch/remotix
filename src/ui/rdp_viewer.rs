@@ -10,7 +10,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use gtk4::prelude::*;
-use gtk4::{gdk, glib, Box as GtkBox, Label, Overlay, Picture, Spinner};
+use gtk4::{gdk, glib, Box as GtkBox, Button, Label, Overlay, Picture, Spinner};
 
 use crate::models::Profile;
 use crate::protocols::rdp::{RdpConnection, RdpKey};
@@ -30,6 +30,8 @@ enum ToRdp {
     Key { key: RdpKey, pressed: bool },
     Mouse { x: u32, y: u32, buttons: u8, is_move: bool },
     Wheel { x: u32, y: u32, delta: i32 },
+    /// Синтетическая последовательность `Ctrl+Alt+Del`.
+    CtrlAltDel,
 }
 
 /// Вкладка с просмотрщиком удалённого рабочего стола.
@@ -54,17 +56,36 @@ impl RdpViewer {
         let hint = Label::new(Some("Подключение к удалённому рабочему столу…"));
         hint.add_css_class("remotix-empty");
 
-        let overlay = Overlay::new();
-        overlay.set_child(Some(&picture));
-        overlay.add_overlay(&spinner);
-        overlay.add_overlay(&hint);
-        root.append(&overlay);
-
         // Размер удалённого экрана (нужен для пересчёта координат мыши).
         let remote_size = Rc::new(Cell::new((0u32, 0u32)));
 
         let (tx_ui, rx_ui) = mpsc::channel::<ToUi>();
         let (tx_rdp, rx_rdp) = mpsc::channel::<ToRdp>();
+
+        // Панель управления сессией.
+        let cad = Button::with_label("Ctrl+Alt+Del");
+        cad.set_tooltip_text(Some("Отправить в удалённую сессию Ctrl+Alt+Del"));
+
+        let panel = GtkBox::new(gtk4::Orientation::Horizontal, 6);
+        panel.set_halign(gtk4::Align::End);
+        panel.set_valign(gtk4::Align::Start);
+        panel.set_margin_top(8);
+        panel.set_margin_end(8);
+        panel.append(&cad);
+
+        let overlay = Overlay::new();
+        overlay.set_child(Some(&picture));
+        overlay.add_overlay(&spinner);
+        overlay.add_overlay(&hint);
+        overlay.add_overlay(&panel);
+        root.append(&overlay);
+
+        {
+            let tx = tx_rdp.clone();
+            cad.connect_clicked(move |_| {
+                let _ = tx.send(ToRdp::CtrlAltDel);
+            });
+        }
 
         // ---------------- Поток RDP ----------------
         {
@@ -95,6 +116,7 @@ impl RdpViewer {
                                 conn.send_mouse(x, y, buttons, is_move)
                             }
                             ToRdp::Wheel { x, y, delta } => conn.send_wheel(x, y, delta),
+                            ToRdp::CtrlAltDel => conn.send_ctrl_alt_del(),
                         }
                     }
 

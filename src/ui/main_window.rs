@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use gtk4::prelude::*;
 use gtk4::{
-    Box as GtkBox, Button, Entry, HeaderBar, Image, Label, ListBox, ListBoxRow, Notebook,
-    Orientation, Overlay, Paned, ScrolledWindow, SearchEntry,
+    gio, Box as GtkBox, Button, Entry, HeaderBar, Image, Label, ListBox, ListBoxRow, MenuButton,
+    Notebook, Orientation, Overlay, Paned, Popover, ScrolledWindow, SearchEntry,
 };
 
 use crate::app::AppState;
@@ -27,7 +27,7 @@ use crate::ui::SessionState;
 pub struct MainWindow {
     /// Корневой контейнер окна (панель сессий + строка состояния).
     pub root: GtkBox,
-    /// Шапка окна (заголовок, кнопки, поиск).
+    /// Шапка окна (заголовок, кнопки, поиск, меню).
     pub header: HeaderBar,
     state: Rc<AppState>,
     notebook: Notebook,
@@ -60,6 +60,11 @@ impl MainWindow {
         search.set_placeholder_text(Some("Поиск по названию, адресу или логину"));
         search.set_hexpand(true);
         header.pack_end(&search);
+
+        let menu_button = MenuButton::new();
+        menu_button.set_icon_name("open-menu-symbolic");
+        menu_button.set_tooltip_text(Some("Главное меню"));
+        header.pack_end(&menu_button);
 
         // ---------------- Боковая панель ----------------
         let sidebar = ListBox::new();
@@ -191,6 +196,13 @@ impl MainWindow {
             let win = win.clone();
             sftp_btn.connect_clicked(move |_| win.open_sftp_tab());
         }
+        {
+            let win = win.clone();
+            let menu = build_main_menu();
+            menu_button.set_menu_model(Some(&menu));
+            // Пункты меню вызывают те же действия, что и кнопки.
+            let _ = &win;
+        }
 
         win.refresh_profiles();
         win
@@ -203,16 +215,67 @@ impl MainWindow {
 
     /// Открывает редактор профиля (None — создание нового).
     pub fn open_profile_editor(&self, profile_id: Option<i64>) {
-        let win = self.clone();
-        let editor = ProfileEditor::new(self.state.as_ref(), profile_id, move || {
-            win.refresh_profiles();
-        });
+        let after_save = self.clone();
+        let after_delete = self.clone();
+        let editor = ProfileEditor::new(
+            self.state.as_ref(),
+            profile_id,
+            move || {
+                after_save.refresh_profiles();
+            },
+            move || {
+                after_delete.refresh_profiles();
+            },
+        );
         editor.present_transient_for(
             self.root
                 .root()
                 .and_then(|w| w.downcast::<gtk4::Window>().ok())
                 .as_ref(),
         );
+    }
+
+    /// Дублирует профиль: копия создаётся сразу, без диалогов.
+    pub fn duplicate_profile(&self, profile: &Profile) {
+        let key = self.state.unlocked_key();
+        let copy = crate::models::NewProfile {
+            name: format!("{} (копия)", profile.name),
+            protocol: Some(profile.protocol),
+            host: profile.host.clone(),
+            port: profile.port,
+            username: profile.username.clone(),
+            password: profile.password.clone(),
+            ssh_key_path: profile.ssh_key_path.clone(),
+            ssh_key_passphrase: profile.ssh_key_passphrase.clone(),
+            root_password: profile.root_password.clone(),
+            group_id: profile.group_id,
+            tags: profile.tags.clone(),
+            icon: profile.icon.clone(),
+            notes: profile.notes.clone(),
+            rdp_options: profile.rdp_options.clone(),
+            vnc_options: profile.vnc_options.clone(),
+            ssh_options: profile.ssh_options.clone(),
+        };
+
+        match self.state.db.add_profile(&key, &copy) {
+            Ok(_) => {
+                self.set_status(&format!("Создана копия профиля «{}»", copy.name));
+                self.refresh_profiles();
+            }
+            Err(e) => self.set_status(&format!("Не удалось создать копию: {e}")),
+        }
+    }
+
+    /// Удаляет профиль.
+    pub fn delete_profile(&self, profile: &Profile) {
+        match self.state.db.delete_profile(profile.id) {
+            Ok(n) if n > 0 => {
+                self.set_status(&format!("Профиль «{}» удалён", profile.name));
+                self.refresh_profiles();
+            }
+            Ok(_) => self.set_status("Профиль не найден"),
+            Err(e) => self.set_status(&format!("Не удалось удалить профиль: {e}")),
+        }
     }
 
     /// Быстрое подключение: `user@host` — SSH-сессия без профиля.
@@ -315,7 +378,73 @@ impl MainWindow {
         box_.append(&details);
 
         row.set_child(Some(&box_));
+
+        // Контекстное меню профиля (правая кнопка мыши).
+        {
+            let popover = self.profile_popover(profile.clone());
+            let controller = gtk4::GestureClick::new();
+            controller.set_button(3);
+            let popover = popover.clone();
+            controller.connect_pressed(move |_, _, x, y| {
+                popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
+                    x as i32, y as i32, 1, 1,
+                )));
+                popover.popup();
+            });
+            row.add_controller(controller);
+        }
+
         row
+    }
+
+    /// Контекстное меню профиля: подключиться, изменить, дублировать, удалить.
+    fn profile_popover(&self, profile: Profile) -> Popover {
+        let popover = Popover::new();
+        popover.set_autohide(true);
+
+        let box_ = GtkBox::new(Orientation::Vertical, 0);
+        box_.set_margin_top(4);
+        box_.set_margin_bottom(4);
+        box_.set_margin_start(4);
+        box_.set_margin_end(4);
+
+        let add_item = |container: &GtkBox, label: &str, action: Box<dyn Fn(&Profile)>| {
+            let button = Button::new();
+            button.add_css_class("flat");
+            button.add_css_class("remotix-menu-item");
+            button.set_hexpand(true);
+            let text = Label::new(Some(label));
+            text.set_xalign(0.0);
+            button.set_child(Some(&text));
+            {
+                let profile = profile.clone();
+                button.connect_clicked(move |_| action(&profile));
+            }
+            container.append(&button);
+        };
+
+        let win = self.clone();
+        add_item(&box_, "Подключиться", Box::new(move |p: &Profile| {
+            win.connect_profile(p.clone());
+        }));
+
+        let win = self.clone();
+        add_item(&box_, "Изменить…", Box::new(move |p: &Profile| {
+            win.open_profile_editor(Some(p.id));
+        }));
+
+        let win = self.clone();
+        add_item(&box_, "Дублировать", Box::new(move |p: &Profile| {
+            win.duplicate_profile(p);
+        }));
+
+        let win = self.clone();
+        add_item(&box_, "Удалить", Box::new(move |p: &Profile| {
+            win.delete_profile(p);
+        }));
+
+        popover.set_child(Some(&box_));
+        popover
     }
 
     /// Удаляет все строки боковой панели.
@@ -351,7 +480,10 @@ impl MainWindow {
             })
         };
 
-        match TerminalTab::new_ssh(&title, SshConnection::new(profile), on_state) {
+        let settings = crate::settings::Settings::new(self.state.db.clone());
+        let font_size = settings.terminal_font_size();
+
+        match TerminalTab::new_ssh(&title, SshConnection::new(profile), on_state, font_size) {
             Ok(tab) => {
                 self.append_session(&title, "utilities-terminal-symbolic", &tab.root);
                 self.set_status(&format!("{title}: подключение…"));
@@ -384,23 +516,6 @@ impl MainWindow {
         self.set_status(&format!("{title}: подключение…"));
     }
 
-    /// Записывает результат подключения в журнал.
-    fn log_connection(&self, profile_id: i64, started: i64, state: &SessionState) {
-        if profile_id <= 0 {
-            return;
-        }
-        let ended = crate::db::repository::now();
-        let (status, error) = match state {
-            SessionState::Connected => ("success", None),
-            SessionState::Failed(e) => ("error", Some(("E_CONNECT".to_string(), e.clone()))),
-            _ => return,
-        };
-        let _ = self
-            .state
-            .db
-            .add_history(profile_id, started, Some(ended), status, error);
-    }
-
     /// Открывает вкладку журнала подключений.
     pub fn open_history_tab(&self) {
         let tab = HistoryTab::new(self.state.clone());
@@ -430,7 +545,7 @@ impl MainWindow {
     }
 
     /// Профиль, выбранный в боковой панели.
-    fn selected_profile(&self) -> Option<Profile> {
+    pub fn selected_profile(&self) -> Option<Profile> {
         let row = self.sidebar.selected_row()?;
         let index = row.index();
         if index < 0 {
@@ -442,19 +557,52 @@ impl MainWindow {
     /// Добавляет вкладку сессии в рабочую область.
     fn append_session(&self, title: &str, icon_name: &str, widget: &impl IsA<gtk4::Widget>) {
         let icon = Image::from_icon_name(icon_name);
-
         let label = Label::new(Some(title));
+
         let tab_box = GtkBox::new(Orientation::Horizontal, 6);
         tab_box.append(&icon);
         tab_box.append(&label);
+
+        // Кнопка закрытия вкладки.
+        let close = Button::from_icon_name("window-close-symbolic");
+        close.add_css_class("remotix-tab-close");
+        close.set_tooltip_text(Some("Закрыть вкладку"));
+        tab_box.append(&close);
 
         let page = widget.clone().upcast::<gtk4::Widget>();
         self.notebook.append_page(&page, Some(&tab_box));
         self.notebook.set_tab_reorderable(&page, true);
         self.notebook.next_page();
 
+        {
+            let notebook = self.notebook.clone();
+            let page = page.clone();
+            close.connect_clicked(move |_| {
+                if let Some(index) = notebook.page_num(&page) {
+                    notebook.remove_page(Some(index));
+                }
+            });
+        }
+
         self.welcome.set_visible(false);
         self.on_session_state(title, SessionState::Connecting);
+    }
+
+    /// Записывает результат подключения в журнал.
+    fn log_connection(&self, profile_id: i64, started: i64, state: &SessionState) {
+        if profile_id <= 0 {
+            return;
+        }
+        let ended = crate::db::repository::now();
+        let (status, error) = match state {
+            SessionState::Connected => ("success", None),
+            SessionState::Failed(e) => ("error", Some(("E_CONNECT".to_string(), e.clone()))),
+            _ => return,
+        };
+        let _ = self
+            .state
+            .db
+            .add_history(profile_id, started, Some(ended), status, error);
     }
 
     /// Обновляет состояние сессии в строке состояния.
@@ -469,19 +617,19 @@ impl MainWindow {
         }
 
         let text = format!("{title}: {}", state.text());
-        for class in [
-            "remotix-status-ok",
-            "remotix-status-error",
-            "remotix-status-busy",
-        ] {
-            self.status.remove_css_class(class);
-        }
+        self.reset_status_style();
         self.status.add_css_class(state.css_class());
         self.status.set_text(&text);
     }
 
     /// Пишет сообщение в строку состояния.
     pub fn set_status(&self, text: &str) {
+        self.reset_status_style();
+        self.status.set_text(text);
+    }
+
+    /// Убирает классы состояния из строки состояния.
+    fn reset_status_style(&self) {
         for class in [
             "remotix-status-ok",
             "remotix-status-error",
@@ -489,8 +637,31 @@ impl MainWindow {
         ] {
             self.status.remove_css_class(class);
         }
-        self.status.set_text(text);
     }
+}
+
+/// Главное меню приложения.
+fn build_main_menu() -> gio::Menu {
+    let menu = gio::Menu::new();
+
+    let profiles = gio::Menu::new();
+    profiles.append(Some("Новый профиль"), Some("win.new-profile"));
+    profiles.append(Some("Дублировать профиль"), Some("win.duplicate-profile"));
+    profiles.append(Some("Удалить профиль"), Some("win.delete-profile"));
+    menu.append_section(None, &profiles);
+
+    let services = gio::Menu::new();
+    services.append(Some("Журнал подключений"), Some("win.history"));
+    services.append(Some("SFTP-клиент"), Some("win.sftp"));
+    menu.append_section(None, &services);
+
+    let app = gio::Menu::new();
+    app.append(Some("Параметры…"), Some("win.settings"));
+    app.append(Some("О программе"), Some("win.about"));
+    app.append(Some("Выход"), Some("win.quit"));
+    menu.append_section(None, &app);
+
+    menu
 }
 
 /// Разбор быстрого подключения "user@host" или "host".

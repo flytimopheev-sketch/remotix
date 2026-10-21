@@ -4,7 +4,7 @@
 # Требуются: rpm-build, cargo, rust. Зависимости сборки ставятся автоматически.
 set -euo pipefail
 
-VERSION=1.2.0
+VERSION=1.3.0
 PROJ_DIR="${1:-$(pwd)}"
 cd "$PROJ_DIR"
 

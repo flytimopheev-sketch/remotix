@@ -4,6 +4,7 @@ pub mod main_window;
 pub mod master_password;
 pub mod profile_editor;
 pub mod rdp_viewer;
+pub mod settings_window;
 pub mod sftp_client;
 pub mod sftp_tab;
 pub mod terminal;

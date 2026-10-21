@@ -31,10 +31,12 @@ pub struct ProfileEditor {
 impl ProfileEditor {
     /// Создаёт диалог редактора профиля.
     ///
-    /// `on_saved` вызывается после успешного сохранения профиля.
-    pub fn new<F>(state: &AppState, profile_id: Option<i64>, on_saved: F) -> Self
+    /// `on_saved` вызывается после успешного сохранения профиля,
+    /// `on_deleted` — после удаления.
+    pub fn new<F, D>(state: &AppState, profile_id: Option<i64>, on_saved: F, on_deleted: D) -> Self
     where
         F: Fn() + 'static,
+        D: Fn() + 'static,
     {
         let key = state.unlocked_key();
         let existing = state
@@ -52,6 +54,10 @@ impl ProfileEditor {
             .default_height(560)
             .modal(true)
             .build();
+
+        // Диалог оформляется так же, как основное окно.
+        let settings = crate::settings::Settings::new(state.db.clone());
+        crate::ui::theme::apply(&settings.theme(), &window);
 
         // ---------------- Поля ----------------
         let name = Entry::new();
@@ -100,6 +106,11 @@ impl ProfileEditor {
             .selected(0)
             .build();
 
+        // Значения по умолчанию берём из настроек приложения.
+        let settings = crate::settings::Settings::new(state.db.clone());
+        let default_resolution = settings.rdp_resolution();
+        let nla_default = settings.rdp_nla();
+
         if let Some(p) = existing.as_ref() {
             name.set_text(&p.name);
             protocol.set_selected(match p.protocol {
@@ -136,6 +147,16 @@ impl ProfileEditor {
             resolution.set_selected(idx);
         } else {
             port.set_value(f64::from(Protocol::Ssh.default_port()));
+            // Разрешение экрана по умолчанию — из настроек приложения.
+            let idx = match default_resolution.as_str() {
+                "1280x800" => 1,
+                "1280x1024" => 2,
+                "1440x900" => 3,
+                "1600x900" => 4,
+                "1920x1080" => 5,
+                _ => 0,
+            };
+            resolution.set_selected(idx);
         }
 
         // ---------------- Сетка полей ----------------
@@ -178,8 +199,12 @@ impl ProfileEditor {
         let save = Button::with_label("Сохранить");
         save.add_css_class("suggested-action");
         let cancel = Button::with_label("Отмена");
+        let remove = Button::with_label("Удалить профиль");
+        remove.add_css_class("destructive-action");
+        remove.set_visible(profile_id.is_some());
 
         let footer = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
+        footer.append(&remove);
         footer.append(&status);
         footer.append(&cancel);
         footer.append(&save);
@@ -295,6 +320,7 @@ impl ProfileEditor {
                 rdp.width = width;
                 rdp.height = height;
                 rdp.domain = domain.text().trim().to_string();
+                rdp.nla = nla_default;
                 profile.rdp_options = rdp;
 
                 let result = match profile_id {
@@ -315,6 +341,47 @@ impl ProfileEditor {
         {
             let window = window.clone();
             cancel.connect_clicked(move |_| window.close());
+        }
+
+        // Удаление профиля — с подтверждением.
+        {
+            let remove = remove.clone();
+            let window = window.clone();
+            let db = state.db.clone();
+            let on_deleted = Rc::new(on_deleted);
+            remove.connect_clicked(move |_| {
+                let Some(id) = profile_id else { return };
+                let db = db.clone();
+
+                let confirm = gtk4::MessageDialog::builder()
+                    .transient_for(&window)
+                    .modal(true)
+                    .message_type(gtk4::MessageType::Warning)
+                    .buttons(gtk4::ButtonsType::None)
+                    .text("Удалить профиль?")
+                    .secondary_text("Профиль и его настройки будут удалены безвозвратно.")
+                    .build();
+                confirm.add_button("Удалить", gtk4::ResponseType::Accept);
+                confirm.add_button("Отмена", gtk4::ResponseType::Cancel);
+
+                let on_deleted = on_deleted.clone();
+                let window = window.clone();
+                confirm.connect_response(move |dialog, response| {
+                    if response == gtk4::ResponseType::Accept {
+                        let db = db.clone();
+                        match db.delete_profile(id) {
+                            Ok(n) if n > 0 => {
+                                on_deleted();
+                                window.close();
+                            }
+                            _ => {}
+                        }
+                    }
+                    dialog.destroy();
+                });
+
+                confirm.present();
+            });
         }
 
         // Отслеживаем уничтожение окна, чтобы убирать закрытые редакторы.

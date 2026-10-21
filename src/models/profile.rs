@@ -52,6 +52,9 @@ pub struct RdpOptions {
     pub clipboard_to_remote: bool,
     #[serde(default)]
     pub clipboard_from_remote: bool,
+    /// Аутентификация NLA (CredSSP). Современные серверы Windows требуют её.
+    #[serde(default = "default_true")]
+    pub nla: bool,
 }
 
 fn default_color_depth() -> u32 {
@@ -75,6 +78,7 @@ impl Default for RdpOptions {
             clipboard: true,
             clipboard_to_remote: true,
             clipboard_from_remote: true,
+            nla: true,
         }
     }
 }

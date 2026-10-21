@@ -195,7 +195,9 @@ mod vte_dynamic {
 struct TerminalView {
     widget: gtk4::Widget,
     kind: Kind,
-    scale: std::cell::Cell<f64>,
+    scale: std::cell::Cell<f64>,
+    /// Базовый размер шрифта терминала (в пунктах) — из настроек.
+    base_font_px: f64,
 }
 
 enum Kind {
@@ -205,14 +207,18 @@ enum Kind {
 
 impl TerminalView {
     /// Создаёт терминал внутри `scroll`: VTE, если библиотека доступна.
-    fn new(scroll: &ScrolledWindow) -> Self {
+    fn new(scroll: &ScrolledWindow, font_size: i64) -> Self {
+        let base_font_px = (font_size.clamp(8, 32) as f64).max(8.0);
+        // Масштаб VTE приводим к базовому размеру шрифта.
+        let scale = (base_font_px / BASE_FONT_PX).clamp(0.5, 3.0);
         if let Some(vte) = vte_dynamic::Terminal::new() {
             let widget = vte.widget().clone();
             scroll.set_child(Some(&widget));
             return Self {
                 widget,
                 kind: Kind::Vte(vte),
-                scale: std::cell::Cell::new(1.0),
+                scale: std::cell::Cell::new(scale),
+                base_font_px,
             };
         }
 
@@ -223,13 +229,14 @@ impl TerminalView {
         view.set_monospace(true);
         view.set_wrap_mode(gtk4::WrapMode::Char);
         let provider = CssProvider::new();
-        apply_text_style(&view, &provider, 1.0);
+        apply_text_style(&view, &provider, 1.0, base_font_px);
         scroll.set_child(Some(&view));
         let widget = view.clone().upcast::<gtk4::Widget>();
         Self {
             widget,
             kind: Kind::Text { view, provider },
             scale: std::cell::Cell::new(1.0),
+            base_font_px,
         }
     }
 
@@ -265,7 +272,7 @@ impl TerminalView {
         self.scale.set(next);
         match &self.kind {
             Kind::Vte(term) => term.set_font_scale(next),
-            Kind::Text { view, provider } => apply_text_style(view, provider, next),
+            Kind::Text { view, provider } => { let base = self.base_font_px; apply_text_style(view, provider, next, base) },
         }
     }
 
@@ -301,8 +308,9 @@ impl TerminalView {
             // Для TextView размер оценивается по кеглю моноширинного шрифта.
             Kind::Text { .. } => {
                 let scale = self.scale.get();
-                let w = (BASE_FONT_PX * 0.6 * scale).round() as i32;
-                let h = (BASE_FONT_PX * 1.3 * scale).round() as i32;
+                let base = self.base_font_px;
+                let w = (base * 0.6 * scale).round() as i32;
+                let h = (base * 1.3 * scale).round() as i32;
                 (w.max(1), h.max(1))
             }
         }
@@ -310,8 +318,8 @@ impl TerminalView {
 }
 
 /// Применяет моноширинный шрифт нужного размера к резервному TextView.
-fn apply_text_style(view: &TextView, provider: &CssProvider, scale: f64) {
-    let size = (BASE_FONT_PX * scale).round() as i32;
+fn apply_text_style(view: &TextView, provider: &CssProvider, scale: f64, base_font_px: f64) {
+    let size = (base_font_px * scale).round() as i32;
     let css = format!("textview {{ font-family: monospace; font-size: {size}px; }}");
     provider.load_from_data(&css);
     #[allow(deprecated)]
@@ -377,13 +385,14 @@ impl TerminalTab {
         title: &str,
         conn: SshConnection,
         on_state: Rc<dyn Fn(crate::ui::SessionState)>,
+        font_size: i64,
     ) -> Result<Self, String> {
         let root = GtkBox::new(gtk4::Orientation::Vertical, 0);
         let scroll = ScrolledWindow::new();
         scroll.set_vexpand(true);
         root.append(&scroll);
 
-        let term = Rc::new(TerminalView::new(&scroll));
+        let term = Rc::new(TerminalView::new(&scroll, font_size));
 
         let (tx_in, rx_in) = mpsc::channel::<ToThread>();
         let (tx_out, rx_out) = mpsc::channel::<ToUi>();

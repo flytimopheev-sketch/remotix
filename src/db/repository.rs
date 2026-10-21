@@ -319,6 +319,28 @@ impl Database {
         Ok(())
     }
 
+    // ---------- settings ----------
+
+    /// Читает настройку приложения (строка из таблицы meta).
+    pub fn get_setting(&self, key: &str) -> Option<String> {
+        self.meta_get(&format!("settings.{key}"))
+            .and_then(|v| String::from_utf8(v).ok())
+    }
+
+    /// Сохраняет настройку приложения.
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<(), String> {
+        self.meta_set(&format!("settings.{key}"), value.as_bytes())
+            .map_err(|e| e.to_string())
+    }
+
+    /// Удаляет настройку (возвращает значение по умолчанию).
+    pub fn reset_setting(&self, key: &str) -> Result<(), String> {
+        self.conn()
+            .execute("DELETE FROM meta WHERE key = ?1", params![format!("settings.{key}")])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     // ---------- history ----------
 
     pub fn add_history(

@@ -9,11 +9,13 @@ use gtk4::{gio, glib, Application, ApplicationWindow, Button, Label};
 use crate::db::repository::Database;
 use crate::ui::main_window::MainWindow;
 use crate::ui::master_password::MasterPasswordDialog;
+use crate::ui::settings_window::SettingsWindow;
 
 /// Состояние приложения: база данных и ключ шифрования после разблокировки.
 ///
 /// База данных обёрнута в `Rc`: соединение SQLite нельзя клонировать, но
 /// его можно разделять между диалогами профиля, терминалом и SFTP-клиентом.
+#[derive(Clone)]
 pub struct AppState {
     pub db: Rc<Database>,
     pub key: Option<[u8; 32]>,
@@ -28,10 +30,17 @@ impl AppState {
 thread_local! {
     /// Главное окно приложения (создаётся один раз за сеанс).
     static MAIN_WINDOW: RefCell<Option<ApplicationWindow>> = const { RefCell::new(None) };
+    /// Состояние приложения (база данных и ключ шифрования).
+    static APP_STATE: RefCell<Option<Rc<AppState>>> = const { RefCell::new(None) };
+    /// Главный виджет интерфейса — нужен для действий из меню.
+    static MAIN_UI: RefCell<Option<Rc<MainWindow>>> = const { RefCell::new(None) };
     /// Диалог мастер-пароля (первичная разблокировка или блокировка по Ctrl+L).
     static UNLOCK_DIALOG: RefCell<Option<MasterPasswordDialog>> = const { RefCell::new(None) };
     /// Открытая база данных — используется повторно при блокировке.
     static APP_DB: RefCell<Option<Rc<Database>>> = const { RefCell::new(None) };
+    /// Окно настроек.
+    static SETTINGS_WINDOW: RefCell<Option<crate::ui::settings_window::SettingsWindow>> =
+        const { RefCell::new(None) };
     /// Окно с сообщением об ошибке (нужно удерживать, иначе оно закроется).
     static ERROR_WINDOW: RefCell<Option<ApplicationWindow>> = const { RefCell::new(None) };
 }
@@ -104,9 +113,13 @@ fn build_main_window(app: &Application, db: Rc<Database>, key: [u8; 32]) {
         .default_height(720)
         .build();
 
-    let main = MainWindow::new(state);
+    let main = MainWindow::new(state.clone());
     window.set_titlebar(Some(&main.header));
     window.set_child(Some(&main.root));
+
+    // Тема оформления из настроек.
+    let settings = crate::settings::Settings::new(state.db.clone());
+    crate::ui::theme::apply(&settings.theme(), &window);
 
     // Действия окна: «win.*»
     let actions = gio::SimpleActionGroup::new();
@@ -119,12 +132,52 @@ fn build_main_window(app: &Application, db: Rc<Database>, key: [u8; 32]) {
     }
     actions.add_action(&new_action);
 
+    let duplicate_action = gio::SimpleAction::new("duplicate-profile", None);
+    {
+        let main = main.clone();
+        duplicate_action.connect_activate(move |_, _| {
+            if let Some(profile) = main.selected_profile() {
+                main.duplicate_profile(&profile);
+            } else {
+                main.set_status("Сначала выберите подключение в списке слева");
+            }
+        });
+    }
+    actions.add_action(&duplicate_action);
+
+    let delete_action = gio::SimpleAction::new("delete-profile", None);
+    {
+        let main = main.clone();
+        delete_action.connect_activate(move |_, _| {
+            if let Some(profile) = main.selected_profile() {
+                main.delete_profile(&profile);
+            } else {
+                main.set_status("Сначала выберите подключение в списке слева");
+            }
+        });
+    }
+    actions.add_action(&delete_action);
+
     let search_action = gio::SimpleAction::new("focus-search", None);
     {
         let main = main.clone();
         search_action.connect_activate(move |_, _| main.focus_search());
     }
     actions.add_action(&search_action);
+
+    let history_action = gio::SimpleAction::new("history", None);
+    {
+        let main = main.clone();
+        history_action.connect_activate(move |_, _| main.open_history_tab());
+    }
+    actions.add_action(&history_action);
+
+    let sftp_action = gio::SimpleAction::new("sftp", None);
+    {
+        let main = main.clone();
+        sftp_action.connect_activate(move |_, _| main.open_sftp_tab());
+    }
+    actions.add_action(&sftp_action);
 
     let lock_action = gio::SimpleAction::new("lock", None);
     {
@@ -133,6 +186,12 @@ fn build_main_window(app: &Application, db: Rc<Database>, key: [u8; 32]) {
         lock_action.connect_activate(move |_, _| lock_window(&app, &window));
     }
     actions.add_action(&lock_action);
+
+    let settings_action = gio::SimpleAction::new("settings", None);
+    {
+        settings_action.connect_activate(move |_, _| open_settings());
+    }
+    actions.add_action(&settings_action);
 
     let about_action = gio::SimpleAction::new("about", None);
     {
@@ -153,10 +212,32 @@ fn build_main_window(app: &Application, db: Rc<Database>, key: [u8; 32]) {
     app.set_accels_for_action("win.focus-search", &["<Primary>f"]);
     app.set_accels_for_action("win.lock", &["<Primary>l"]);
     app.set_accels_for_action("win.about", &["<Primary>i"]);
+    app.set_accels_for_action("win.settings", &["<Primary>comma"]);
     app.set_accels_for_action("win.quit", &["<Primary>q"]);
 
+    APP_STATE.with(|s| *s.borrow_mut() = Some(Rc::new(state)));
+    MAIN_UI.with(|u| *u.borrow_mut() = Some(Rc::new(main)));
     MAIN_WINDOW.with(|w| *w.borrow_mut() = Some(window.clone()));
     window.present();
+}
+
+/// Открывает окно «Параметры».
+fn open_settings() {
+    let state = match APP_STATE.with(|s| s.borrow().clone()) {
+        Some(s) => s,
+        None => return,
+    };
+
+    let settings = crate::settings::Settings::new(state.db.clone());
+    let window = SettingsWindow::new(settings, state.clone(), move || {
+        // После закрытия настроек применяем тему.
+        let settings = crate::settings::Settings::new(state.db.clone());
+        if let Some(w) = MAIN_WINDOW.with(|w| w.borrow().clone()) {
+            crate::ui::theme::apply(&settings.theme(), &w);
+        }
+    });
+    window.present();
+    SETTINGS_WINDOW.with(|w| *w.borrow_mut() = Some(window));
 }
 
 /// Блокирует интерфейс: окно прячется, пользователь вводит мастер-пароль.

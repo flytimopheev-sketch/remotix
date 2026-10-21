@@ -20,7 +20,9 @@ mod app;
 mod config;
 mod db;
 mod models;
+mod profiles_io;
 mod protocols;
+mod settings;
 mod ui;
 
 use gtk4::gio::ApplicationFlags;
