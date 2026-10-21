@@ -82,12 +82,8 @@ impl Connection for SshConnection {
             return Err("аутентификация не пройдена".into());
         }
         self.session = Some(session);
-
-        // Двухступенчатый вход: после подключения под локальным
-        // администратором сразу поднимаем интерактивную сессию su -> root.
-        if self.profile.ssh_options.su_to_root && self.profile.root_password.is_some() {
-            self.su_to_root().map_err(|e| format!("su -> root не удался: {e}"))?;
-        }
+        // Переход в root выполняется отдельно, в том же канале, в котором
+        // будет работать терминал (см. `open_shell`).
         Ok(())
     }
 

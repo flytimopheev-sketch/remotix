@@ -539,8 +539,26 @@ impl MainWindow {
             Rc::new(move |state: SessionState| win.on_session_state(&title, state))
         };
 
-        let tab = SftpTab::new(profile, on_state);
-        self.append_session(&title, "folder-remote-symbolic", &tab.root);
+        // Закрытие вкладки (F10) — нам нужна ссылка на страницу ноутбука,
+        // которая появляется только после создания вкладки.
+        let page_cell: Rc<RefCell<Option<gtk4::Widget>>> = Rc::new(RefCell::new(None));
+        let on_close = {
+            let notebook = self.notebook.clone();
+            let page_cell = page_cell.clone();
+            Rc::new(move || {
+                if let Some(page) = page_cell.borrow().clone() {
+                    if let Some(index) = notebook.page_num(&page) {
+                        notebook.remove_page(Some(index));
+                    }
+                }
+            })
+        };
+
+        let tab = SftpTab::new(profile, on_state, on_close);
+        let page = tab.root.clone().upcast::<gtk4::Widget>();
+        *page_cell.borrow_mut() = Some(page.clone());
+
+        self.append_session(&title, "folder-remote-symbolic", &page);
         self.set_status(&format!("{title}: подключение…"));
     }
 

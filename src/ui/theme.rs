@@ -42,8 +42,9 @@ const STYLE: &str = r#"
 }
 .remotix-sidebar listbox row {
     border-radius: 9px;
-    padding: 6px 10px;
-    margin: 1px 6px;
+    /* Отступ слева — чтобы название профиля не примыкало к краю окна. */
+    padding: 7px 10px 7px 14px;
+    margin: 1px 8px 1px 4px;
     transition: background-color 120ms ease-out;
 }
 .remotix-sidebar listbox row:hover {
@@ -120,6 +121,50 @@ const STYLE: &str = r#"
 .remotix-menu-item {
     padding: 6px 12px;
     border-radius: 6px;
+}
+
+/* --- Файловый менеджер SFTP --- */
+.remotix-file-list {
+    background-color: transparent;
+}
+.remotix-file-list row {
+    border-radius: 6px;
+    margin: 1px 4px;
+    padding: 1px 4px;
+}
+.remotix-file-list row:hover {
+    background-color: alpha(currentColor, 0.08);
+}
+.remotix-file-list row.selected {
+    background-color: @accent_bg_color;
+}
+.remotix-file-list row.selected label {
+    color: @accent_fg_color;
+}
+.remotix-dir {
+    color: #3584e4;
+    font-weight: 700;
+}
+.remotix-file {
+    color: @theme_fg_color;
+}
+.remotix-file-size {
+    font-size: 0.8em;
+    opacity: 0.55;
+}
+.remotix-dir-up {
+    opacity: 0.6;
+    font-style: italic;
+}
+.remotix-pane-local {
+    background-color: alpha(@theme_base_color, 0.3);
+}
+.remotix-pane-remote {
+    background-color: alpha(@theme_base_color, 0.6);
+}
+.remotix-pane-path {
+    font-weight: 700;
+    font-size: 0.9em;
 }
 
 /* --- Диалоги --- */

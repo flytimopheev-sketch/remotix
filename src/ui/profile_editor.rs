@@ -9,8 +9,8 @@ use std::rc::Rc;
 
 use gtk4::prelude::*;
 use gtk4::{
-    Adjustment, Button, DropDown, Entry, Grid, Image, Label, PasswordEntry, SpinButton, StringList,
-    Switch, Window,
+    glib, Adjustment, Button, DropDown, Entry, Grid, Image, Label, PasswordEntry, SpinButton,
+    StringList, Switch, Window,
 };
 
 use crate::app::AppState;
@@ -167,17 +167,31 @@ impl ProfileEditor {
             grid.set_property(m, 16);
         }
 
+        // Основные поля.
         add_field(&grid, 0, "Название:", &name);
         add_field(&grid, 1, "Протокол:", &protocol);
         add_field(&grid, 2, "Адрес:", &host);
         add_field(&grid, 3, "Порт:", &port);
         add_field(&grid, 4, "Пользователь:", &user);
         add_field(&grid, 5, "Пароль:", &password);
-        add_field(&grid, 6, "SSH-ключ:", &key_path);
-        add_field(&grid, 7, "Вход в root (su -):", &su_to_root);
-        add_field(&grid, 8, "Пароль root:", &root_password);
-        add_field(&grid, 9, "Домен (RDP):", &domain);
-        add_field(&grid, 10, "Разрешение (RDP):", &resolution);
+
+        // Дополнительные параметры — отдельным блоком, чтобы их было видно.
+        let extra_title = Label::new(Some("Дополнительно"));
+        extra_title.add_css_class("remotix-section-title");
+        extra_title.set_xalign(0.0);
+
+        let extra_grid = Grid::new();
+        extra_grid.set_row_spacing(8);
+        extra_grid.set_column_spacing(12);
+        for m in ["margin-start", "margin-end"] {
+            extra_grid.set_property(m, 16);
+        }
+
+        add_field(&extra_grid, 0, "Ключ SSH:", &key_path);
+        add_field(&extra_grid, 1, "Вход под root через su -:", &su_to_root);
+        add_field(&extra_grid, 2, "Пароль root:", &root_password);
+        add_field(&extra_grid, 3, "Домен (RDP):", &domain);
+        add_field(&extra_grid, 4, "Разрешение экрана (RDP):", &resolution);
 
         // ---------------- Шапка и подвал ----------------
         let icon = Image::from_icon_name("preferences-system-remote-symbolic");
@@ -202,9 +216,12 @@ impl ProfileEditor {
         let remove = Button::with_label("Удалить профиль");
         remove.add_css_class("destructive-action");
         remove.set_visible(profile_id.is_some());
+        let check = Button::with_label("Проверить подключение");
+        check.set_tooltip_text(Some("Проверить доступность узла по TCP"));
 
         let footer = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
         footer.append(&remove);
+        footer.append(&check);
         footer.append(&status);
         footer.append(&cancel);
         footer.append(&save);
@@ -213,6 +230,8 @@ impl ProfileEditor {
         ui.append(&header);
         ui.append(&gtk4::Separator::new(gtk4::Orientation::Horizontal));
         ui.append(&grid);
+        ui.append(&extra_title);
+        ui.append(&extra_grid);
         ui.append(&gtk4::Separator::new(gtk4::Orientation::Horizontal));
         ui.append(&footer);
         window.set_child(Some(&ui));
@@ -341,6 +360,38 @@ impl ProfileEditor {
         {
             let window = window.clone();
             cancel.connect_clicked(move |_| window.close());
+        }
+
+        // Проверка доступности узла: обычный TCP-коннект.
+        {
+            let check = check.clone();
+            let host = host.clone();
+            let port = port.clone();
+            let status = status.clone();
+            check.connect_clicked(move |_| {
+                let addr = format!("{}:{}", host.text().trim(), port.value() as u16);
+                status.set_text(&format!("Проверяем {addr}…"));
+
+                let (tx, rx) = std::sync::mpsc::channel::<String>();
+                std::thread::spawn(move || {
+                    let result = match std::net::TcpStream::connect(&addr) {
+                        Ok(_) => format!("Узел {addr} доступен"),
+                        Err(e) => format!("Не удалось подключиться к {addr}: {e}"),
+                    };
+                    let _ = tx.send(result);
+                });
+
+                let status = status.clone();
+                glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+                    match rx.try_recv() {
+                        Ok(text) => {
+                            status.set_text(&text);
+                            glib::ControlFlow::Break
+                        }
+                        Err(_) => glib::ControlFlow::Continue,
+                    }
+                });
+            });
         }
 
         // Удаление профиля — с подтверждением.

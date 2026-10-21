@@ -195,9 +195,201 @@ mod vte_dynamic {
 struct TerminalView {
     widget: gtk4::Widget,
     kind: Kind,
-    scale: std::cell::Cell<f64>,
+    scale: std::cell::Cell<f64>,
     /// Базовый размер шрифта терминала (в пунктах) — из настроек.
     base_font_px: f64,
+    /// Текущее оформление вывода (цвет и начертание) для запасного терминала.
+    ansi: std::cell::Cell<AnsiState>,
+}
+
+/// Оформление вывода терминала: цвет символов и жирное начертание.
+#[derive(Clone, Copy, Default)]
+struct AnsiState {
+    /// Цвет символов (16-битный RGB).
+    color: Option<(u16, u16, u16)>,
+    /// Жирное начертание.
+    bold: bool,
+}
+
+/// Базовые цвета ANSI для тёмной темы.
+const ANSI_BASE: [(u8, u8, u8); 8] = [
+    (0x2e, 0x2e, 0x3a), // чёрный
+    (0xe8, 0x5c, 0x5c), // красный
+    (0x6f, 0xd0, 0x6f), // зелёный
+    (0xe0, 0xc0, 0x60), // жёлтый
+    (0x6f, 0xa8, 0xe8), // синий
+    (0xc8, 0x7f, 0xe0), // пурпурный
+    (0x60, 0xd0, 0xd0), // голубой
+    (0xd0, 0xd0, 0xd0), // белый
+];
+
+/// Переводит 8-битный цвет в 16-битный.
+fn rgb16(r: u8, g: u8, b: u8) -> (u16, u16, u16) {
+    (
+        u16::from(r) * 257,
+        u16::from(g) * 257,
+        u16::from(b) * 257,
+    )
+}
+
+/// Базовый цвет ANSI (0..7) или светлый вариант (8..15).
+fn ansi_color(index: u32, bright: bool) -> (u16, u16, u16) {
+    let (r, g, b) = ANSI_BASE[(index as usize) % 8];
+    let boost = if bright { 0x30 } else { 0 };
+    rgb16(r.saturating_add(boost), g.saturating_add(boost), b.saturating_add(boost))
+}
+
+/// Цвет из палитры xterm-256.
+fn xterm256(index: u8) -> (u16, u16, u16) {
+    if index < 8 {
+        let (r, g, b) = ANSI_BASE[index as usize];
+        return rgb16(r, g, b);
+    }
+    if index < 16 {
+        let (r, g, b) = ANSI_BASE[(index - 8) as usize];
+        return rgb16(r + 0x30, g + 0x30, b + 0x30);
+    }
+    if index < 232 {
+        const STEPS: [u8; 6] = [0, 95, 135, 175, 215, 255];
+        let i = (index - 16) as usize;
+        return rgb16(
+            STEPS[i / 36],
+            STEPS[(i % 36) / 6],
+            STEPS[i % 6],
+        );
+    }
+    let gray = (8 + (index as u16 - 232) * 10) as u8;
+    rgb16(gray, gray, gray)
+}
+
+/// Применяет последовательность SGR (параметры без `ESC[` и `m`).
+fn apply_sgr(mut state: AnsiState, params: &str) -> AnsiState {
+    let parts: Vec<&str> = params.split(';').collect();
+    let mut i = 0;
+    while i < parts.len() {
+        let code: u32 = parts[i].parse().unwrap_or(0);
+        match code {
+            0 => state = AnsiState::default(),
+            1 => state.bold = true,
+            22 => state.bold = false,
+            30..=37 => state.color = Some(ansi_color(code - 30, false)),
+            90..=97 => state.color = Some(ansi_color(code - 90, true)),
+            39 => state.color = None,
+            38 => {
+                if parts.get(i + 1) == Some(&"5") {
+                    if let Some(n) = parts.get(i + 2).and_then(|v| v.parse::<u8>().ok()) {
+                        state.color = Some(xterm256(n));
+                    }
+                    i += 2;
+                } else if parts.get(i + 1) == Some(&"2") {
+                    let r = parts.get(i + 2).and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
+                    let g = parts.get(i + 3).and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
+                    let b = parts.get(i + 4).and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
+                    state.color = Some(rgb16(r, g, b));
+                    i += 4;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    state
+}
+
+/// Вставляет накопленный текст в буфер с учётом цвета и начертания.
+fn flush_text(view: &TextView, end: &mut gtk4::TextIter, text: &mut Vec<u8>, state: AnsiState) {
+    if text.is_empty() {
+        return;
+    }
+    let content = String::from_utf8_lossy(text).into_owned();
+    text.clear();
+
+    let escaped = content
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;");
+
+    let markup = match state.color {
+        Some((r, g, b)) => {
+            let bold = if state.bold { "<b>" } else { "" };
+            let bold_end = if state.bold { "</b>" } else { "" };
+            format!("<span foreground=\"#{r:04x}{g:04x}{b:04x}\">{bold}{escaped}{bold_end}</span>")
+        }
+        None => {
+            if state.bold {
+                format!("<b>{escaped}</b>")
+            } else {
+                escaped
+            }
+        }
+    };
+
+    let buffer = view.buffer();
+    buffer.insert_markup(end, &markup);
+}
+
+/// Разбирает поток с ANSI-последовательностями и выводит текст с цветами.
+fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>) {
+    let buffer = view.buffer();
+    let mut end = buffer.end_iter();
+    let mut text: Vec<u8> = Vec::with_capacity(data.len());
+    let mut iter = data.iter().copied().peekable();
+
+    while let Some(byte) = iter.next() {
+        match byte {
+            0x1b => {
+                if iter.peek() == Some(&b'[') {
+                    // CSI: ESC [ параметры Final
+                    iter.next();
+                    let mut params = String::new();
+                    while let Some(&b) = iter.peek() {
+                        iter.next();
+                        if (0x40..=0x7e).contains(&b) {
+                            break;
+                        }
+                        params.push(b as char);
+                    }
+                    flush_text(view, &mut end, &mut text, state.get());
+                    state.set(apply_sgr(state.get(), &params));
+                    continue;
+                }
+                if iter.peek() == Some(&b']') {
+                    // OSC: пропускаем до BEL или ST.
+                    iter.next();
+                    while let Some(&b) = iter.peek() {
+                        iter.next();
+                        if b == 0x07 {
+                            break;
+                        }
+                        if b == 0x1b && iter.peek() == Some(&b'\\') {
+                            iter.next();
+                            break;
+                        }
+                    }
+                    continue;
+                }
+                // Прочие escape-последовательности — игнорируем.
+                iter.next();
+            }
+            0x0d => flush_text(view, &mut end, &mut text, state.get()),
+            0x07 => {}
+            0x08 => {
+                // Забой — удаляем предыдущий символ.
+                flush_text(view, &mut end, &mut text, state.get());
+                let buffer = view.buffer();
+                let mut end_iter = buffer.end_iter();
+                let mut start_iter = end_iter.clone();
+                if start_iter.backward_char() {
+                    buffer.delete(&mut start_iter, &mut end_iter);
+                }
+            }
+            b if b >= 0x20 => text.push(b),
+            _ => {}
+        }
+    }
+
+    flush_text(view, &mut end, &mut text, state.get());
+    view.scroll_to_iter(&mut end, 0.0, false, 0.0, 1.0);
 }
 
 enum Kind {
@@ -219,6 +411,7 @@ impl TerminalView {
                 kind: Kind::Vte(vte),
                 scale: std::cell::Cell::new(scale),
                 base_font_px,
+                ansi: std::cell::Cell::new(AnsiState::default()),
             };
         }
 
@@ -227,6 +420,7 @@ impl TerminalView {
         view.set_editable(false);
         view.set_cursor_visible(false);
         view.set_monospace(true);
+        view.add_css_class("remotix-terminal");
         view.set_wrap_mode(gtk4::WrapMode::Char);
         let provider = CssProvider::new();
         apply_text_style(&view, &provider, 1.0, base_font_px);
@@ -237,6 +431,7 @@ impl TerminalView {
             kind: Kind::Text { view, provider },
             scale: std::cell::Cell::new(1.0),
             base_font_px,
+            ansi: std::cell::Cell::new(AnsiState::default()),
         }
     }
 
@@ -254,14 +449,9 @@ impl TerminalView {
         match &self.kind {
             Kind::Vte(term) => term.feed(data),
             Kind::Text { view, .. } => {
-                let text = strip_ansi_escapes(data);
-                if text.is_empty() {
-                    return;
-                }
-                let buffer = view.buffer();
-                let mut end = buffer.end_iter();
-                buffer.insert(&mut end, &text);
-                view.scroll_to_iter(&mut end, 0.0, false, 0.0, 1.0);
+                // ANSI-последовательности разбираются и превращаются в цвет
+                // и начертание символов.
+                feed_ansi(view, data, &self.ansi);
             }
         }
     }
@@ -325,54 +515,6 @@ fn apply_text_style(view: &TextView, provider: &CssProvider, scale: f64, base_fo
     #[allow(deprecated)]
     view.style_context()
         .add_provider(provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
-}
-
-/// Удаляет ANSI escape-последовательности и возвращает читаемый текст
-/// (используется только резервным терминалом на TextView).
-fn strip_ansi_escapes(data: &[u8]) -> String {
-    let mut out: Vec<u8> = Vec::with_capacity(data.len());
-    let mut iter = data.iter().copied().peekable();
-    while let Some(byte) = iter.next() {
-        match byte {
-            0x1b => match iter.peek().copied() {
-                // CSI … завершается байтом 0x40..=0x7e
-                Some(b'[') => {
-                    iter.next();
-                    for b in iter.by_ref() {
-                        if (0x40..=0x7e).contains(&b) {
-                            break;
-                        }
-                    }
-                }
-                // OSC … завершается BEL или ESC '\'
-                Some(b']') => {
-                    iter.next();
-                    while let Some(b) = iter.next() {
-                        if b == 0x07 {
-                            break;
-                        }
-                        if b == 0x1b && iter.peek() == Some(&b'\\') {
-                            iter.next();
-                            break;
-                        }
-                    }
-                }
-                // Прочие двухбайтовые последовательности
-                Some(_) => {
-                    iter.next();
-                }
-                None => {}
-            },
-            // В Unix-терминалах перевод строки — это CR LF, BEL не нужен
-            0x0d | 0x07 => {}
-            0x08 => {
-                out.pop();
-            }
-            b if b == b'\n' || b == b'\t' || b >= 0x20 => out.push(b),
-            _ => {}
-        }
-    }
-    String::from_utf8_lossy(&out).into_owned()
 }
 
 impl TerminalTab {
@@ -641,7 +783,7 @@ fn wait_password(
         }
     }
     session.set_blocking(true);
-    if !prompted {
+    if !prompted && seen.trim().is_empty() {
         return Err("сервер не запросил пароль root".into());
     }
     ch.write_all(password.as_bytes())

@@ -410,8 +410,12 @@ impl RdpConnection {
 
         // 1. TCP-подключение к RDP-серверу
         let addr = format!("{}:{}", self.profile.host, self.profile.port);
-        let tcp_stream = TcpStream::connect(&addr)
-            .map_err(|e| format!("не удалось подключиться к {addr}: {e}"))?;
+        let tcp_stream = TcpStream::connect(&addr).map_err(|e| {
+            format!(
+                "не удалось подключиться к {addr}: {e}\n\
+                 Проверьте адрес и порт (по умолчанию 3389) и доступность узла."
+            )
+        })?;
 
         let client_addr = tcp_stream
             .local_addr()

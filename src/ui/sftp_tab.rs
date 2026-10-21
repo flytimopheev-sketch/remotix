@@ -1,32 +1,102 @@
-//! Вкладка SFTP: две панели — локальный каталог и каталог на сервере.
+//! Вкладка SFTP: двухпанельный файловый менеджер в духе Far/Midnight Commander.
+//!
+//! Управление с клавиатуры:
+//!   * `↑` / `↓`      — выбор элемента;
+//!   * `Enter`        — войти в каталог;
+//!   * `Backspace`    — перейти в родительский каталог;
+//!   * `Tab`          — переключить панель;
+//!   * `F5`           — скопировать из активной панели в другую;
+//!   * `F6`           — переименовать;
+//!   * `F7`           — создать каталог;
+//!   * `F8`           — удалить;
+//!   * `F10`          — закрыть вкладку;
+//!   * `Ctrl+R`       — обновить.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use gtk4::prelude::*;
-use gtk4::{glib, Box as GtkBox, Button, Label, ListBox, ListBoxRow, Paned, ScrolledWindow};
+use gtk4::{glib, Box as GtkBox, Label, ListBox, ListBoxRow, Paned, ScrolledWindow};
 
 use crate::models::Profile;
-use crate::ui::sftp_client::SftpPanel;
+use crate::ui::sftp_client::{local_list as list_local_dir, Entry, SftpPanel};
 use crate::ui::SessionState;
 
-/// События от потока SFTP в интерфейс.
-enum ToUi {
-    Remote(Vec<(String, u64, i64)>),
-    Local(Vec<(String, u64, i64)>),
-    Error(String),
-    Status(String),
-}
-
-/// Команды интерфейса потоку SFTP.
+/// События от интерфейса к потоку SFTP.
 enum ToSftp {
     Refresh,
+    Cd(String),
+    CdUp,
     Upload(String),
     Download(String),
     Mkdir(String),
     Remove(String),
+    Rename(String, String),
+}
+
+/// События от потока SFTP к интерфейсу.
+enum ToUi {
+    /// Список удалённого каталога и его путь.
+    Remote(Vec<Entry>, String),
+    Status(String),
+    Error(String),
+}
+
+/// Панель файлового менеджера.
+struct Pane {
+    /// Список элементов.
+    list: ListBox,
+    /// Заголовок с путём.
+    path: Label,
+    /// Содержимое каталога (в списке индекс 0 — пункт «..»).
+    entries: Rc<RefCell<Vec<Entry>>>,
+    /// Контейнер панели.
+    box_: GtkBox,
+}
+
+impl Pane {
+    fn new(title: &str, remote: bool) -> Self {
+        let header = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
+        header.set_margin_start(8);
+        header.set_margin_end(8);
+        header.set_margin_top(4);
+        header.set_margin_bottom(4);
+
+        let path = Label::new(Some(title));
+        path.set_xalign(0.0);
+        path.set_hexpand(true);
+        path.set_ellipsize(gtk4::pango::EllipsizeMode::Start);
+        path.add_css_class("remotix-pane-path");
+        header.append(&path);
+
+        let list = ListBox::new();
+        list.set_selection_mode(gtk4::SelectionMode::Single);
+        list.add_css_class("remotix-file-list");
+
+        let scrolled = ScrolledWindow::new();
+        scrolled.set_child(Some(&list));
+        scrolled.set_vexpand(true);
+        scrolled.set_hscrollbar_policy(gtk4::PolicyType::Never);
+
+        let box_ = GtkBox::new(gtk4::Orientation::Vertical, 0);
+        box_.add_css_class(if remote {
+            "remotix-pane-remote"
+        } else {
+            "remotix-pane-local"
+        });
+        box_.append(&header);
+        box_.append(&scrolled);
+
+        Self {
+            list,
+            path,
+            entries: Rc::new(RefCell::new(Vec::new())),
+            box_,
+        }
+    }
 }
 
 /// Вкладка SFTP-клиента.
@@ -36,77 +106,55 @@ pub struct SftpTab {
 
 impl SftpTab {
     /// Создаёт вкладку SFTP для профиля.
-    pub fn new(profile: Profile, on_state: Rc<dyn Fn(SessionState)>) -> Self {
+    pub fn new(
+        profile: Profile,
+        on_state: Rc<dyn Fn(SessionState)>,
+        on_close: Rc<dyn Fn()>,
+    ) -> Self {
         let root = GtkBox::new(gtk4::Orientation::Vertical, 0);
 
-        // ---------------- Панель инструментов ----------------
-        let toolbar = GtkBox::new(gtk4::Orientation::Horizontal, 8);
-        for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
-            toolbar.set_property(m, 8);
-        }
-        let refresh = Button::with_label("Обновить");
-        let upload = Button::with_label("⇩ Загрузить на сервер");
-        let download = Button::with_label("⇧ Скачать с сервера");
-        let mkdir = Button::with_label("Новая папка");
-        let remove = Button::with_label("Удалить");
-        let status = Label::new(Some(""));
+        let (tx_ui, rx_ui) = mpsc::channel::<ToUi>();
+        let (tx_sftp, rx_sftp) = mpsc::channel::<ToSftp>();
+
+        // Текущий локальный каталог — общий для интерфейса и потока.
+        let local_dir = Arc::new(Mutex::new(crate::config::home_dir()));
+
+        // ---------------- Строка состояния ----------------
+        let status = Label::new(Some("Готово"));
         status.set_xalign(0.0);
         status.set_hexpand(true);
         status.add_css_class("remotix-field-caption");
-        toolbar.append(&refresh);
-        toolbar.append(&upload);
-        toolbar.append(&download);
-        toolbar.append(&mkdir);
-        toolbar.append(&remove);
-        toolbar.append(&status);
+        let statusbar = GtkBox::new(gtk4::Orientation::Horizontal, 8);
+        for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
+            statusbar.set_property(m, 6);
+        }
+        statusbar.append(&status);
+        root.append(&statusbar);
 
-        // ---------------- Списки ----------------
-        let local_list = ListBox::new();
-        local_list.set_selection_mode(gtk4::SelectionMode::Single);
-        local_list.add_css_class("remotix-sidebar");
+        // ---------------- Панели ----------------
+        let local = Pane::new("Локальный", false);
+        let remote = Pane::new("Сервер", true);
 
-        let remote_list = ListBox::new();
-        remote_list.set_selection_mode(gtk4::SelectionMode::Single);
-        remote_list.add_css_class("remotix-sidebar");
-
-        let local_title = Label::new(Some("Локальный каталог"));
-        local_title.set_xalign(0.0);
-        local_title.add_css_class("remotix-group");
-        let remote_title = Label::new(Some("Каталог на сервере"));
-        remote_title.set_xalign(0.0);
-        remote_title.add_css_class("remotix-group");
-
-        let local_pane = GtkBox::new(gtk4::Orientation::Vertical, 0);
-        local_pane.append(&local_title);
-        let local_scroll = ScrolledWindow::new();
-        local_scroll.set_child(Some(&local_list));
-        local_scroll.set_vexpand(true);
-        local_pane.append(&local_scroll);
-
-        let remote_pane = GtkBox::new(gtk4::Orientation::Vertical, 0);
-        remote_pane.append(&remote_title);
-        let remote_scroll = ScrolledWindow::new();
-        remote_scroll.set_child(Some(&remote_list));
-        remote_scroll.set_vexpand(true);
-        remote_pane.append(&remote_scroll);
+        let local_box = local.box_.clone();
+        let remote_box = remote.box_.clone();
+        let local_list = local.list.clone();
+        let remote_list = remote.list.clone();
+        let local_path = local.path.clone();
+        let remote_path = remote.path.clone();
+        let local_entries = local.entries.clone();
+        let remote_entries = remote.entries.clone();
 
         let paned = Paned::new(gtk4::Orientation::Horizontal);
-        paned.set_start_child(Some(&local_pane));
-        paned.set_end_child(Some(&remote_pane));
-        paned.set_position(420);
+        paned.set_start_child(Some(&local_box));
+        paned.set_end_child(Some(&remote_box));
+        paned.set_position(480);
         paned.set_vexpand(true);
-
-        root.append(&toolbar);
         root.append(&paned);
 
         // ---------------- Поток SFTP ----------------
-        let (tx_ui, rx_ui) = mpsc::channel::<ToUi>();
-        let (tx_sftp, rx_sftp) = mpsc::channel::<ToSftp>();
-        let local_names: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-        let remote_names: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-
         {
             let tx_ui = tx_ui.clone();
+            let local_dir = local_dir.clone();
             std::thread::spawn(move || {
                 let mut panel = match SftpPanel::new(&profile) {
                     Ok(p) => p,
@@ -118,16 +166,22 @@ impl SftpTab {
                 let _ = tx_ui.send(ToUi::Status("SFTP-сессия установлена".to_string()));
 
                 loop {
-                    // Команды интерфейса.
                     while let Ok(cmd) = rx_sftp.try_recv() {
                         let result: Result<String, String> = match cmd {
                             ToSftp::Refresh => Ok(String::new()),
-                            ToSftp::Upload(name) => panel
-                                .upload(&crate::config::home_dir().join(&name), &name)
-                                .map(|_| format!("Файл {name} загружен")),
+                            ToSftp::Cd(path) => panel.cd(&path).map(|_| String::new()),
+                            ToSftp::CdUp => panel.cd_up().map(|_| String::new()),
+                            ToSftp::Upload(name) => {
+                                let from = local_dir.lock().unwrap().join(&name);
+                                panel
+                                    .upload(&from, &name)
+                                    .map(|_| format!("Файл {name} загружен на сервер"))
+                            }
                             ToSftp::Download(name) => {
-                                let target = crate::config::home_dir().join(&name);
-                                panel.download(&name, &target).map(|_| format!("Файл {name} скачан"))
+                                let to = local_dir.lock().unwrap().join(&name);
+                                panel
+                                    .download(&name, &to)
+                                    .map(|_| format!("Файл {name} скачан"))
                             }
                             ToSftp::Mkdir(name) => {
                                 panel.mkdir(&name).map(|_| format!("Каталог {name} создан"))
@@ -135,59 +189,57 @@ impl SftpTab {
                             ToSftp::Remove(name) => {
                                 panel.remove(&name).map(|_| format!("Объект {name} удалён"))
                             }
+                            ToSftp::Rename(from, to) => {
+                                panel.rename(&from, &to).map(|_| format!("Переименовано в {to}"))
+                            }
                         };
                         match result {
-                            Ok(msg) => {
-                                if !msg.is_empty() {
-                                    let _ = tx_ui.send(ToUi::Status(msg));
-                                }
+                            Ok(msg) if !msg.is_empty() => {
+                                let _ = tx_ui.send(ToUi::Status(msg));
                             }
+                            Ok(_) => {}
                             Err(e) => {
                                 let _ = tx_ui.send(ToUi::Error(e));
                             }
                         }
                     }
 
-                    // Списки.
                     match panel.remote_list() {
                         Ok(files) => {
-                            let _ = tx_ui.send(ToUi::Remote(files));
+                            let path = panel.remote_path();
+                            let _ = tx_ui.send(ToUi::Remote(files, path));
                         }
                         Err(e) => {
                             let _ = tx_ui.send(ToUi::Error(e));
                         }
                     }
-                    let _ = tx_ui.send(ToUi::Local(list_local()));
 
-                    std::thread::sleep(Duration::from_millis(400));
+                    std::thread::sleep(Duration::from_millis(300));
                 }
             });
         }
 
-        // ---------------- Отрисовка ----------------
+        // ---------------- Отрисовка удалённого списка ----------------
         {
-            let local_list = local_list.clone();
-            let remote_list = remote_list.clone();
-            let status = status.clone();
+            let status_out = status.clone();
             let on_state = on_state.clone();
-            let local_names = local_names.clone();
-            let remote_names = remote_names.clone();
+            let list_ref = remote_list.clone();
+            let entries_ref = remote_entries.clone();
 
             glib::timeout_add_local(Duration::from_millis(150), move || {
                 loop {
                     match rx_ui.try_recv() {
-                        Ok(ToUi::Remote(files)) => {
-                            fill_list(&remote_list, &files, &remote_names);
-                        }
-                        Ok(ToUi::Local(files)) => {
-                            fill_list(&local_list, &files, &local_names);
-                        }
-                        Ok(ToUi::Error(e)) => {
-                            status.set_text(&e);
+                        Ok(ToUi::Remote(files, path)) => {
+                            fill_list(&list_ref, &files);
+                            remote_path.set_text(&format!("Сервер: {path}"));
+                            *entries_ref.borrow_mut() = files;
                         }
                         Ok(ToUi::Status(s)) => {
-                            status.set_text(&s);
+                            status_out.set_text(&s);
                             on_state(SessionState::Connected);
+                        }
+                        Ok(ToUi::Error(e)) => {
+                            status_out.set_text(&e);
                         }
                         Err(_) => return glib::ControlFlow::Continue,
                     }
@@ -195,108 +247,290 @@ impl SftpTab {
             });
         }
 
-        // ---------------- Кнопки ----------------
+        // ---------------- Локальная панель ----------------
         {
+            let dir = local_dir.clone();
+            let list = local_list.clone();
+            let path = local_path.clone();
+            let entries = local_entries.clone();
             let tx = tx_sftp.clone();
-            refresh.connect_clicked(move |_| {
-                let _ = tx.send(ToSftp::Refresh);
-            });
-        }
-        {
-            let tx = tx_sftp.clone();
-            let local_list = local_list.clone();
-            let local_names = local_names.clone();
-            upload.connect_clicked(move |_| {
-                if let Some(name) = selected_name(&local_list, &local_names) {
-                    let _ = tx.send(ToSftp::Upload(name));
+
+            // Перечитать локальный каталог.
+            let reload = {
+                let dir = dir.clone();
+                let list = list.clone();
+                let path = path.clone();
+                let entries = entries.clone();
+                move || {
+                    let current = dir.lock().unwrap().clone();
+                    let files = list_local_dir(&current);
+                    fill_list(&list, &files);
+                    path.set_text(&format!("Локальный: {}", current.display()));
+                    *entries.borrow_mut() = files;
+                }
+            };
+            reload();
+
+            // Вход в каталог.
+            {
+                let reload = reload.clone();
+                let dir = dir.clone();
+                let entries = entries.clone();
+                list.connect_row_activated(move |_, row| {
+                    let index = row.index();
+                    let mut current = dir.lock().unwrap();
+                    if index <= 0 {
+                        // «..» — в родительский каталог.
+                        if let Some(parent) = current.parent() {
+                            *current = parent.to_path_buf();
+                        }
+                        drop(current);
+                        reload();
+                        return;
+                    }
+                    let items = entries.borrow();
+                    let Some(entry) = items.get(index as usize - 1) else {
+                        return;
+                    };
+                    if !entry.is_dir {
+                        return;
+                    }
+                    let name = entry.name.clone();
+                    drop(items);
+                    *current = current.join(&name);
+                    drop(current);
+                    reload();
+                });
+            }
+
+            // Клавиши локальной панели.
+            let controller = gtk4::EventControllerKey::new();
+            controller.connect_key_pressed({
+                let dir = dir.clone();
+                let entries = entries.clone();
+                let list = list.clone();
+                let reload = reload.clone();
+                let tx = tx.clone();
+                move |_, key, _, _| {
+                    let selected = selected_name(&list, &entries);
+                    match key.name().as_deref() {
+                        Some("BackSpace") => {
+                            let mut current = dir.lock().unwrap();
+                            if let Some(parent) = current.parent() {
+                                *current = parent.to_path_buf();
+                            }
+                            drop(current);
+                            reload();
+                            return glib::Propagation::Stop;
+                        }
+                        Some("F5") => {
+                            // Скопировать на сервер.
+                            if let Some(name) = selected {
+                                let _ = tx.send(ToSftp::Upload(name));
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        Some("F6") => {
+                            // Переименовать локально.
+                            if let Some(name) = selected {
+                                let new_name = format!("{name}.renamed");
+                                let from = dir.lock().unwrap().join(&name);
+                                let to = dir.lock().unwrap().join(&new_name);
+                                if std::fs::rename(&from, &to).is_ok() {
+                                    reload();
+                                }
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        Some("F7") => {
+                            let _ = tx.send(ToSftp::Mkdir("new-folder".to_string()));
+                            return glib::Propagation::Stop;
+                        }
+                        Some("F8") => {
+                            // Удалить локально.
+                            if let Some(name) = selected {
+                                let path = dir.lock().unwrap().join(&name);
+                                let _ = if path.is_dir() {
+                                    std::fs::remove_dir_all(&path)
+                                } else {
+                                    std::fs::remove_file(&path)
+                                };
+                                reload();
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        _ => {}
+                    }
+                    glib::Propagation::Proceed
                 }
             });
+            list.add_controller(controller);
         }
+
+        // ---------------- Удалённая панель ----------------
         {
-            let tx = tx_sftp.clone();
-            let remote_list = remote_list.clone();
-            let remote_names = remote_names.clone();
-            download.connect_clicked(move |_| {
-                if let Some(name) = selected_name(&remote_list, &remote_names) {
-                    let _ = tx.send(ToSftp::Download(name));
+            // Вход в каталог.
+            {
+                let entries = remote_entries.clone();
+                let tx = tx_sftp.clone();
+                remote_list.connect_row_activated(move |_, row| {
+                    let index = row.index();
+                    if index <= 0 {
+                        let _ = tx.send(ToSftp::CdUp);
+                        return;
+                    }
+                    let items = entries.borrow();
+                    let Some(entry) = items.get(index as usize - 1) else {
+                        return;
+                    };
+                    if !entry.is_dir {
+                        return;
+                    }
+                    let name = entry.name.clone();
+                    drop(items);
+                    let _ = tx.send(ToSftp::Cd(name));
+                });
+            }
+
+            // Клавиши удалённой панели.
+            let controller = gtk4::EventControllerKey::new();
+            controller.connect_key_pressed({
+                let entries = remote_entries.clone();
+                let list = remote_list.clone();
+                let tx = tx_sftp.clone();
+                move |_, key, _, _| {
+                    let selected = selected_name(&list, &entries);
+                    match key.name().as_deref() {
+                        Some("BackSpace") => {
+                            let _ = tx.send(ToSftp::CdUp);
+                            return glib::Propagation::Stop;
+                        }
+                        Some("F5") => {
+                            if let Some(name) = selected {
+                                let _ = tx.send(ToSftp::Download(name));
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        Some("F6") => {
+                            // Переименовать на сервере.
+                            if let Some(name) = selected {
+                                let _ = tx.send(ToSftp::Rename(
+                                    name.clone(),
+                                    format!("{name}.renamed"),
+                                ));
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        Some("F7") => {
+                            let _ = tx.send(ToSftp::Mkdir("new-folder".to_string()));
+                            return glib::Propagation::Stop;
+                        }
+                        Some("F8") => {
+                            if let Some(name) = selected {
+                                let _ = tx.send(ToSftp::Remove(name));
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        _ => {}
+                    }
+                    glib::Propagation::Proceed
                 }
             });
+            remote_list.add_controller(controller);
         }
+
+        // ---------------- Общие горячие клавиши ----------------
         {
             let tx = tx_sftp.clone();
-            mkdir.connect_clicked(move |_| {
-                let _ = tx.send(ToSftp::Mkdir("new-folder".to_string()));
-            });
-        }
-        {
-            let tx = tx_sftp.clone();
-            let remote_list = remote_list.clone();
-            let remote_names = remote_names.clone();
-            remove.connect_clicked(move |_| {
-                if let Some(name) = selected_name(&remote_list, &remote_names) {
-                    let _ = tx.send(ToSftp::Remove(name));
+            let on_close = on_close.clone();
+            let controller = gtk4::EventControllerKey::new();
+            controller.connect_key_pressed(move |_, key, _, state| {
+                let ctrl = state.contains(gtk4::gdk::ModifierType::CONTROL_MASK);
+                match key.name().as_deref() {
+                    Some("F10") => {
+                        on_close();
+                        return glib::Propagation::Stop;
+                    }
+                    Some("r") | Some("R") if ctrl => {
+                        let _ = tx.send(ToSftp::Refresh);
+                        return glib::Propagation::Stop;
+                    }
+                    _ => {}
                 }
+                glib::Propagation::Proceed
             });
+            root.add_controller(controller);
         }
+
+        // Первичная загрузка удалённого каталога.
+        let _ = tx_sftp.send(ToSftp::Refresh);
 
         Self { root }
     }
 }
 
-/// Имя выбранного элемента списка.
-fn selected_name(list: &ListBox, names: &Rc<RefCell<Vec<String>>>) -> Option<String> {
-    let row = list.selected_row()?;
-    let index = row.index();
-    if index < 0 {
-        return None;
-    }
-    names.borrow().get(index as usize).cloned()
-}
-
-/// Заполняет список файлами.
-fn fill_list(list: &ListBox, files: &[(String, u64, i64)], names: &Rc<RefCell<Vec<String>>>) {
+/// Заполняет список элементами каталога.
+fn fill_list(list: &ListBox, entries: &[Entry]) {
     crate::ui::clear_list(list);
-    let mut collected = Vec::with_capacity(files.len());
-    for (name, size, _) in files {
-        collected.push(name.clone());
+
+    // Строка «вверх» — как в файловом менеджере.
+    let up = ListBoxRow::new();
+    let up_label = Label::new(Some("..  (вверх)"));
+    up_label.set_xalign(0.0);
+    up_label.set_margin_start(8);
+    up_label.add_css_class("remotix-dir-up");
+    up.set_child(Some(&up_label));
+    list.append(&up);
+
+    for entry in entries {
         let row = ListBoxRow::new();
-        let label = Label::new(Some(&format!("{name}  ({})", human_size(*size))));
-        label.set_xalign(0.0);
-        label.set_margin_start(8);
-        label.set_margin_end(8);
-        label.set_margin_top(3);
-        label.set_margin_bottom(3);
-        row.set_child(Some(&label));
+        let row_box = GtkBox::new(gtk4::Orientation::Horizontal, 8);
+        row_box.set_margin_start(8);
+        row_box.set_margin_end(8);
+        row_box.set_margin_top(2);
+        row_box.set_margin_bottom(2);
+
+        let icon = Label::new(Some(if entry.is_dir { "📁" } else { "📄" }));
+        row_box.append(&icon);
+
+        let name = Label::new(Some(&entry.name));
+        name.set_xalign(0.0);
+        name.set_hexpand(true);
+        name.set_ellipsize(gtk4::pango::EllipsizeMode::Middle);
+        name.add_css_class(if entry.is_dir {
+            "remotix-dir"
+        } else {
+            "remotix-file"
+        });
+        row_box.append(&name);
+
+        if !entry.is_dir {
+            let size = Label::new(Some(&human_size(entry.size)));
+            size.add_css_class("remotix-file-size");
+            row_box.append(&size);
+        }
+
+        row.set_child(Some(&row_box));
         list.append(&row);
     }
-    *names.borrow_mut() = collected;
 }
 
-/// Список файлов локального каталога.
-fn list_local() -> Vec<(String, u64, i64)> {
-    let dir = crate::config::home_dir();
-    let mut out = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(&dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-            let mtime = entry
-                .metadata()
-                .ok()
-                .and_then(|m| m.modified().ok())
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0);
-            out.push((name, size, mtime));
-        }
+/// Имя выбранного элемента списка (None — «..» или ничего не выбрано).
+fn selected_name(list: &ListBox, entries: &Rc<RefCell<Vec<Entry>>>) -> Option<String> {
+    let row = list.selected_row()?;
+    let index = row.index();
+    if index <= 0 {
+        return None;
     }
-    out.sort();
-    out
+    entries
+        .borrow()
+        .get(index as usize - 1)
+        .map(|e| e.name.clone())
 }
 
 /// «Человекочитаемый» размер файла.
 fn human_size(size: u64) -> String {
-    const UNITS: [&str; 4] = ["Б", "КБ", "МБ", "ГБ"];
+    const UNITS: [&str; 5] = ["Б", "КБ", "МБ", "ГБ", "ТБ"];
     let mut value = size as f64;
     let mut unit = 0;
     while value >= 1024.0 && unit < UNITS.len() - 1 {

@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.3.0
+Version:        1.4.0
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
@@ -68,11 +68,11 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
-* Wed Oct 21 2026 Remotix Team <flytimopheev@gmail.com> - 1.3.0
+* Wed Oct 21 2026 Remotix Team <flytimopheev@gmail.com> - 1.4.0
 - Исправлен запуск графического интерфейса в РЕД ОС: приложение больше не
   завершается с «GLib-GIO-CRITICAL: This application can not open files»
 - Мастер-пароль запрашивается до показа главного окна (диалог привязан к
   приложению и больше не закрывает его)
 - Рабочий список профилей, редактор подключений, поиск и горячие клавиши
-* Mon Sep 07 2026 Remotix Team <flytimopheev@gmail.com> - 1.3.0
+* Mon Sep 07 2026 Remotix Team <flytimopheev@gmail.com> - 1.4.0
 - Первый выпуск: RDP/VNC/SSH, SFTP, шифрование, история подключений
