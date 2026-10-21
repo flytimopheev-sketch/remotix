@@ -45,6 +45,12 @@ impl<S> PrefixedStream<S> {
             inner,
         }
     }
+
+    /// Доступ к вложенному потоку (нужен, например, чтобы перевести сокет
+    /// в неблокирующий режим уже после TLS-рукопожатия).
+    fn inner_mut(&mut self) -> &mut S {
+        &mut self.inner
+    }
 }
 
 impl<S: Read> Read for PrefixedStream<S> {
@@ -122,7 +128,8 @@ Connection: close
                 .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
         }
 
-        // 3. Читаем весь ответ, тело после HTTP-заголовков — ответный токен.
+        // 3. Читаем весь ответ: CredSSP-токен находится в заголовке
+        //    `WWW-Authenticate: Negotiate <token>` (тело ответа пустое).
         let mut raw = Vec::<u8>::new();
         let mut buf = [0u8; 8192];
         loop {
@@ -132,6 +139,13 @@ Connection: close
                 Err(_) => break,
             }
         }
+
+        // Токен из заголовка WWW-Authenticate.
+        if let Some(token) = negotiate_token(&raw) {
+            return Ok(token);
+        }
+
+        // Запасной вариант: токен в теле ответа.
         // Ищем конец заголовков ("\r\n\r\n") и возвращаем оставшееся тело.
         let mut split = raw.len();
         for i in 0..raw.len() {
@@ -142,6 +156,46 @@ Connection: close
         }
         Ok(if split < raw.len() { raw[split..].to_vec() } else { Vec::<u8>::new() })
     }
+}
+
+/// Ищет в HTTP-ответе токен CredSSP из заголовка `WWW-Authenticate: Negotiate`.
+fn negotiate_token(raw: &[u8]) -> Option<Vec<u8>> {
+    let header = find_ci(raw, b"www-authenticate:")?;
+    let rest = &raw[header + 16..];
+    let line_end = rest
+        .iter()
+        .position(|&b| b == b'\r' || b == b'\n')
+        .unwrap_or(rest.len());
+    let line = &rest[..line_end];
+
+    let neg = find_ci(line, b"negotiate")?;
+    let value = line[neg + 9..].trim_ascii();
+    let value = value.strip_prefix(b"\"").unwrap_or(value);
+    let value = value.strip_suffix(b"\"").unwrap_or(value);
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_vec())
+    }
+}
+
+/// Поиск подстроки без учёта регистра.
+fn find_ci(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack
+        .windows(needle.len())
+        .position(|window| window.eq_ignore_ascii_case(needle))
+}
+
+/// Событие клавиатуры для RDP-сессии.
+#[derive(Debug, Clone, Copy)]
+pub enum RdpKey {
+    /// Служебная клавиша: X11-сканкод (set 1) и признак «расширенной» клавиши.
+    Scancode { code: u8, extended: bool },
+    /// Символ: Unicode-кодовая точка (запасной путь).
+    Char(char),
 }
 
 /// Верификатор TLS-сертификата, принимающий любой сертификат (аналог поведения
@@ -325,6 +379,28 @@ impl Connection for RdpConnection {
     }
 
     fn connect(&mut self) -> Result<(), String> {
+        // Современные серверы (Windows 10/11, RDS) требуют NLA (CredSSP).
+        // Если сервер не поддерживает NLA — повторяем подключение в режиме
+        // PROTOCOL_SSL (TLS без NLA).
+        match self.connect_with(true) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                eprintln!("Remotix: подключение по NLA не удалось ({e}), пробуем без NLA");
+                self.connect_with(false)
+            }
+        }
+    }
+
+    fn disconnect(&mut self) {
+        self.connected = false;
+    }
+}
+
+impl RdpConnection {
+    /// Подключение к RDP-серверу в выбранном режиме аутентификации.
+    ///
+    /// `credssp = true` — NLA (CredSSP), `false` — только TLS (PROTOCOL_SSL).
+    fn connect_with(&mut self, credssp: bool) -> Result<(), String> {
         let opts = &self.profile.rdp_options;
 
         // 1. TCP-подключение к RDP-серверу
@@ -355,9 +431,8 @@ impl Connection for RdpConnection {
             },
             desktop_scale_factor: 0,
             enable_tls: true,
-            // CredSSP/NLA отключена: используем TLS-безопасность (PROTOCOL_SSL).
-            // Для включения NLA необходим NetworkClient (CredSSP over HTTP).
-            enable_credssp: false,
+            // NLA (CredSSP) — обязателен для современных серверов Windows.
+            enable_credssp: credssp,
             credentials: ironrdp_connector::Credentials::UsernamePassword {
                 username: username.to_string(),
                 password: password.to_string(),
@@ -430,7 +505,7 @@ impl Connection for RdpConnection {
         // 8. Отмечаем, что TLS-апгрейд выполнен
         let upgraded = ironrdp_blocking::mark_as_upgraded(should_upgrade, &mut connector);
 
-        // 9. Завершаем процедуру подключения (CredSSP пропущен, enable_credssp: false)
+        // 9. Завершаем процедуру подключения (NLA — через RdpNetworkClient).
         let connection_result = ironrdp_blocking::connect_finalize(
             upgraded,
             connector,
@@ -452,13 +527,26 @@ impl Connection for RdpConnection {
         self.connected = true;
         Ok(())
     }
-
-    fn disconnect(&mut self) {
-        self.connected = false;
-    }
 }
 
 impl RdpConnection {
+
+    /// Переводит сокет в неблокирующий режим.
+    ///
+    /// Нужен циклу просмотра: пока сервер не прислал кадр, приложение должно
+    /// успевать обрабатывать клавиатуру и мышь.
+    pub fn set_nonblocking(&mut self, nonblocking: bool) -> Result<(), String> {
+        let framed = self
+            .framed
+            .as_mut()
+            .ok_or("RDP-сессия не инициализирована")?;
+        let (stream, _) = framed.get_inner_mut();
+        stream
+            .inner_mut()
+            .get_mut()
+            .set_nonblocking(nonblocking)
+            .map_err(|e| format!("не удалось переключить сокет в неблокирующий режим: {e}"))
+    }
 
     /// Размер текущего кадра (ширина, высота) в пикселях; `None`, если
     /// кадр ещё не получен.
@@ -480,22 +568,28 @@ impl RdpConnection {
     }
 
     /// Отправить нажатие клавиши на сервер.
-    /// `keysym` — символьный код клавиши (GDK/мировой); `state` — модификаторы.
-    /// Отправить нажатие клавиши на сервер (fast-path Unicode-событие).
-    /// `keysym` трактуется как кодовая точка Unicode (для GDK keysym латиницы
-    /// и большинства раскладок совпадает с ней); `state` — модификаторы.
-    pub fn send_keyboard(&mut self, keysym: u32, pressed: bool, state: u32) {
-        let _ = state;
+    ///
+    /// Основной путь — событие со X11-сканкодом: сервер сам учитывает
+    /// состояние Shift/Ctrl/Alt по таким событиям. `Char` — запасной вариант
+    /// для раскладок, где сканкод определить не удалось.
+    pub fn send_key(&mut self, key: RdpKey, pressed: bool) {
         if let Some(framed) = &mut self.framed {
             use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
             let mut flags = KeyboardFlags::empty();
             if !pressed {
                 flags |= KeyboardFlags::RELEASE;
             }
-            let event = FastPathInputEvent::UnicodeKeyboardEvent(
-                flags,
-                u16::try_from(keysym).unwrap_or(0),
-            );
+            let event = match key {
+                RdpKey::Scancode { code, extended } => {
+                    if extended {
+                        flags |= KeyboardFlags::EXTENDED1;
+                    }
+                    FastPathInputEvent::KeyboardEvent(flags, code)
+                }
+                RdpKey::Char(c) => {
+                    FastPathInputEvent::UnicodeKeyboardEvent(flags, c as u16)
+                }
+            };
             let pdu = FastPathInput::single(event);
             let _ = framed.write_all(&ironrdp_pdu::encode_vec(&pdu).unwrap_or_default());
         }

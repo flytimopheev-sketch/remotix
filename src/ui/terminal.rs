@@ -36,7 +36,7 @@ enum ToThread {
 
 enum ToUi {
     Out(Vec<u8>),
-    Closed(Option<String>),
+    State(crate::ui::SessionState),
 }
 
 /// Динамическая (во время выполнения) загрузка VTE для GTK4.
@@ -370,7 +370,14 @@ fn strip_ansi_escapes(data: &[u8]) -> String {
 impl TerminalTab {
     /// Открывает SSH-сессию в новом терминале: VTE, если библиотека есть в
     /// системе, иначе — упрощённый терминал с тем же вводом/выводом.
-    pub fn new_ssh(title: &str, conn: SshConnection) -> Result<Self, String> {
+    ///
+    /// `on_state` сообщает об изменении состояния сессии (подключение,
+    /// ошибка, закрытие) — её вывод показывается в строке состояния окна.
+    pub fn new_ssh(
+        title: &str,
+        conn: SshConnection,
+        on_state: Rc<dyn Fn(crate::ui::SessionState)>,
+    ) -> Result<Self, String> {
         let root = GtkBox::new(gtk4::Orientation::Vertical, 0);
         let scroll = ScrolledWindow::new();
         scroll.set_vexpand(true);
@@ -385,11 +392,13 @@ impl TerminalTab {
         std::thread::spawn(move || {
             let mut conn = conn;
             if let Err(e) = conn.connect() {
-                let _ = tx_out.send(ToUi::Closed(Some(e)));
+                let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Failed(e)));
                 return;
             }
             let Some(mut session) = conn.take_session() else {
-                let _ = tx_out.send(ToUi::Closed(Some("сессия потеряна".into())));
+                let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Failed(
+                    "сессия потеряна".into(),
+                )));
                 return;
             };
             session.set_blocking(true);
@@ -413,17 +422,20 @@ impl TerminalTab {
             let mut ch = match open {
                 Ok(c) => c,
                 Err(e) => {
-                    let _ = tx_out.send(ToUi::Closed(Some(e)));
+                    let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Failed(e)));
                     return;
                 }
             };
+
+            // Канал открыт — сессия работает.
+            let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Connected));
 
             session.set_blocking(false);
             let mut buf = [0u8; 8192];
             loop {
                 match ch.read(&mut buf) {
                     Ok(0) => {
-                        let _ = tx_out.send(ToUi::Closed(None));
+                        let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Closed));
                         break;
                     }
                     Ok(n) => {
@@ -433,7 +445,9 @@ impl TerminalTab {
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
                     Err(e) => {
-                        let _ = tx_out.send(ToUi::Closed(Some(e.to_string())));
+                        let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Failed(
+                            e.to_string(),
+                        )));
                         break;
                     }
                 }
@@ -448,7 +462,7 @@ impl TerminalTab {
                     Err(_) => {}
                 }
                 if ch.eof() {
-                    let _ = tx_out.send(ToUi::Closed(None));
+                    let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Closed));
                     break;
                 }
             }
@@ -460,20 +474,26 @@ impl TerminalTab {
         let status = Label::new(None);
         status.set_halign(gtk4::Align::Start);
         let status_out = status.clone();
+        let state_cb = on_state.clone();
         glib::timeout_add_local(Duration::from_millis(PROMPT_MS), move || {
             loop {
                 match rx_out.try_recv() {
                     Ok(ToUi::Out(data)) => term_out.feed(&data),
-                    Ok(ToUi::Closed(err)) => {
-                        let text = match err {
-                            Some(e) => format!("● Сессия закрыта: {e}"),
-                            None => "● Сессия закрыта".to_string(),
+                    Ok(ToUi::State(state)) => {
+                        let text = match &state {
+                            crate::ui::SessionState::Failed(e) => format!("● Ошибка: {e}"),
+                            crate::ui::SessionState::Closed => "● Сессия закрыта".to_string(),
+                            _ => String::new(),
                         };
-                        if !term_out.has_vte() {
-                            term_out.feed(format!("\n{text}\n").as_bytes());
+                        if !text.is_empty() {
+                            if !term_out.has_vte() {
+                                term_out.feed(format!("\n{text}\n").as_bytes());
+                            }
+                            status_out.set_text(&text);
+                            state_cb(state);
+                            return glib::ControlFlow::Break;
                         }
-                        status_out.set_text(&text);
-                        return glib::ControlFlow::Break;
+                        state_cb(state);
                     }
                     Err(_) => return glib::ControlFlow::Continue,
                 }

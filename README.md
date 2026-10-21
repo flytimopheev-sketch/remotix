@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-%D0%A0%D0%95%D0%94%20%D0%9E%D0%A1%207%20%7C%208-crimson?style=flat-square)](#-установка)
 [![CI](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml/badge.svg?branch=main)](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml)
-[![Release](https://img.shields.io/badge/release-1.1.0-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
+[![Release](https://img.shields.io/badge/release-1.2.0-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
 
 Единый интерфейс для подключения к удалённым рабочим столам и серверам.
 Написан на Rust + GTK4, работает **полностью офлайн**: без облака, без телеметрии,
@@ -36,21 +36,30 @@ Remotix — это «одно окно» для всех удалённых по
 | Профили подключений: создание, редактирование, поиск | ✅ готово |
 | Мастер-пароль (Argon2id) + шифрование учётных данных (AES-256-GCM) | ✅ готово |
 | SSH-подключение со встроенным терминалом (VTE / упрощённый) | ✅ готово |
+| **RDP: просмотрщик удалённого рабочего стола (IronRDP, NLA/CredSSP)** | ✅ готово |
+| SFTP: две панели, загрузка/скачивание, создание и удаление | ✅ готово |
 | Быстрое подключение `user@host` без создания профиля | ✅ готово |
 | Блокировка интерфейса по `Ctrl+L` | ✅ готово |
-| Журнал подключений в локальной базе + экспорт в CSV | ✅ готово |
+| Журнал подключений с экспортом в CSV | ✅ готово |
 | Двухступенчатый вход SSH (admin → `su -` → root) | ✅ готово |
-| RDP: протокол на IronRDP, графический просмотрщик | 🚧 в разработке |
 | VNC | 🚧 в разработке |
-| SFTP: бэкенд готов, две панели в интерфейсе | 🚧 в разработке |
 | Группы профилей, импорт/экспорт профилей | 🚧 в разработке |
 
 ---
 
-## 🖼 Предпросмотр интерфейса
+## 🖼 Интерфейс
 
-В репозитории лежит HTML-макет интерфейса — откройте [`mockup.html`](mockup.html)
-в браузере, чтобы посмотреть, как выглядит приложение.
+![Интерфейс Remotix](docs/screenshot.png)
+
+Слева — список подключений с цветными тегами протоколов и быстрым
+подключением, справа — вкладки активных сессий (терминал, удалённый рабочий
+стол, SFTP, журнал). Внизу — строка состояния с индикатором текущей сессии.
+
+| SSH-сессия во встроенном терминале | Удалённый рабочий стол (RDP) |
+| --- | --- |
+| Встроенный терминал с полноценной эмуляцией (VTE) | Кадры декодируются IronRDP и выводятся через GPU-текстуру |
+
+Полный HTML-макет лежит в репозитории — [`mockup.html`](mockup.html).
 
 ---
 
@@ -76,7 +85,7 @@ Remotix — это «одно окно» для всех удалённых по
 ### Готовый RPM-пакет
 
 ```bash
-sudo dnf install ./remotix-1.1.0-1.el9.x86_64.rpm
+sudo dnf install ./remotix-1.2.0-1.el9.x86_64.rpm
 ```
 
 После установки Remotix появляется в меню приложений («Сеть → Remotix»),
@@ -102,7 +111,7 @@ sudo dnf install ./remotix-1.1.0-1.el9.x86_64.rpm
 
 <p align="center">
   <a href="https://github.com/flytimopheev-sketch/remotix/releases">
-    <img src="https://img.shields.io/badge/releases-1.1.0-blue?style=flat-square" alt="Releases">
+    <img src="https://img.shields.io/badge/releases-1.2.0-blue?style=flat-square" alt="Releases">
   </a>
 </p>
 
@@ -163,9 +172,12 @@ CI собирает пакет **внутри окружения AlmaLinux 9 (EL
    паролям. Он нигде не хранится: запомните его или сохраните в менеджере
    паролей. Забытый мастер-пароль восстановить нельзя.
 2. Нажмите **«Новый профиль»** (`Ctrl+N`) и опишите подключение: протокол
-   (SSH / RDP / VNC), адрес, порт, логин и пароль.
-3. Дважды щёлкните по профилю в списке — откроется SSH-сессия во встроенном
-   терминале.
+   (SSH / RDP / VNC), адрес, порт, логин и пароль. Для RDP дополнительно
+   выбирается разрешение экрана и домен, для SSH — путь к ключу и режим входа
+   под root.
+3. Дважды щёлкните по профилю в списке слева — откроется сессия:
+   для SSH — встроенный терминал, для RDP — удалённый рабочий стол.
+4. Кнопки в строке состояния открывают **журнал подключений** и **SFTP-клиент**.
 
 ### Быстрое подключение
 
@@ -181,6 +193,15 @@ CI собирает пакет **внутри окружения AlmaLinux 9 (EL
 | `Ctrl+L` | Заблокировать интерфейс |
 | `Ctrl+I` | О программе |
 | `Ctrl+Q` | Выход |
+| `Ctrl+Shift+C` / `Ctrl+Shift+V` | Копировать / вставить в терминале |
+| `Ctrl+`+` / `Ctrl+`-` | Масштаб шрифта терминала |
+
+### Удалённый рабочий стол (RDP)
+
+Вкладка RDP показывает экран удалённой машины и передаёт клавиатуру и мышь.
+Поддерживается аутентификация NLA (CredSSP) — как на современных серверах
+Windows 10/11 и RDS; если сервер NLA не поддерживает, Remotix повторяет
+подключение по TLS.
 
 ### Где лежат данные
 
@@ -189,6 +210,7 @@ CI собирает пакет **внутри окружения AlmaLinux 9 (EL
 ```
 
 Путь берётся из `$XDG_DATA_HOME/remotix`, если переменная задана.
+Экспорт журнала подключений — `~/remotix-history.csv`.
 
 ---
 
@@ -198,11 +220,11 @@ CI собирает пакет **внутри окружения AlmaLinux 9 (EL
 
 | Слой | Технологии |
 | --- | --- |
-| Интерфейс | Rust + GTK4 (`gtk4-rs`), без веб-технологий |
+| Интерфейс | Rust + GTK4 (`gtk4-rs`), CSS-оформление, без веб-технологий |
 | Хранилище | SQLite (`rusqlite`, bundled) |
 | Криптография | Argon2id + AES-256-GCM |
 | SSH | `ssh2` (libssh2) |
-| RDP | IronRDP (чистый Rust, без FreeRDP) |
+| RDP | IronRDP (чистый Rust, без FreeRDP), NLA/CredSSP |
 | Терминал | VTE для GTK4 (динамическая загрузка) + упрощённый терминал |
 | Упаковка | RPM для РЕД ОС / EL9 |
 
@@ -217,10 +239,11 @@ remotix/
 │   ├── db/                  # mod, schema, crypto, repository
 │   ├── models/              # mod, profile
 │   ├── protocols/           # mod, rdp, vnc, ssh
-│   └── ui/                  # main_window, profile_editor, connection_dialog,
-│                            # sftp_client, terminal, master_password
+│   └── ui/                  # main_window, profile_editor, master_password,
+│                            # terminal, rdp_viewer, sftp_tab, history_tab, theme
 ├── resources/icons/remotix.svg
 ├── packaging/               # remotix.spec, .desktop, .metainfo.xml, ci/
+├── examples/keyprobe.rs     # отладка клавиатурного ввода (RDP)
 ├── .github/workflows/       # сборка RPM
 └── mockup.html              # макет интерфейса
 ```
@@ -290,7 +313,7 @@ strace -f -o /tmp/remotix.strace remotix  # если окно не появля�
 
 | Симптом | Причина и решение |
 | --- | --- |
-| `This application can not open files.` | Приложение запущено с аргументами, а флаг `HANDLES_OPEN` не выставлен. Уже исправлено в 1.1.0; соберите пакет из актуального `main`. |
+| `This application can not open files.` | Приложение запущено с аргументами, а флаг `HANDLES_OPEN` не выставлен. Уже исправлено в 1.2.0; соберите пакет из актуального `main`. |
 | `error while loading shared libraries: libvte-2.91-gtk4.so.0` | Пакет собран с жёсткой привязкой к VTE. VTE подключается динамически — пересоберите пакет из текущего `main`. |
 | `error while loading shared libraries: libgtk-4.so.1` | На целевой системе нет GTK4: `sudo dnf install gtk4`. |
 | Окно не появляется, в логе пусто | Запустите из терминала: так видны сообщения GTK. Проверьте `~/.local/share/remotix/remotix.db` — база создаётся автоматически. |
@@ -305,11 +328,13 @@ strace -f -o /tmp/remotix.strace remotix  # если окно не появля�
 - [x] SSH-сессии во встроенном терминале
 - [x] Профили подключений, поиск, быстрое подключение
 - [x] Журнал подключений и экспорт в CSV
-- [ ] Графический просмотрщик RDP (протокол уже реализован)
+- [x] Просмотрщик RDP с поддержкой NLA (CredSSP)
+- [x] SFTP-клиент с двумя панелями
+- [x] Современный интерфейс в стиле GTK4
 - [ ] Поддержка VNC
-- [ ] SFTP: две панели в интерфейсе
 - [ ] Группы профилей, импорт/экспорт (JSON)
-- [ ] Тёмная тема и настройки внешнего вида
+- [ ] Двухсторонний буфер обмена RDP (CLIPRDR)
+- [ ] `Ctrl+Alt+Del` в RDP-сессии
 
 ---
 

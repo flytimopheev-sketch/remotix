@@ -13,6 +13,21 @@ pub fn now() -> i64 {
         .unwrap_or(0)
 }
 
+/// Читает «зашифрованную» колонку, tolerая к типу значения.
+///
+/// SQLite хранит данные динамически, поэтому в BLOB-колонке может оказаться
+/// текст (например, после переноса базы или ручного изменения). Такое значение
+/// читаем как есть — расшифровка его не пройдёт, но профиль не потеряется.
+fn blob_column(row: &rusqlite::Row, index: usize) -> rusqlite::Result<Option<Vec<u8>>> {
+    use rusqlite::types::ValueRef;
+    Ok(match row.get_ref(index)? {
+        ValueRef::Null => None,
+        ValueRef::Blob(b) => Some(b.to_vec()),
+        ValueRef::Text(t) => Some(t.to_vec()),
+        _ => None,
+    })
+}
+
 /// Обёртка над SQLite: схема, таблица meta и CRUD профилей/истории.
 /// Учётные данные шифруются AES-256-GCM ключом, выведенным из мастер-пароля.
 pub struct Database {
@@ -166,9 +181,9 @@ impl Database {
                 p.tags.join(","),
                 p.icon,
                 p.notes,
-                serde_json::to_string(&crate::models::profile::RdpOptions::default()).unwrap(),
-                serde_json::to_string(&crate::models::profile::VncOptions::default()).unwrap(),
-                serde_json::to_string(&crate::models::profile::SshOptions::default()).unwrap(),
+                serde_json::to_string(&p.rdp_options).unwrap_or_default(),
+                serde_json::to_string(&p.vnc_options).unwrap_or_default(),
+                serde_json::to_string(&p.ssh_options).unwrap_or_default(),
                 t
             ],
         )
@@ -191,8 +206,8 @@ impl Database {
                 "UPDATE profiles SET name = ?1, protocol = ?2, host = ?3, port = ?4,
                     username = ?5, password = ?6, ssh_key_path = ?7, ssh_key_passphrase = ?8,
                     root_password = ?9, group_id = ?10, tags = ?11, icon = ?12, notes = ?13,
-                    updated_at = ?14
-                 WHERE id = ?15",
+                    rdp_options = ?14, vnc_options = ?15, ssh_options = ?16, updated_at = ?17
+                 WHERE id = ?18",
                 params![
                     p.name,
                     p.protocol.unwrap_or(Protocol::Ssh).as_str(),
@@ -207,6 +222,9 @@ impl Database {
                     p.tags.join(","),
                     p.icon,
                     p.notes,
+                    serde_json::to_string(&p.rdp_options).unwrap_or_default(),
+                    serde_json::to_string(&p.vnc_options).unwrap_or_default(),
+                    serde_json::to_string(&p.ssh_options).unwrap_or_default(),
                     now(),
                     id
                 ],
@@ -216,7 +234,8 @@ impl Database {
     }
 
     /// Загружает все профили, расшифровывая учётные данные.
-    pub fn list_profiles(&self, key: &[u8; 32]) -> Result<Vec<crate::models::Profile>, String> {        use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
+    pub fn list_profiles(&self, key: &[u8; 32]) -> Result<Vec<crate::models::Profile>, String> {
+        use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
         let dec = |blob: &Option<Vec<u8>>| -> Option<String> {
             match blob {
                 Some(b) => crypto::decrypt(key, b.as_slice()).ok()
@@ -234,10 +253,9 @@ impl Database {
         let rows = stmt.query_map([], |r| {
             Ok((
                 r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?, r.get::<_, u16>(4)?, r.get::<_, Option<Vec<u8>>>(5)?,
-                r.get::<_, Option<Vec<u8>>>(6)?, r.get::<_, Option<String>>(7)?,
-                r.get::<_, Option<Vec<u8>>>(8)?, r.get::<_, Option<Vec<u8>>>(9)?,
-                r.get::<_, Option<i64>>(10)?,
+                r.get::<_, String>(3)?, r.get::<_, u16>(4)?, blob_column(r, 5)?,
+                blob_column(r, 6)?, r.get::<_, Option<String>>(7)?,
+                blob_column(r, 8)?, blob_column(r, 9)?, r.get::<_, Option<i64>>(10)?,
                 r.get::<_, Option<String>>(11)?, r.get::<_, Option<String>>(12)?,
                 r.get::<_, Option<String>>(13)?, r.get::<_, Option<String>>(14)?,
                 r.get::<_, Option<String>>(15)?, r.get::<_, Option<String>>(16)?,

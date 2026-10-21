@@ -58,21 +58,49 @@ impl MasterPasswordDialog {
         status.set_wrap(true);
         status.set_xalign(0.0);
 
-        let ui = gtk4::Box::new(gtk4::Orientation::Vertical, 8);
+        let ui = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
         for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
-            ui.set_property(m, 12);
+            ui.set_property(m, 16);
         }
+
+        // Шапка: значок + заголовок.
+        let icon = gtk4::Image::from_icon_name("dialog-password-symbolic");
+        let heading = gtk4::Label::new(Some(if first_run {
+            "Создание мастер-пароля"
+        } else {
+            "Разблокировка хранилища"
+        }));
+        heading.add_css_class("remotix-dialog-header");
+
+        let header = gtk4::Box::new(gtk4::Orientation::Horizontal, 10);
+        header.append(&icon);
+        header.append(&heading);
+        ui.append(&header);
+        ui.append(&gtk4::Separator::new(gtk4::Orientation::Horizontal));
+
         if first_run {
-            ui.append(&Label::new(Some("Придумайте мастер-пароль для хранилища:")));
+            ui.append(&gtk4::Label::new(Some(
+                "Придумайте мастер-пароль: он шифрует учётные данные подключений.",
+            )));
             ui.append(&password);
-            ui.append(&Label::new(Some("Подтвердите:")));
+            ui.append(&gtk4::Label::new(Some("Подтвердите:")));
             ui.append(&confirm);
         } else {
-            ui.append(&Label::new(Some("Мастер-пароль:")));
+            ui.append(&gtk4::Label::new(Some("Введите мастер-пароль:")));
             ui.append(&password);
         }
 
+        let note = gtk4::Label::new(Some(
+            "Мастер-пароль не сохраняется — его нельзя восстановить. Храните его \
+             в менеджере паролей.",
+        ));
+        note.set_wrap(true);
+        note.set_xalign(0.0);
+        note.add_css_class("remotix-field-caption");
+        ui.append(&note);
+
         let btn = Button::with_label(if first_run { "Создать" } else { "Разблокировать" });
+        btn.add_css_class("suggested-action");
         btn.set_halign(gtk4::Align::End);
         ui.append(&btn);
         ui.append(&status);

@@ -9,7 +9,8 @@ use std::rc::Rc;
 
 use gtk4::prelude::*;
 use gtk4::{
-    Adjustment, Button, DropDown, Entry, Grid, Label, PasswordEntry, SpinButton, StringList, Window,
+    Adjustment, Button, DropDown, Entry, Grid, Image, Label, PasswordEntry, SpinButton, StringList,
+    Switch, Window,
 };
 
 use crate::app::AppState;
@@ -47,12 +48,12 @@ impl ProfileEditor {
                 Some(_) => "Свойства подключения",
                 None => "Новое подключение",
             })
-            .default_width(560)
-            .default_height(460)
+            .default_width(620)
+            .default_height(560)
             .modal(true)
             .build();
 
-        // --- поля формы ---
+        // ---------------- Поля ----------------
         let name = Entry::new();
         name.set_placeholder_text(Some("Например: Сервер бухгалтерии"));
 
@@ -76,6 +77,29 @@ impl ProfileEditor {
         let password = PasswordEntry::new();
         password.set_show_peek_icon(true);
 
+        // SSH
+        let key_path = Entry::new();
+        key_path.set_placeholder_text(Some("~/.ssh/id_ed25519"));
+        let su_to_root = Switch::new();
+        su_to_root.set_active(false);
+        let root_password = PasswordEntry::new();
+        root_password.set_show_peek_icon(true);
+
+        // RDP
+        let domain = Entry::new();
+        domain.set_placeholder_text(Some("Домен (необязательно)"));
+        let resolution = DropDown::builder()
+            .model(&StringList::new(&[
+                "1024×768",
+                "1280×800",
+                "1280×1024",
+                "1440×900",
+                "1600×900",
+                "1920×1080",
+            ]))
+            .selected(0)
+            .build();
+
         if let Some(p) = existing.as_ref() {
             name.set_text(&p.name);
             protocol.set_selected(match p.protocol {
@@ -91,15 +115,35 @@ impl ProfileEditor {
             if let Some(pw) = p.password.as_ref() {
                 password.set_text(pw);
             }
+            if let Some(k) = p.ssh_key_path.as_ref() {
+                key_path.set_text(k);
+            }
+            su_to_root.set_active(p.ssh_options.su_to_root);
+            if let Some(rp) = p.root_password.as_ref() {
+                root_password.set_text(rp);
+            }
+            if !p.rdp_options.domain.is_empty() {
+                domain.set_text(&p.rdp_options.domain);
+            }
+            let idx = match (p.rdp_options.width, p.rdp_options.height) {
+                (1280, 800) => 1,
+                (1280, 1024) => 2,
+                (1440, 900) => 3,
+                (1600, 900) => 4,
+                (1920, 1080) => 5,
+                _ => 0,
+            };
+            resolution.set_selected(idx);
         } else {
             port.set_value(f64::from(Protocol::Ssh.default_port()));
         }
 
+        // ---------------- Сетка полей ----------------
         let grid = Grid::new();
-        grid.set_row_spacing(6);
-        grid.set_column_spacing(10);
+        grid.set_row_spacing(8);
+        grid.set_column_spacing(12);
         for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
-            grid.set_property(m, 12);
+            grid.set_property(m, 16);
         }
 
         add_field(&grid, 0, "Название:", &name);
@@ -108,41 +152,85 @@ impl ProfileEditor {
         add_field(&grid, 3, "Порт:", &port);
         add_field(&grid, 4, "Пользователь:", &user);
         add_field(&grid, 5, "Пароль:", &password);
+        add_field(&grid, 6, "SSH-ключ:", &key_path);
+        add_field(&grid, 7, "Вход в root (su -):", &su_to_root);
+        add_field(&grid, 8, "Пароль root:", &root_password);
+        add_field(&grid, 9, "Домен (RDP):", &domain);
+        add_field(&grid, 10, "Разрешение (RDP):", &resolution);
+
+        // ---------------- Шапка и подвал ----------------
+        let icon = Image::from_icon_name("preferences-system-remote-symbolic");
+        let heading = Label::new(Some(match profile_id {
+            Some(_) => "Свойства подключения",
+            None => "Новое подключение",
+        }));
+        heading.add_css_class("remotix-dialog-header");
+
+        let header = gtk4::Box::new(gtk4::Orientation::Horizontal, 10);
+        header.append(&icon);
+        header.append(&heading);
 
         let status = Label::new(None);
         status.set_wrap(true);
         status.set_xalign(0.0);
+        status.set_hexpand(true);
 
         let save = Button::with_label("Сохранить");
+        save.add_css_class("suggested-action");
         let cancel = Button::with_label("Отмена");
 
-        let buttons = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
-        buttons.set_halign(gtk4::Align::End);
-        buttons.append(&cancel);
-        buttons.append(&save);
+        let footer = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
+        footer.append(&status);
+        footer.append(&cancel);
+        footer.append(&save);
 
-        let ui = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
-        for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
-            ui.set_property(m, 12);
-        }
+        let ui = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
+        ui.append(&header);
+        ui.append(&gtk4::Separator::new(gtk4::Orientation::Horizontal));
         ui.append(&grid);
-        ui.append(&status);
-        ui.append(&buttons);
+        ui.append(&gtk4::Separator::new(gtk4::Orientation::Horizontal));
+        ui.append(&footer);
         window.set_child(Some(&ui));
 
-        // Порт по умолчанию меняется вместе с протоколом.
-        {
+        // Показываем только поля выбранного протокола.
+        let update_visibility: Rc<dyn Fn(u32)> = {
+            let key_path = key_path.clone();
+            let su_to_root = su_to_root.clone();
+            let root_password = root_password.clone();
+            let domain = domain.clone();
+            let resolution = resolution.clone();
             let port = port.clone();
+            Rc::new(move |protocol_index: u32| {
+                let is_ssh = protocol_index == 0;
+                let is_rdp = protocol_index == 1;
+                key_path.set_visible(is_ssh);
+                su_to_root.set_visible(is_ssh);
+                root_password.set_visible(is_ssh && su_to_root.is_active());
+                domain.set_visible(is_rdp);
+                resolution.set_visible(is_rdp);
+                port.set_value(f64::from(match protocol_index {
+                    1 => Protocol::Rdp.default_port(),
+                    2 => Protocol::Vnc.default_port(),
+                    _ => Protocol::Ssh.default_port(),
+                }));
+            })
+        };
+
+        {
+            // Начальное состояние видимости.
+            update_visibility(protocol.selected());
+
+            let on_protocol = update_visibility.clone();
             protocol.connect_selected_notify(move |protocol| {
-                let p = match protocol.selected() {
-                    0 => Protocol::Ssh,
-                    1 => Protocol::Rdp,
-                    _ => Protocol::Vnc,
-                };
-                port.set_value(f64::from(p.default_port()));
+                on_protocol(protocol.selected());
+            });
+
+            let su_to_root = su_to_root.clone();
+            let root_password = root_password.clone();
+            su_to_root.connect_active_notify(move |switch| {
+                root_password.set_visible(switch.is_active());
             });
         }
-
         // Сохранение профиля.
         {
             let window = window.clone();
@@ -153,6 +241,11 @@ impl ProfileEditor {
             let port = port.clone();
             let user = user.clone();
             let password = password.clone();
+            let key_path = key_path.clone();
+            let su_to_root = su_to_root.clone();
+            let root_password = root_password.clone();
+            let domain = domain.clone();
+            let resolution = resolution.clone();
             let db = state.db.clone();
             let on_saved = Rc::new(on_saved);
 
@@ -168,6 +261,14 @@ impl ProfileEditor {
                     1 => Protocol::Rdp,
                     _ => Protocol::Vnc,
                 };
+                let (width, height) = match resolution.selected() {
+                    1 => (1280, 800),
+                    2 => (1280, 1024),
+                    3 => (1440, 900),
+                    4 => (1600, 900),
+                    5 => (1920, 1080),
+                    _ => (1024, 768),
+                };
 
                 let mut profile = NewProfile {
                     name: name.text().trim().to_string(),
@@ -176,11 +277,25 @@ impl ProfileEditor {
                     port: port.value() as u16,
                     username: Some(user.text().trim().to_string()).filter(|s| !s.is_empty()),
                     password: Some(password.text().to_string()).filter(|s| !s.is_empty()),
+                    ssh_key_path: Some(key_path.text().trim().to_string())
+                        .filter(|s| !s.is_empty()),
+                    root_password: Some(root_password.text().to_string())
+                        .filter(|s| !s.is_empty()),
                     ..Default::default()
                 };
                 if profile.name.is_empty() {
                     profile.name = profile.host.clone();
                 }
+
+                let mut options = crate::models::profile::SshOptions::default();
+                options.su_to_root = su_to_root.is_active();
+                profile.ssh_options = options;
+
+                let mut rdp = crate::models::profile::RdpOptions::default();
+                rdp.width = width;
+                rdp.height = height;
+                rdp.domain = domain.text().trim().to_string();
+                profile.rdp_options = rdp;
 
                 let result = match profile_id {
                     Some(id) => db.update_profile(&key, id, &profile),
@@ -230,6 +345,7 @@ impl ProfileEditor {
 fn add_field(grid: &Grid, row: i32, caption: &str, widget: &impl IsA<gtk4::Widget>) {
     let label = Label::new(Some(caption));
     label.set_xalign(0.0);
+    label.add_css_class("remotix-field-caption");
     grid.attach(&label, 0, row, 1, 1);
     grid.attach(widget, 1, row, 1, 1);
 }

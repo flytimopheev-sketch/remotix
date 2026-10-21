@@ -154,6 +154,10 @@ pub struct NewProfile {
     pub tags: Vec<String>,
     pub icon: Option<String>,
     pub notes: Option<String>,
+    /// Дополнительные параметры протоколов (сохраняются в JSON-колонках).
+    pub rdp_options: RdpOptions,
+    pub vnc_options: VncOptions,
+    pub ssh_options: SshOptions,
 }
 
 /// Группа подключений.

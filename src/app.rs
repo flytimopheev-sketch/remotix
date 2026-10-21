@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gtk4::prelude::*;
-use gtk4::{gio, glib, Application, ApplicationWindow, Button, Label, Notebook};
+use gtk4::{gio, glib, Application, ApplicationWindow, Button, Label};
 
 use crate::db::repository::Database;
 use crate::ui::main_window::MainWindow;
@@ -62,6 +62,9 @@ pub fn open(app: &Application, files: &[gio::File], _hint: &str) {
 
 /// Создаёт окно приложения либо поднимает уже созданное.
 fn ensure_window(app: &Application) {
+    // Стили интерфейса — GTK к этому моменту уже инициализирован.
+    crate::ui::theme::install();
+
     // Повторная активация (клик по значку в меню при уже открытом окне) —
     // просто поднимаем существующее окно.
     if let Some(window) = MAIN_WINDOW.with(|w| w.borrow().clone()) {
@@ -97,16 +100,13 @@ fn build_main_window(app: &Application, db: Rc<Database>, key: [u8; 32]) {
     let window = ApplicationWindow::builder()
         .application(app)
         .title("Remotix — Клиент удалённого доступа")
-        .default_width(1100)
-        .default_height(700)
+        .default_width(1180)
+        .default_height(720)
         .build();
 
-    let notebook = Notebook::new();
-    notebook.set_tab_pos(gtk4::PositionType::Top);
-    window.set_child(Some(&notebook));
-
     let main = MainWindow::new(state);
-    notebook.append_page(&main.root, Some(&Label::new(Some("Подключения"))));
+    window.set_titlebar(Some(&main.header));
+    window.set_child(Some(&main.root));
 
     // Действия окна: «win.*»
     let actions = gio::SimpleActionGroup::new();

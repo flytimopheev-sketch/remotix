@@ -216,3 +216,128 @@ impl SshConnection {
 fn whoami() -> String {
     std::env::var("USER").unwrap_or_else(|_| "root".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
+    use crate::models::Protocol;
+
+    /// Профиль для тестового сервера.
+    fn test_profile() -> Profile {
+        Profile {
+            id: 0,
+            name: "test".to_string(),
+            protocol: Protocol::Ssh,
+            host: "127.0.0.1".to_string(),
+            port: 2222,
+            username: Some("tester".to_string()),
+            password: Some("secret".to_string()),
+            ssh_key_path: None,
+            ssh_key_passphrase: None,
+            root_password: None,
+            group_id: None,
+            tags: vec![],
+            icon: None,
+            notes: None,
+            rdp_options: RdpOptions::default(),
+            vnc_options: VncOptions::default(),
+            ssh_options: SshOptions::default(),
+            created_at: 0,
+            updated_at: 0,
+            last_connected_at: None,
+        }
+    }
+
+    /// Проверяет подключение, аутентификацию по паролю и выполнение команды.
+    ///
+    /// Требует запущенного SSH-сервера на `127.0.0.1:2222` (в CI это
+    /// контейнер с `openssh-server`). Если сервера нет — тест пропускается.
+    #[test]
+    fn connects_and_executes_command() {
+        use std::io::Read;
+
+        if TcpStream::connect("127.0.0.1:2222").is_err() {
+            eprintln!("SSH-сервер на 127.0.0.1:2222 недоступен — тест пропущен");
+            return;
+        }
+
+        let mut conn = SshConnection::new(test_profile());
+        conn.connect().expect("подключение к SSH-серверу");
+
+        let session = conn.take_session().expect("сессия должна быть активной");
+        let mut channel = session.channel_session().expect("канал сессии");
+        channel.exec("echo hello-remotix").expect("выполнение команды");
+
+        let mut out = String::new();
+        channel.read_to_string(&mut out).expect("чтение вывода");
+        assert!(
+            out.contains("hello-remotix"),
+            "в выводе нет ожидаемого текста: {out:?}"
+        );
+    }
+
+    /// Проверяет, что неверный пароль отклоняется.
+    #[test]
+    fn rejects_wrong_password() {
+        if TcpStream::connect("127.0.0.1:2222").is_err() {
+            eprintln!("SSH-сервер на 127.0.0.1:2222 недоступен — тест пропущен");
+            return;
+        }
+
+        let mut profile = test_profile();
+        profile.password = Some("wrong-password".to_string());
+        let mut conn = SshConnection::new(profile);
+        assert!(
+            conn.connect().is_err(),
+            "подключение с неверным паролем должно завершаться ошибкой"
+        );
+    }
+
+    /// Проверяет путь, который использует встроенный терминал: PTY и
+    /// интерактивная оболочка (shell), а не exec с одной командой.
+    #[test]
+    fn opens_interactive_shell() {
+        use std::io::{Read, Write};
+
+        if TcpStream::connect("127.0.0.1:2222").is_err() {
+            eprintln!("SSH-сервер на 127.0.0.1:2222 недоступен — тест пропущен");
+            return;
+        }
+
+        let mut conn = SshConnection::new(test_profile());
+        conn.connect().expect("подключение к SSH-серверу");
+
+        let session = conn.take_session().expect("сессия");
+        let mut channel = session.channel_session().expect("канал сессии");
+        channel.request_pty("xterm", None, None).expect("запрос PTY");
+        channel.shell().expect("интерактивная оболочка");
+
+        channel.write_all(b"echo shell-works\n").expect("ввод команды");
+
+        let mut out = String::new();
+        let mut buf = [0u8; 1024];
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while std::time::Instant::now() < deadline {
+            match channel.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    out.push_str(&String::from_utf8_lossy(&buf[..n]));
+                    // Эхо терминала + вывод команды — два вхождения.
+                    if out.matches("shell-works").count() >= 2 {
+                        break;
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                Err(e) => panic!("ошибка чтения из канала: {e}"),
+            }
+        }
+
+        assert!(
+            out.contains("shell-works"),
+            "в выводе терминала нет ответа на команду: {out:?}"
+        );
+    }
+}
