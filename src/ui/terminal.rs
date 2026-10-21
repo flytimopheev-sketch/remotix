@@ -203,12 +203,23 @@ struct TerminalView {
 }
 
 /// Оформление вывода терминала: цвет символов и жирное начертание.
-#[derive(Clone, Copy, Default)]
-struct AnsiState {
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct AnsiState {
     /// Цвет символов (16-битный RGB).
-    color: Option<(u16, u16, u16)>,
+    pub color: Option<(u16, u16, u16)>,
     /// Жирное начертание.
-    bold: bool,
+    pub bold: bool,
+}
+
+/// Фрагмент вывода: текст и его оформление.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Segment {
+    /// Текст фрагмента.
+    pub text: String,
+    /// Цвет символов.
+    pub color: Option<(u16, u16, u16)>,
+    /// Жирное начертание.
+    pub bold: bool,
 }
 
 /// Базовые цвета ANSI для тёмной темы.
@@ -328,10 +339,12 @@ fn flush_text(view: &TextView, end: &mut gtk4::TextIter, text: &mut Vec<u8>, sta
     buffer.insert_markup(end, &markup);
 }
 
-/// Разбирает поток с ANSI-последовательностями и выводит текст с цветами.
-fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>) {
-    let buffer = view.buffer();
-    let mut end = buffer.end_iter();
+/// Разбирает поток с ANSI-последовательностями в сегменты текста.
+///
+/// `state` — текущее оформление (оно сохраняется между вызовами, поэтому
+/// цвет, заданный в одной части потока, действует и в следующей).
+pub fn parse_ansi(data: &[u8], state: &mut AnsiState) -> Vec<Segment> {
+    let mut segments: Vec<Segment> = Vec::new();
     let mut text: Vec<u8> = Vec::with_capacity(data.len());
     let mut iter = data.iter().copied().peekable();
 
@@ -349,8 +362,8 @@ fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>) {
                         }
                         params.push(b as char);
                     }
-                    flush_text(view, &mut end, &mut text, state.get());
-                    state.set(apply_sgr(state.get(), &params));
+                    push_segment(&mut segments, &mut text, *state);
+                    *state = apply_sgr(*state, &params);
                     continue;
                 }
                 if iter.peek() == Some(&b']') {
@@ -371,24 +384,73 @@ fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>) {
                 // Прочие escape-последовательности — игнорируем.
                 iter.next();
             }
-            0x0d => flush_text(view, &mut end, &mut text, state.get()),
+            0x0d => push_segment(&mut segments, &mut text, *state),
             0x07 => {}
             0x08 => {
                 // Забой — удаляем предыдущий символ.
-                flush_text(view, &mut end, &mut text, state.get());
-                let buffer = view.buffer();
-                let mut end_iter = buffer.end_iter();
-                let mut start_iter = end_iter.clone();
-                if start_iter.backward_char() {
-                    buffer.delete(&mut start_iter, &mut end_iter);
+                push_segment(&mut segments, &mut text, *state);
+                if let Some(last) = segments.last_mut() {
+                    let mut chars: Vec<char> = last.text.chars().collect();
+                    chars.pop();
+                    last.text = chars.into_iter().collect();
                 }
             }
+            b'\n' | b'\t' => text.push(byte),
             b if b >= 0x20 => text.push(b),
             _ => {}
         }
     }
 
-    flush_text(view, &mut end, &mut text, state.get());
+    push_segment(&mut segments, &mut text, *state);
+    segments
+}
+
+/// Добавляет накопленный текст в список сегментов.
+fn push_segment(segments: &mut Vec<Segment>, text: &mut Vec<u8>, state: AnsiState) {
+    if text.is_empty() {
+        return;
+    }
+    let content = String::from_utf8_lossy(text).into_owned();
+    text.clear();
+    segments.push(Segment {
+        text: content,
+        color: state.color,
+        bold: state.bold,
+    });
+}
+
+/// Разбирает поток с ANSI-последовательностями и выводит текст с цветами.
+fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>) {
+    let mut current = state.get();
+    let segments = parse_ansi(data, &mut current);
+    state.set(current);
+
+    let buffer = view.buffer();
+    let mut end = buffer.end_iter();
+
+    for segment in segments {
+        let escaped = segment
+            .text
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;");
+        let markup = match segment.color {
+            Some((r, g, b)) => {
+                let bold = if segment.bold { "<b>" } else { "" };
+                let bold_end = if segment.bold { "</b>" } else { "" };
+                format!("<span foreground=\"#{r:04x}{g:04x}{b:04x}\">{bold}{escaped}{bold_end}</span>")
+            }
+            None => {
+                if segment.bold {
+                    format!("<b>{escaped}</b>")
+                } else {
+                    escaped
+                }
+            }
+        };
+        buffer.insert_markup(&mut end, &markup);
+    }
+
     view.scroll_to_iter(&mut end, 0.0, false, 0.0, 1.0);
 }
 
@@ -791,3 +853,82 @@ fn wait_password(
         .map_err(|e| e.to_string())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn segments(data: &[u8]) -> (Vec<Segment>, AnsiState) {
+        let mut state = AnsiState::default();
+        let segs = parse_ansi(data, &mut state);
+        (segs, state)
+    }
+
+    #[test]
+    fn plain_text_without_escapes() {
+        let (segs, state) = segments(b"hello\n");
+        assert_eq!(segs.len(), 1);
+        assert_eq!(segs[0].text, "hello\n");
+        assert_eq!(segs[0].color, None);
+        assert!(!state.bold);
+    }
+
+    #[test]
+    fn color_and_bold_are_parsed() {
+        // ESC[1;31m — жирный красный.
+        let (segs, state) = segments(b"\x1b[1;31mRED\x1b[0mplain");
+        assert_eq!(segs.len(), 2);
+        assert_eq!(segs[0].text, "RED");
+        assert!(segs[0].bold);
+        assert!(segs[0].color.is_some());
+        assert_eq!(segs[1].text, "plain");
+        assert!(!segs[1].bold);
+        assert_eq!(segs[1].color, None);
+        assert!(!state.bold);
+    }
+
+    #[test]
+    fn xterm256_palette_is_supported() {
+        // ESC[38;5;196m — 256-цветовая палитра.
+        let (segs, _) = segments(b"\x1b[38;5;196mX");
+        assert_eq!(segs.len(), 1);
+        let (r, g, b) = segs[0].color.expect("цвет задан");
+        assert_eq!(r, 0xffff, "красный канал");
+        assert_eq!(g, 0x0000);
+        assert_eq!(b, 0x0000);
+    }
+
+    #[test]
+    fn true_color_is_supported() {
+        // ESC[38;2;18;52;86m — 24-битный цвет.
+        let (segs, _) = segments(b"\x1b[38;2;18;52;86mX");
+        let (r, g, b) = segs[0].color.expect("цвет задан");
+        assert_eq!((r, g, b), (18 * 257, 52 * 257, 86 * 257));
+    }
+
+    #[test]
+    fn osc_sequences_are_skipped() {
+        // OSC 0;title BEL — смена заголовка окна, текст не меняется.
+        let (segs, _) = segments(b"\x1b]0;title\x07after");
+        assert_eq!(segs.len(), 1);
+        assert_eq!(segs[0].text, "after");
+    }
+
+    #[test]
+    fn non_ascii_text_survives() {
+        let (segs, _) = segments("Привет, мир!".as_bytes());
+        assert_eq!(segs[0].text, "Привет, мир!");
+    }
+
+    #[test]
+    fn backspace_removes_last_character() {
+        let (segs, _) = segments(b"abc\x08");
+        assert_eq!(segs[0].text, "ab");
+    }
+
+    #[test]
+    fn carriage_return_does_not_duplicate_text() {
+        let (segs, _) = segments(b"line\r\n");
+        assert_eq!(segs[0].text, "line");
+        assert_eq!(segs[1].text, "\n");
+    }
+}
