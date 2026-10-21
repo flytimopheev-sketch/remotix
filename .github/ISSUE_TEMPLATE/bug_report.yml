@@ -1,0 +1,58 @@
+name: Ошибка
+description: Сообщить об ошибке в Remotix
+title: "[Ошибка] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за отчёт! Пожалуйста, заполните все поля — так баг можно
+        будет воспроизвести и исправить.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Что произошло
+      description: Опишите, что ожидалось и что получилось фактически.
+      placeholder: При запуске из меню окно не появляется, в терминале видно …
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Шаги для воспроизведения
+      description: Как повторить ошибку.
+      placeholder: |
+        1. Установить RPM-пакет
+        2. Запустить Remotix из меню
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Версия Remotix
+      placeholder: "1.1.0 (remotix --version)"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Версия РЕД ОС
+      placeholder: "РЕД ОС 8.2 (cat /etc/os-release)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Логи
+      description: Вывод запуска из терминала — в GTK-приложении ошибки видны только в консоли.
+      render: shell
+      placeholder: |
+        $ remotix 2>&1 | tee /tmp/remotix.log
+    validations:
+      required: false

@@ -1,9 +1,15 @@
 [Desktop Entry]
 Type=Application
-Name=Remotix — Клиент удалённого доступа
+Version=1.5
+Name=Remotix
+GenericName=Клиент удалённого доступа
 Comment=Подключение к удалённым рабочим столам и серверам (RDP, VNC, SSH)
 Exec=/usr/bin/remotix
+TryExec=/usr/bin/remotix
 Icon=remotix
-Categories=Network;RemoteAccess;
 Terminal=false
-StartupNotify=true
+Categories=Network;RemoteAccess;
+Keywords=RDP;VNC;SSH;SFTP;remote;desktop;terminal;connection;сервер;подключение;
+StartupNotify=false
+StartupWMClass=remotix
+DBusActivatable=false

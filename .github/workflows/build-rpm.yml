@@ -75,6 +75,49 @@ jobs:
           fi
           EOS
 
+      - name: Smoke-тест GUI (окно должно появиться и без мастер-пароля)
+        run: |
+          bash packaging/ci/el9-chroot.sh sh <<'EOS'
+          cd /root/remotix
+          # Проверяем «холодный» путь запуска: без REMOTIX_MASTER_PASSWORD
+          # приложение обязано показать окно (диалог мастер-пароля) и остаться
+          # живым. Именно этот путь ломался с ошибкой
+          # «GLib-GIO-CRITICAL: This application can not open files».
+          export GSK_RENDERER=cairo
+          unset REMOTIX_MASTER_PASSWORD
+          set +e
+          timeout 60 xvfb-run -a -s "-screen 0 1280x1024x24" bash -c '
+            cd /root/remotix
+            ./target/release/remotix > /tmp/smoke-gui.log 2>&1 &
+            app=$!
+            for i in $(seq 1 20); do
+              sleep 1
+              if xwininfo -root -tree 2>/dev/null | grep -qi "Remotix"; then
+                echo "WINDOW_OK"
+                kill $app 2>/dev/null
+                wait $app 2>/dev/null
+                exit 0
+              fi
+            done
+            echo "WINDOW_MISSING"
+            cat /tmp/smoke-gui.log 2>/dev/null || true
+            kill $app 2>/dev/null
+            exit 1
+          '
+          code=$?
+          set -e
+          echo "exit code: $code"
+          cat /tmp/smoke-gui.log 2>/dev/null || true
+          if [ "$code" -ne 0 ]; then
+            echo "::error::GUI не запустился: окно не появилось — RPM не собираем"
+            exit 1
+          fi
+          if grep -qi "can not open files" /tmp/smoke-gui.log 2>/dev/null; then
+            echo "::error::GApplication не умеет обрабатывать запуск с аргументами"
+            exit 1
+          fi
+          EOS
+
       - name: Зависимости ELF и максимальная требуемая версия glibc
         run: |
           bash packaging/ci/el9-chroot.sh sh <<'EOS'

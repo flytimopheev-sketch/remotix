@@ -1,13 +1,21 @@
+//! Логика приложения: запуск, главное окно, диалог «О программе».
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use gtk4::prelude::*;
-use gtk4::{Application, ApplicationWindow, Notebook};
+use gtk4::{gio, glib, Application, ApplicationWindow, Button, Label, Notebook};
 
 use crate::db::repository::Database;
 use crate::ui::main_window::MainWindow;
 use crate::ui::master_password::MasterPasswordDialog;
 
 /// Состояние приложения: база данных и ключ шифрования после разблокировки.
+///
+/// База данных обёрнута в `Rc`: соединение SQLite нельзя клонировать, но
+/// его можно разделять между диалогами профиля, терминалом и SFTP-клиентом.
 pub struct AppState {
-    pub db: Database,
+    pub db: Rc<Database>,
     pub key: Option<[u8; 32]>,
 }
 
@@ -17,20 +25,73 @@ impl AppState {
     }
 }
 
-pub fn activate(app: &Application) {
-    let db = crate::db::open_database();
+thread_local! {
+    /// Главное окно приложения (создаётся один раз за сеанс).
+    static MAIN_WINDOW: RefCell<Option<ApplicationWindow>> = const { RefCell::new(None) };
+    /// Диалог мастер-пароля (первичная разблокировка или блокировка по Ctrl+L).
+    static UNLOCK_DIALOG: RefCell<Option<MasterPasswordDialog>> = const { RefCell::new(None) };
+    /// Открытая база данных — используется повторно при блокировке.
+    static APP_DB: RefCell<Option<Rc<Database>>> = const { RefCell::new(None) };
+    /// Окно с сообщением об ошибке (нужно удерживать, иначе оно закроется).
+    static ERROR_WINDOW: RefCell<Option<ApplicationWindow>> = const { RefCell::new(None) };
+}
 
-    // Мастер-пароль: создание при первом запуске, иначе — запрос.
-    let dialog = MasterPasswordDialog::new(&db);
-    let key = dialog.run_and_get_key();
-    let key = match key {
-        Some(k) => k,
-        None => {
-            eprintln!("Remotix: не разблокировано, выход");
+/// Обработчик сигнала «activate» — обычный запуск приложения.
+pub fn activate(app: &Application) {
+    ensure_window(app);
+}
+
+/// Обработчик сигнала «open» — запуск с файлами или URI.
+///
+/// Без этого обработчика GApplication (при флаге HANDLES_OPEN) не знает, что
+/// делать с переданными файлами, и завершает работу с сообщением
+/// «This application can not open files.».
+pub fn open(app: &Application, files: &[gio::File], _hint: &str) {
+    // Запуск с аргументами должен приводить к тому же результату, что и
+    // обычный запуск: показываем окно приложения.
+    ensure_window(app);
+
+    for file in files {
+        let target = file
+            .path()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| file.uri().to_string());
+        eprintln!("Remotix: получено имя файла для открытия: {target}");
+    }
+}
+
+/// Создаёт окно приложения либо поднимает уже созданное.
+fn ensure_window(app: &Application) {
+    // Повторная активация (клик по значку в меню при уже открытом окне) —
+    // просто поднимаем существующее окно.
+    if let Some(window) = MAIN_WINDOW.with(|w| w.borrow().clone()) {
+        window.present();
+        return;
+    }
+
+    // Диалог разблокировки уже показан — второй раз открывать не нужно.
+    if UNLOCK_DIALOG.with(|d| d.borrow().is_some()) {
+        return;
+    }
+
+    let db = match crate::db::open_database() {
+        Ok(db) => Rc::new(db),
+        Err(e) => {
+            show_error(app, "Не удалось открыть хранилище", &e);
             return;
         }
     };
+    APP_DB.with(|d| *d.borrow_mut() = Some(db.clone()));
 
+    let app_for_callback = app.clone();
+    let dialog = MasterPasswordDialog::new(app, db, move |db, key| {
+        build_main_window(&app_for_callback, db, key);
+    });
+    UNLOCK_DIALOG.with(|d| *d.borrow_mut() = Some(dialog));
+}
+
+/// Создаёт и показывает главное окно приложения.
+fn build_main_window(app: &Application, db: Rc<Database>, key: [u8; 32]) {
     let state = AppState { db, key: Some(key) };
 
     let window = ApplicationWindow::builder()
@@ -45,56 +106,141 @@ pub fn activate(app: &Application) {
     window.set_child(Some(&notebook));
 
     let main = MainWindow::new(state);
-    notebook.append_page(&main.root, Some(&gtk4::Label::new(Some("Подключения"))));
+    notebook.append_page(&main.root, Some(&Label::new(Some("Подключения"))));
 
-    // Горячие клавиши: Ctrl+N, Ctrl+F, Ctrl+Q, Ctrl+L
-    let actions = gtk4::gio::SimpleActionGroup::new();
+    // Действия окна: «win.*»
+    let actions = gio::SimpleActionGroup::new();
     window.insert_action_group("win", Some(&actions));
 
-    let new_action = gtk4::gio::SimpleAction::new("new-profile", None);
+    let new_action = gio::SimpleAction::new("new-profile", None);
     {
         let main = main.clone();
         new_action.connect_activate(move |_, _| main.open_profile_editor(None));
     }
     actions.add_action(&new_action);
 
-    let lock_action = gtk4::gio::SimpleAction::new("lock", None);
-    lock_action.connect_activate(|_, _| {
-        // Блокировка интерфейса: повторный запрос мастер-пароля.
-        // Полная реализация — затемняющий оверлей + диалог мастер-пароля.
-    });
+    let search_action = gio::SimpleAction::new("focus-search", None);
+    {
+        let main = main.clone();
+        search_action.connect_activate(move |_, _| main.focus_search());
+    }
+    actions.add_action(&search_action);
+
+    let lock_action = gio::SimpleAction::new("lock", None);
+    {
+        let app = app.clone();
+        let window = window.clone();
+        lock_action.connect_activate(move |_, _| lock_window(&app, &window));
+    }
     actions.add_action(&lock_action);
 
-    // О программе (Ctrl+I / меню приложения)
-    let about_action = gtk4::gio::SimpleAction::new("about", None);
+    let about_action = gio::SimpleAction::new("about", None);
     {
         let window = window.clone();
         about_action.connect_activate(move |_, _| show_about(&window));
     }
     actions.add_action(&about_action);
 
-    app.set_accels_for_action("win.about", &["<Primary>I"]);
+    let quit_action = gio::SimpleAction::new("quit", None);
+    {
+        let app = app.clone();
+        quit_action.connect_activate(move |_, _| app.quit());
+    }
+    actions.add_action(&quit_action);
 
+    // Горячие клавиши.
+    app.set_accels_for_action("win.new-profile", &["<Primary>n"]);
+    app.set_accels_for_action("win.focus-search", &["<Primary>f"]);
+    app.set_accels_for_action("win.lock", &["<Primary>l"]);
+    app.set_accels_for_action("win.about", &["<Primary>i"]);
+    app.set_accels_for_action("win.quit", &["<Primary>q"]);
+
+    MAIN_WINDOW.with(|w| *w.borrow_mut() = Some(window.clone()));
     window.present();
 }
 
-/// Красивый диалог «О программе».
+/// Блокирует интерфейс: окно прячется, пользователь вводит мастер-пароль.
+fn lock_window(app: &Application, window: &ApplicationWindow) {
+    let db = match APP_DB.with(|d| d.borrow().clone()) {
+        Some(db) => db,
+        None => return,
+    };
+
+    window.set_visible(false);
+
+    let locked_window = window.clone();
+    let dialog = MasterPasswordDialog::new(app, db, move |_db, _key| {
+        locked_window.set_visible(true);
+        locked_window.present();
+    });
+
+    // Если пользователь закрыл диалог разблокировки — возвращаем окно.
+    {
+        let locked_window = window.clone();
+        dialog.window().connect_destroy(move |_| {
+            locked_window.set_visible(true);
+            locked_window.present();
+        });
+    }
+
+    UNLOCK_DIALOG.with(|d| *d.borrow_mut() = Some(dialog));
+}
+
+/// Показывает окно с сообщением об ошибке.
+fn show_error(app: &Application, title: &str, message: &str) {
+    let window = ApplicationWindow::builder()
+        .application(app)
+        .title(title)
+        .default_width(480)
+        .resizable(false)
+        .build();
+
+    let box_ = gtk4::Box::new(gtk4::Orientation::Vertical, 12);
+    for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
+        box_.set_property(m, 12);
+    }
+
+    let label = Label::new(Some(message));
+    label.set_wrap(true);
+    label.set_xalign(0.0);
+    box_.append(&label);
+
+    let close = Button::with_label("Закрыть");
+    close.set_halign(gtk4::Align::End);
+    box_.append(&close);
+
+    window.set_child(Some(&box_));
+
+    {
+        let window = window.clone();
+        close.connect_clicked(move |_| window.destroy());
+    }
+
+    // Окно ошибки — единственное окно приложения: его закрытие завершает
+    // приложение (иначе оно «висит» без единого окна).
+    window.connect_close_request(|_| glib::Propagation::Proceed);
+
+    ERROR_WINDOW.with(|w| *w.borrow_mut() = Some(window.clone()));
+    window.present();
+}
+
+/// Диалог «О программе».
 fn show_about(parent: &ApplicationWindow) {
     let about = gtk4::AboutDialog::builder()
         .program_name("Remotix")
-        .version("1.0.0")
+        .version(env!("CARGO_PKG_VERSION"))
         .title("О программе Remotix")
         .comments(
             "Единый клиент удалённого доступа для РЕД ОС.\n\
              RDP · VNC · SSH · SFTP — всё в одном окне.\n\
              Работает полностью офлайн: без облака, без телеметрии.",
         )
-        .website("https://redos.example/remotix")
-        .website_label("Сайт проекта")
+        .website("https://github.com/flytimopheev-sketch/remotix")
+        .website_label("Репозиторий проекта")
         .license_type(gtk4::License::MitX11)
         .copyright("Copyright © 2026 flytimopheev")
         .authors(vec!["flytimopheev <flytimopheev@gmail.com>".to_string()])
-        .logo_icon_name("preferences-system-remote")
+        .logo_icon_name("remotix")
         .transient_for(parent)
         .modal(true)
         .build();

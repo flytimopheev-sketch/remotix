@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::schema;
 use super::crypto;
-use crate::models::{HistoryEntry, NewGroup, NewProfile, Protocol};
+use crate::models::{HistoryEntry, Protocol};
 
 pub fn now() -> i64 {
     SystemTime::now()
@@ -176,9 +176,47 @@ impl Database {
         Ok(self.conn().last_insert_rowid())
     }
 
+    /// Обновляет существующий профиль подключения.
+    pub fn update_profile(
+        &self,
+        key: &[u8; 32],
+        id: i64,
+        p: &crate::models::NewProfile,
+    ) -> Result<(), String> {
+        let enc = |s: &Option<String>| -> Option<Vec<u8>> {
+            s.as_ref().map(|v| crypto::encrypt(key, v.as_bytes()))
+        };
+        self.conn()
+            .execute(
+                "UPDATE profiles SET name = ?1, protocol = ?2, host = ?3, port = ?4,
+                    username = ?5, password = ?6, ssh_key_path = ?7, ssh_key_passphrase = ?8,
+                    root_password = ?9, group_id = ?10, tags = ?11, icon = ?12, notes = ?13,
+                    updated_at = ?14
+                 WHERE id = ?15",
+                params![
+                    p.name,
+                    p.protocol.unwrap_or(Protocol::Ssh).as_str(),
+                    p.host,
+                    p.port,
+                    enc(&p.username),
+                    enc(&p.password),
+                    p.ssh_key_path,
+                    enc(&p.ssh_key_passphrase),
+                    enc(&p.root_password),
+                    p.group_id,
+                    p.tags.join(","),
+                    p.icon,
+                    p.notes,
+                    now(),
+                    id
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Загружает все профили, расшифровывая учётные данные.
-    pub fn list_profiles(&self, key: &[u8; 32]) -> Result<Vec<crate::models::Profile>, String> {
-        use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
+    pub fn list_profiles(&self, key: &[u8; 32]) -> Result<Vec<crate::models::Profile>, String> {        use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
         let dec = |blob: &Option<Vec<u8>>| -> Option<String> {
             match blob {
                 Some(b) => crypto::decrypt(key, b.as_slice()).ok()
@@ -330,6 +368,66 @@ impl Database {
         }
         std::fs::write(path, csv).map_err(|e| e.to_string())?;
         Ok(rows.len())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::NewProfile;
+
+    fn opened() -> (Database, [u8; 32]) {
+        let db = Database::open(":memory:").expect("открытие БД");
+        db.init_master("master").expect("создание мастер-пароля");
+        let key = db.unlock("master").expect("разблокировка");
+        (db, key)
+    }
+
+    fn sample() -> NewProfile {
+        NewProfile {
+            name: "Сервер".to_string(),
+            protocol: Some(Protocol::Ssh),
+            host: "example.org".to_string(),
+            port: 22,
+            username: Some("user".to_string()),
+            password: Some("secret".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn profile_is_saved_and_read_back() {
+        let (db, key) = opened();
+        let id = db.add_profile(&key, &sample()).expect("сохранение профиля");
+
+        let profiles = db.list_profiles(&key).expect("чтение профилей");
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].id, id);
+        assert_eq!(profiles[0].host, "example.org");
+        assert_eq!(profiles[0].username.as_deref(), Some("user"));
+        assert_eq!(profiles[0].password.as_deref(), Some("secret"));
+    }
+
+    #[test]
+    fn profile_is_updated() {
+        let (db, key) = opened();
+        let id = db.add_profile(&key, &sample()).expect("сохранение профиля");
+
+        let mut updated = sample();
+        updated.host = "other.example.org".to_string();
+        updated.port = 2222;
+        db.update_profile(&key, id, &updated).expect("обновление профиля");
+
+        let profiles = db.list_profiles(&key).expect("чтение профилей");
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].host, "other.example.org");
+        assert_eq!(profiles[0].port, 2222);
+    }
+
+    #[test]
+    fn wrong_master_password_is_rejected() {
+        let (db, _key) = opened();
+        assert!(db.unlock("wrong").is_err(), "неверный мастер-пароль должен отклоняться");
     }
 }
 

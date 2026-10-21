@@ -47,7 +47,6 @@ enum ToUi {
 /// libraries: libvte-2.91-gtk4.so.0».
 mod vte_dynamic {
     use gtk4::glib;
-    use gtk4::prelude::*;
     use std::os::raw::{c_char, c_double, c_int, c_long};
     use std::sync::OnceLock;
 
@@ -160,7 +159,7 @@ mod vte_dynamic {
 
         fn raw(&self) -> GObjectPtr {
             use glib::translate::ToGlibPtr;
-            let ptr = unsafe { ToGlibPtr::<*mut gtk4::ffi::GtkWidget>::to_glib_none(&self.widget).0 };
+            let ptr = ToGlibPtr::<*mut gtk4::ffi::GtkWidget>::to_glib_none(&self.widget).0;
             ptr as GObjectPtr
         }
 

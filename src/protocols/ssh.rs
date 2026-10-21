@@ -92,7 +92,7 @@ impl Connection for SshConnection {
     }
 
     fn disconnect(&mut self) {
-        if let Some(mut session) = self.session.take() {
+        if let Some(session) = self.session.take() {
             session.disconnect(None, "Пользователь закрыл сессию", None).ok();
         }
         self.agent = None;

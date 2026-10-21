@@ -1,0 +1,28 @@
+name: Предложение
+description: Предложить идею или новую функцию
+title: "[Идея] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую задачу это решает
+      description: Опишите проблему, с которой вы столкнулись.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Предлагаемое решение
+      description: Как вы представляете решение.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Альтернативы
+      description: Какие ещё способы решения вы рассматривали.
+    validations:
+      required: false

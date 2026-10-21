@@ -70,3 +70,54 @@ pub fn new_salt() -> [u8; SALT_LEN] {
     OsRng.fill_bytes(&mut salt);
     salt
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Лёгкие параметры Argon2id — тесты должны идти быстро.
+    fn test_params() -> Argon2Params {
+        Argon2Params { memory_kib: 1024, iterations: 1, parallelism: 1 }
+    }
+
+    #[test]
+    fn same_password_same_key() {
+        let salt = new_salt();
+        let a = derive_key("master", &salt, &test_params());
+        let b = derive_key("master", &salt, &test_params());
+        let c = derive_key("another", &salt, &test_params());
+        assert_eq!(a, b, "один и тот же пароль должен давать один и тот же ключ");
+        assert_ne!(a, c, "разные пароли должны давать разные ключи");
+    }
+
+    #[test]
+    fn different_salt_different_key() {
+        let a = derive_key("master", &new_salt(), &test_params());
+        let b = derive_key("master", &new_salt(), &test_params());
+        assert_ne!(a, b, "соль должна влиять на ключ");
+    }
+
+    #[test]
+    fn encrypt_decrypt_roundtrip() {
+        let key = derive_key("master", &new_salt(), &test_params());
+        let blob = encrypt(&key, b"secret");
+        assert_eq!(decrypt(&key, &blob).unwrap(), b"secret");
+    }
+
+    #[test]
+    fn wrong_key_fails() {
+        let key = derive_key("master", &new_salt(), &test_params());
+        let other = derive_key("another", &new_salt(), &test_params());
+        let blob = encrypt(&key, b"secret");
+        assert!(decrypt(&other, &blob).is_err(), "неверный ключ не должен расшифровывать");
+    }
+
+    #[test]
+    fn broken_ciphertext_fails() {
+        let key = derive_key("master", &new_salt(), &test_params());
+        let mut blob = encrypt(&key, b"secret");
+        let last = blob.len() - 1;
+        blob[last] ^= 0xff;
+        assert!(decrypt(&key, &blob).is_err(), "повреждённый шифротекст не должен расшифровываться");
+    }
+}

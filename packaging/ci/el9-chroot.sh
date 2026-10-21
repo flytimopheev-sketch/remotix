@@ -32,7 +32,7 @@ BUILD_PKGS=(gcc make perl pkg-config
             gdk-pixbuf2-devel graphene-devel libepoxy-devel
             glib2-devel openssl-devel
             zlib-devel dejavu-sans-fonts
-            rpm-build xorg-x11-server-Xvfb)
+            rpm-build xorg-x11-server-Xvfb xorg-x11-utils)
 
 log() { printf '\n==> %s\n' "$*"; }
 

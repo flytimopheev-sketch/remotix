@@ -1,34 +1,53 @@
-use gtk4::glib;
+//! Диалог мастер-пароля.
+//!
+//! Диалог привязан к `Application` (`ApplicationWindow`), поэтому приложение
+//! не завершается, пока пользователь не введёт мастер-пароль. Раньше диалог
+//! был обычным `Window` без привязки к приложению и без обработчика кнопки:
+//! графический интерфейс не появлялся вовсе, а процесс завершался сразу
+//! после запуска.
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use gtk4::prelude::*;
-use gtk4::{Button, Label, PasswordEntry, Window};
+use gtk4::{Application, ApplicationWindow, Button, Label, PasswordEntry};
 
 use crate::db::repository::Database;
 
 /// Диалог мастер-пароля:
 ///  - первый запуск: создание + подтверждение;
-///  - последующие: ввод пароля, опция «Запомнить на этот сеанс».
+///  - последующие: ввод пароля (в т.ч. для разблокировки окна по Ctrl+L).
 pub struct MasterPasswordDialog {
-    db: Database,
-    window: Window,
-    password: PasswordEntry,
-    confirm: PasswordEntry,
-    status: Label,
+    window: ApplicationWindow,
 }
 
 impl MasterPasswordDialog {
-    pub fn new(db: &Database) -> Self {
+    /// Создаёт диалог и показывает его.
+    ///
+    /// `on_unlocked` вызывается с базой данных и ключом шифрования после
+    /// успешной разблокировки хранилища.
+    ///
+    /// Если задана переменная окружения `REMOTIX_MASTER_PASSWORD`, диалог не
+    /// показывается: мастер-пароль берётся из окружения (сценарии CI и
+    /// автоматических проверок).
+    pub fn new<F>(app: &Application, db: Rc<Database>, on_unlocked: F) -> Self
+    where
+        F: FnOnce(Rc<Database>, [u8; 32]) + 'static,
+    {
+        let callback: Rc<RefCell<Option<F>>> = Rc::new(RefCell::new(Some(on_unlocked)));
         let first_run = db.meta_get("argon2_salt").is_none();
 
-        let window = Window::builder()
+        let window = ApplicationWindow::builder()
+            .application(app)
             .title(if first_run {
-                "Создание мастер-пароля"
+                "Remotix — создание мастер-пароля"
             } else {
-                "Введите мастер-пароль"
+                "Remotix — введите мастер-пароль"
             })
-            .default_width(400)
-            .default_height(200)
+            .default_width(420)
+            .default_height(240)
             .modal(true)
-            .hide_on_close(true)
+            .resizable(false)
             .build();
 
         let password = PasswordEntry::new();
@@ -36,7 +55,8 @@ impl MasterPasswordDialog {
         let confirm = PasswordEntry::new();
         confirm.set_show_peek_icon(true);
         let status = Label::new(None);
-        let btn = Button::with_label(if first_run { "Создать" } else { "Разблокировать" });
+        status.set_wrap(true);
+        status.set_xalign(0.0);
 
         let ui = gtk4::Box::new(gtk4::Orientation::Vertical, 8);
         for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
@@ -51,62 +71,89 @@ impl MasterPasswordDialog {
             ui.append(&Label::new(Some("Мастер-пароль:")));
             ui.append(&password);
         }
+
+        let btn = Button::with_label(if first_run { "Создать" } else { "Разблокировать" });
+        btn.set_halign(gtk4::Align::End);
         ui.append(&btn);
         ui.append(&status);
         window.set_child(Some(&ui));
 
-        Self { db: crate::db::open_database(), window, password, confirm, status }
-    }
+        let dialog = Self {
+            window: window.clone(),
+        };
 
-    /// Показывает диалог; ключ доставляется через колбэк `on_unlocked`.
-    pub fn show<F: Fn(Option<[u8; 32]>) + 'static>(&self, on_unlocked: F) {
-        let db = crate::db::open_database();
-        let password = self.password.clone();
-        let confirm = self.confirm.clone();
-        let status = self.status.clone();
-        let window = self.window.clone();
-        let btn = Button::with_label("ОК");
+        // Общая логика разблокировки: используется и кнопкой, и Enter.
+        let do_unlock: Rc<dyn Fn() -> ()> = {
+            let callback = callback.clone();
+            let db = db.clone();
+            let window = window.clone();
+            let password = password.clone();
+            let confirm = confirm.clone();
+            let status = status.clone();
 
-        btn.connect_clicked(move |_| {
-            let p = password.text().to_string();
-            let first_run = db.meta_get("argon2_salt").is_none();
-            if first_run && p != confirm.text() {
-                status.set_text("Пароли не совпадают");
-                return;
-            }
-            if first_run {
-                if let Err(e) = db.init_master(&p) {
-                    status.set_text(&format!("Ошибка: {e}"));
+            Rc::new(move || {
+                let entered = password.text().to_string();
+
+                if db.meta_get("argon2_salt").is_none()
+                    && entered != confirm.text().to_string()
+                {
+                    status.set_text("Пароли не совпадают");
                     return;
                 }
-            }
-            match db.unlock(&p) {
-                Ok(key) => {
-                    window.hide();
-                    on_unlocked(Some(key));
+
+                match unlock_with_password(&db, &entered) {
+                    Ok(key) => {
+                        let cb = callback.borrow_mut().take();
+                        if let Some(cb) = cb {
+                            cb(db.clone(), key);
+                        }
+                        window.destroy();
+                    }
+                    Err(e) => status.set_text(&e),
                 }
-                Err(e) => status.set_text(&e),
+            })
+        };
+
+        // Автоматический сценарий без графического интерфейса.
+        if let Ok(master) = std::env::var("REMOTIX_MASTER_PASSWORD") {
+            if let Ok(key) = unlock_with_password(&db, &master) {
+                let cb = callback.borrow_mut().take();
+                if let Some(cb) = cb {
+                    cb(db.clone(), key);
+                }
+                // Окно не показываем, но уничтожаем: иначе приложение будет
+                // считать, что у него есть окно, и не завершится.
+                window.destroy();
+                return dialog;
             }
+        }
+
+        btn.connect_clicked({
+            let do_unlock = do_unlock.clone();
+            move |_| do_unlock()
         });
 
-        self.window.show();
-        // Поддержка закрытия по Esc/отмене — вызов колбэка без ключа.
-        let ctx = glib::MainContext::default();
-        let _ = ctx;
+        // Enter в поле пароля — то же, что нажатие кнопки.
+        password.connect_activate({
+            let do_unlock = do_unlock.clone();
+            move |_| do_unlock()
+        });
+
+        window.present();
+        dialog
     }
 
-    /// Запуск активации: GUI-режим требует обработки диалога; для headless-
-    /// сценариев (тесты, CI) пароль можно передать переменной окружения.
-    pub fn run_and_get_key(&self) -> Option<[u8; 32]> {
-        if let Ok(p) = std::env::var("REMOTIX_MASTER_PASSWORD") {
-            let first_run = self.db.meta_get("argon2_salt").is_none();
-            if first_run {
-                self.db.init_master(&p).ok()?;
-            }
-            return self.db.unlock(&p).ok();
-        }
-        // GUI-режим: показать диалог (ключ доставится колбэком show()).
-        self.window.show();
-        None
+    /// Окно диалога (для привязки transient-for и тестирования).
+    pub fn window(&self) -> &ApplicationWindow {
+        &self.window
     }
+}
+
+/// Создаёт мастер-пароль (при первом запуске) либо проверяет уже созданный.
+/// Возвращает ключ шифрования хранилища.
+fn unlock_with_password(db: &Database, password: &str) -> Result<[u8; 32], String> {
+    if db.meta_get("argon2_salt").is_none() {
+        db.init_master(password)?;
+    }
+    db.unlock(password)
 }

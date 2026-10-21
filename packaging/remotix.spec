@@ -1,13 +1,16 @@
 Name:           remotix
-Version:        1.0.0
+Version:        1.1.0
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
-URL:            https://redos.example/remotix
+URL:            https://github.com/flytimopheev-sketch/remotix
 Source0:        %{name}-%{version}.tar.gz
 # Tarball с зависимостями crates.io: cargo vendor vendor (готовится один раз
 # на машине с интернетом), чтобы сборка на РЕД ОС шла полностью офлайн.
 Source1:        %{name}-vendor-%{version}.tar.gz
+
+# Отдельный debuginfo-пакет не нужен: бинарник и так небольшой.
+%global debug_package %{nil}
 
 BuildRequires:  gcc
 BuildRequires:  cargo
@@ -24,6 +27,8 @@ BuildRequires:  sqlite-devel
 # для libssh2; rustls (ring) для RDP-канала — полностью офлайн.
 
 Requires:       gtk4
+# Модуль SSH линкуется с системной libssh2 (crate ssh2) — она нужна в рантайме.
+Requires:       libssh2
 # VTE для GTK4 опционален: с ним SSH-терминал получает полную эмуляцию
 # (ANSI, vim/htop), без него используется встроенный упрощённый терминал.
 Recommends:     vte291-gtk4
@@ -49,17 +54,25 @@ cargo build --release --offline
 
 %install
 cd %{_builddir}/%{name}-%{version}
-install -Dm755 target/release/remotix %{buildroot}/usr/bin/remotix
-install -Dm644 packaging/remotix.desktop %{buildroot}/usr/share/applications/remotix.desktop
-install -Dm644 resources/icons/remotix.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/remotix.svg
-install -Dm644 packaging/remotix.metainfo.xml %{buildroot}/usr/share/metainfo/remotix.metainfo.xml
+install -Dm755 target/release/remotix %{buildroot}%{_bindir}/remotix
+install -Dm644 packaging/remotix.desktop %{buildroot}%{_datadir}/applications/remotix.desktop
+install -Dm644 resources/icons/remotix.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/remotix.svg
+install -Dm644 packaging/remotix.metainfo.xml %{buildroot}%{_datadir}/metainfo/remotix.metainfo.xml
+install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 
 %files
-/usr/bin/remotix
-/usr/share/applications/remotix.desktop
-/usr/share/icons/hicolor/scalable/apps/remotix.svg
-/usr/share/metainfo/remotix.metainfo.xml
+%license %{_datadir}/licenses/%{name}/LICENSE
+%{_bindir}/remotix
+%{_datadir}/applications/remotix.desktop
+%{_datadir}/icons/hicolor/scalable/apps/remotix.svg
+%{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
-* Mon Sep 07 2026 Remotix Team <dev@redos.example> - 1.0.0
+* Wed Oct 21 2026 Remotix Team <flytimopheev@gmail.com> - 1.1.0
+- Исправлен запуск графического интерфейса в РЕД ОС: приложение больше не
+  завершается с «GLib-GIO-CRITICAL: This application can not open files»
+- Мастер-пароль запрашивается до показа главного окна (диалог привязан к
+  приложению и больше не закрывает его)
+- Рабочий список профилей, редактор подключений, поиск и горячие клавиши
+* Mon Sep 07 2026 Remotix Team <flytimopheev@gmail.com> - 1.0.0
 - Первый выпуск: RDP/VNC/SSH, SFTP, шифрование, история подключений

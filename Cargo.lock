@@ -2537,7 +2537,7 @@ dependencies = [
 
 [[package]]
 name = "remotix"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "aes-gcm 0.10.3",
  "argon2",
