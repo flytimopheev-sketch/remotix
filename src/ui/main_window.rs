@@ -39,6 +39,8 @@ pub struct MainWindow {
     profiles: Rc<RefCell<Vec<Profile>>>,
     /// Состояния активных сессий: (название, состояние).
     sessions: Rc<RefCell<Vec<(String, SessionState)>>>,
+    /// Открытые вкладки сессий: (название, страница).
+    session_pages: Rc<RefCell<Vec<(String, gtk4::Widget)>>>,
 }
 
 impl MainWindow {
@@ -156,6 +158,7 @@ impl MainWindow {
             welcome,
             profiles: Rc::new(RefCell::new(Vec::new())),
             sessions: Rc::new(RefCell::new(Vec::new())),
+            session_pages: Rc::new(RefCell::new(Vec::new())),
         };
 
         // ---------------- Обработчики ----------------
@@ -469,6 +472,13 @@ impl MainWindow {
             profile.host
         );
 
+        // Если такая сессия уже открыта — просто переключаемся на её вкладку.
+        if let Some(page) = self.existing_session(&title) {
+            self.focus_session(&page);
+            self.set_status(&format!("{title}: сессия уже открыта"));
+            return;
+        }
+
         let on_state = {
             let win = self.clone();
             let title = title.clone();
@@ -500,6 +510,12 @@ impl MainWindow {
             profile.host
         );
 
+        if let Some(page) = self.existing_session(&title) {
+            self.focus_session(&page);
+            self.set_status(&format!("{title}: сессия уже открыта"));
+            return;
+        }
+
         let on_state = {
             let win = self.clone();
             let title = title.clone();
@@ -514,6 +530,22 @@ impl MainWindow {
         let viewer = RdpViewer::new(profile, on_state);
         self.append_session(&title, "computer-symbolic", viewer.root());
         self.set_status(&format!("{title}: подключение…"));
+    }
+
+    /// Страница уже открытой сессии с таким заголовком.
+    fn existing_session(&self, title: &str) -> Option<gtk4::Widget> {
+        self.session_pages
+            .borrow()
+            .iter()
+            .find(|(name, _)| name == title)
+            .map(|(_, page)| page.clone())
+    }
+
+    /// Переключает рабочую область на указанную вкладку.
+    fn focus_session(&self, page: &gtk4::Widget) {
+        if let Some(index) = self.notebook.page_num(page) {
+            self.notebook.set_current_page(Some(index));
+        }
     }
 
     /// Открывает вкладку журнала подключений.
@@ -592,13 +624,19 @@ impl MainWindow {
         self.notebook.set_tab_reorderable(&page, true);
         self.notebook.next_page();
 
+        self.session_pages
+            .borrow_mut()
+            .push((title.to_string(), page.clone()));
+
         {
             let notebook = self.notebook.clone();
             let page = page.clone();
+            let session_pages = self.session_pages.clone();
             close.connect_clicked(move |_| {
                 if let Some(index) = notebook.page_num(&page) {
                     notebook.remove_page(Some(index));
                 }
+                session_pages.borrow_mut().retain(|(_, p)| *p != page);
             });
         }
 

@@ -187,11 +187,22 @@ impl ProfileEditor {
             extra_grid.set_property(m, 16);
         }
 
-        add_field(&extra_grid, 0, "Ключ SSH:", &key_path);
-        add_field(&extra_grid, 1, "Вход под root через su -:", &su_to_root);
-        add_field(&extra_grid, 2, "Пароль root:", &root_password);
-        add_field(&extra_grid, 3, "Домен (RDP):", &domain);
-        add_field(&extra_grid, 4, "Разрешение экрана (RDP):", &resolution);
+        // Подписи полей, относящихся к конкретному протоколу: их нужно
+        // скрывать вместе с самими полями.
+        let cap_key = add_field(&extra_grid, 0, "Ключ SSH:", &key_path);
+        let cap_su = add_field(&extra_grid, 1, "Вход под root через su -:", &su_to_root);
+        let cap_root_pw = add_field(&extra_grid, 2, "Пароль root:", &root_password);
+        let cap_domain = add_field(&extra_grid, 3, "Домен (RDP):", &domain);
+        let cap_res = add_field(&extra_grid, 4, "Разрешение экрана (RDP):", &resolution);
+
+        name.set_hexpand(true);
+        host.set_hexpand(true);
+        user.set_hexpand(true);
+        password.set_hexpand(true);
+        key_path.set_hexpand(true);
+        root_password.set_hexpand(true);
+        domain.set_hexpand(true);
+        port.set_hexpand(true);
 
         // ---------------- Шапка и подвал ----------------
         let icon = Image::from_icon_name("preferences-system-remote-symbolic");
@@ -244,14 +255,25 @@ impl ProfileEditor {
             let domain = domain.clone();
             let resolution = resolution.clone();
             let port = port.clone();
+            let cap_key = cap_key.clone();
+            let cap_su = cap_su.clone();
+            let cap_root_pw = cap_root_pw.clone();
+            let cap_domain = cap_domain.clone();
+            let cap_res = cap_res.clone();
             Rc::new(move |protocol_index: u32| {
                 let is_ssh = protocol_index == 0;
                 let is_rdp = protocol_index == 1;
                 key_path.set_visible(is_ssh);
+                cap_key.set_visible(is_ssh);
                 su_to_root.set_visible(is_ssh);
-                root_password.set_visible(is_ssh && su_to_root.is_active());
+                cap_su.set_visible(is_ssh);
+                let root_pw_visible = is_ssh && su_to_root.is_active();
+                root_password.set_visible(root_pw_visible);
+                cap_root_pw.set_visible(root_pw_visible);
                 domain.set_visible(is_rdp);
+                cap_domain.set_visible(is_rdp);
                 resolution.set_visible(is_rdp);
+                cap_res.set_visible(is_rdp);
                 port.set_value(f64::from(match protocol_index {
                     1 => Protocol::Rdp.default_port(),
                     2 => Protocol::Vnc.default_port(),
@@ -442,6 +464,22 @@ impl ProfileEditor {
             window.connect_destroy(move |_| alive.set(false));
         }
 
+        // Ctrl+S — сохранить профиль.
+        {
+            let window = window.clone();
+            let save = save.clone();
+            let controller = gtk4::EventControllerKey::new();
+            controller.connect_key_pressed(move |_, key, _, state| {
+                let ctrl = state.contains(gtk4::gdk::ModifierType::CONTROL_MASK);
+                if ctrl && key.name().as_deref() == Some("s") {
+                    save.emit_clicked();
+                    return glib::Propagation::Stop;
+                }
+                glib::Propagation::Proceed
+            });
+            window.add_controller(controller);
+        }
+
         let editor = Self { window, alive };
         OPEN_EDITORS.with(|editors| {
             let mut editors = editors.borrow_mut();
@@ -460,10 +498,16 @@ impl ProfileEditor {
 }
 
 /// Добавляет на сетку подпись и поле ввода.
-fn add_field(grid: &Grid, row: i32, caption: &str, widget: &impl IsA<gtk4::Widget>) {
+fn add_field(
+    grid: &Grid,
+    row: i32,
+    caption: &str,
+    widget: &impl IsA<gtk4::Widget>,
+) -> Label {
     let label = Label::new(Some(caption));
     label.set_xalign(0.0);
     label.add_css_class("remotix-field-caption");
     grid.attach(&label, 0, row, 1, 1);
     grid.attach(widget, 1, row, 1, 1);
+    label
 }
