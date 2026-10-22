@@ -119,6 +119,13 @@ impl MainWindow {
         paned.set_position(300);
         paned.set_resize_start_child(false);
         paned.set_vexpand(true);
+        // Боковую панель нельзя свернуть совсем: иначе рабочая область
+        // «уезжает» влево и окно выглядит бесконечно широким.
+        paned.connect_notify_local(Some("position"), move |paned, _| {
+            if paned.position() < 200 {
+                paned.set_position(200);
+            }
+        });
 
         // ---------------- Строка состояния ----------------
         let status = Label::new(Some("Готово"));

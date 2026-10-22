@@ -413,21 +413,23 @@ impl Connection for RdpConnection {
             }
         }
 
-        let mut message = errors.join("\n");
         let addr = format!("{}:{}", self.profile.host, self.profile.port);
-        match probe_rdp_banner(&addr) {
-            Some(banner) => {
-                message.push_str(&format!(
-                    "\nНа порту {addr} отвечает «{banner}», а не RDP-сервер. \
-                     Проверьте порт (по умолчанию 3389) и адрес узла."
-                ));
-            }
-            None => {
-                message.push_str(
-                    "\nПроверьте порт (по умолчанию 3389), адрес узла и требования \
-                     сервера к NLA.",
-                );
-            }
+        let banner = probe_rdp_banner(&addr);
+        // Самое важное — в начало: строка состояния показывает сообщение
+        // обрезанным, и пользователь должен сразу увидеть причину.
+        let mut message = match &banner {
+            Some(banner) => format!(
+                "На порту {addr} отвечает «{banner}», а не RDP-сервер. \
+                 Проверьте порт (по умолчанию 3389) и адрес узла.\n"
+            ),
+            None => String::new(),
+        };
+        message.push_str(&errors.join("\n"));
+        if banner.is_none() {
+            message.push_str(
+                "\nПроверьте порт (по умолчанию 3389), адрес узла и требования \
+                 сервера к NLA.",
+            );
         }
         Err(message)
     }

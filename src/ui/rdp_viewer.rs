@@ -4,13 +4,13 @@
 //! декодирует кадры сервера и принимает клавиатуру/мышь. В поток GTK кадры
 //! приходят готовыми пикселями (RGBA32) и выводятся через `GdkMemoryTexture`.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::Duration;
 
 use gtk4::prelude::*;
-use gtk4::{gdk, glib, Box as GtkBox, Button, Label, Overlay, Picture, ScrolledWindow, Spinner};
+use gtk4::{cairo, gdk, glib, Box as GtkBox, Button, DrawingArea, Label, Overlay, Spinner};
 
 use crate::models::Profile;
 use crate::protocols::rdp::{RdpConnection, RdpKey};
@@ -44,29 +44,26 @@ impl RdpViewer {
     pub fn new(profile: Profile, on_state: Rc<dyn Fn(SessionState)>) -> Self {
         let root = GtkBox::new(gtk4::Orientation::Vertical, 0);
 
-        let picture = Picture::new();
-        picture.set_keep_aspect_ratio(true);
-        picture.add_css_class("remotix-remote-screen");
+        // Экран рисуется в DrawingArea: у него нулевой минимальный размер,
+        // поэтому окно приложения не «раздувается» до ширины удалённого
+        // рабочего стола (и его можно сузить мышью). Картинка масштабируется
+        // под размер окна с сохранением пропорций.
+        let area = DrawingArea::new();
+        area.set_hexpand(true);
+        area.set_vexpand(true);
+        area.add_css_class("remotix-remote-screen");
 
-        // Экран лежит в прокручиваемой области: сам Picture требует места по
-        // размеру кадра, и без этого окно приложения «раздувается» до
-        // ширины удалённого рабочего стола (и его уже не сузить мышью).
-        let scroll = ScrolledWindow::new();
-        scroll.set_child(Some(&picture));
-        scroll.set_hexpand(true);
-        scroll.set_vexpand(true);
-        scroll.set_policy(gtk4::PolicyType::Never, gtk4::PolicyType::Never);
-        scroll.set_hscrollbar_policy(gtk4::PolicyType::Automatic);
-        scroll.set_vscrollbar_policy(gtk4::PolicyType::Automatic);
+        // Размер удалённого экрана (нужен для пересчёта координат мыши).
+        let remote_size = Rc::new(Cell::new((0u32, 0u32)));
+
+        // Последний полученный кадр.
+        let frame: Rc<RefCell<Option<cairo::ImageSurface>>> = Rc::new(RefCell::new(None));
 
         let spinner = Spinner::new();
         spinner.set_spinning(true);
 
         let hint = Label::new(Some("Подключение к удалённому рабочему столу…"));
         hint.add_css_class("remotix-empty");
-
-        // Размер удалённого экрана (нужен для пересчёта координат мыши).
-        let remote_size = Rc::new(Cell::new((0u32, 0u32)));
 
         let (tx_ui, rx_ui) = mpsc::channel::<ToUi>();
         let (tx_rdp, rx_rdp) = mpsc::channel::<ToRdp>();
@@ -83,11 +80,42 @@ impl RdpViewer {
         panel.append(&cad);
 
         let overlay = Overlay::new();
-        overlay.set_child(Some(&scroll));
+        overlay.set_child(Some(&area));
         overlay.add_overlay(&spinner);
         overlay.add_overlay(&hint);
         overlay.add_overlay(&panel);
         root.append(&overlay);
+
+        // ---------------- Отрисовка кадра ----------------
+        {
+            let frame = frame.clone();
+            let remote_size = remote_size.clone();
+            area.set_draw_func(move |area, cr, _width, _height| {
+                let surface = match frame.borrow().as_ref() {
+                    Some(s) => s.clone(),
+                    None => return,
+                };
+                let (rw, rh) = remote_size.get();
+                if rw == 0 || rh == 0 {
+                    return;
+                }
+                let w = area.width() as f64;
+                let h = area.height() as f64;
+                if w <= 0.0 || h <= 0.0 {
+                    return;
+                }
+                // Масштаб с сохранением пропорций, кадр по центру.
+                let scale = (w / rw as f64).min(h / rh as f64);
+                let dw = rw as f64 * scale;
+                let dh = rh as f64 * scale;
+                let _ = cr.save();
+                cr.translate((w - dw) / 2.0, (h - dh) / 2.0);
+                cr.scale(scale, scale);
+                let _ = cr.set_source_surface(&surface, 0.0, 0.0);
+                let _ = cr.paint();
+                let _ = cr.restore();
+            });
+        }
 
         {
             let tx = tx_rdp.clone();
@@ -158,7 +186,8 @@ impl RdpViewer {
 
         // ---------------- Вывод кадров в GTK ----------------
         {
-            let picture = picture.clone();
+            let area = area.clone();
+            let frame = frame.clone();
             let spinner = spinner.clone();
             let hint = hint.clone();
             let remote_size = remote_size.clone();
@@ -169,17 +198,26 @@ impl RdpViewer {
                     match rx_ui.try_recv() {
                         Ok(ToUi::Frame { width, height, pixels }) => {
                             remote_size.set((width, height));
-                            let bytes = glib::Bytes::from_owned(pixels);
-                            let texture = gdk::MemoryTexture::new(
+                            // Кадр приходит в формате RGBA32; для cairo это
+                            // ARGB32 (альфа непрозрачная, так что разницы нет).
+                            let surface = cairo::ImageSurface::create_for_data(
+                                pixels,
+                                cairo::Format::ARgb32,
                                 width as i32,
                                 height as i32,
-                                gdk::MemoryFormat::R8g8b8a8,
-                                &bytes,
-                                width as usize * 4,
+                                width as i32 * 4,
                             );
-                            picture.set_paintable(Some(&texture));
-                            spinner.set_spinning(false);
-                            hint.set_visible(false);
+                            match surface {
+                                Ok(surface) => {
+                                    *frame.borrow_mut() = Some(surface);
+                                    area.queue_draw();
+                                    spinner.set_spinning(false);
+                                    hint.set_visible(false);
+                                }
+                                Err(e) => {
+                                    eprintln!("Remotix: не удалось подготовить кадр RDP: {e}");
+                                }
+                            }
                         }
                         Ok(ToUi::State(state)) => {
                             match &state {
@@ -215,13 +253,13 @@ impl RdpViewer {
             controller.connect_key_released(move |_, key, keycode, _state| {
                 let _ = tx.send(ToRdp::Key { key: rdp_key(key, keycode), pressed: false });
             });
-            picture.add_controller(controller);
+            area.add_controller(controller);
         }
 
         // ---------------- Мышь ----------------
         {
             let tx = tx_rdp.clone();
-            let picture_ref = picture.clone();
+            let area_ref = area.clone();
             let remote_size = remote_size.clone();
             let controller = gtk4::EventControllerMotion::new();
             controller.connect_motion(move |_, x, y| {
@@ -229,15 +267,15 @@ impl RdpViewer {
                 if rw == 0 || rh == 0 {
                     return;
                 }
-                let (rx, ry) = map_coordinates(&picture_ref, x, y, rw, rh);
+                let (rx, ry) = map_coordinates(&area_ref, x, y, rw, rh);
                 let _ = tx.send(ToRdp::Mouse { x: rx, y: ry, buttons: 0, is_move: true });
             });
-            picture.add_controller(controller);
+            area.add_controller(controller);
         }
 
         {
             let tx = tx_rdp.clone();
-            let picture_ref = picture.clone();
+            let area_ref = area.clone();
             let remote_size = remote_size.clone();
             let controller = gtk4::GestureClick::new();
             controller.set_button(0); // любая кнопка мыши
@@ -246,7 +284,7 @@ impl RdpViewer {
                 if rw == 0 || rh == 0 {
                     return;
                 }
-                let (rx, ry) = map_coordinates(&picture_ref, x, y, rw, rh);
+                let (rx, ry) = map_coordinates(&area_ref, x, y, rw, rh);
                 let buttons = match button {
                     1 => 1u8,
                     2 => 2,
@@ -255,12 +293,12 @@ impl RdpViewer {
                 };
                 let _ = tx.send(ToRdp::Mouse { x: rx, y: ry, buttons, is_move: false });
             });
-            picture.add_controller(controller);
+            area.add_controller(controller);
         }
 
         {
             let tx = tx_rdp.clone();
-            let picture_ref = picture.clone();
+            let area_ref = area.clone();
             let remote_size = remote_size.clone();
             let controller = gtk4::EventControllerScroll::new(
                 gtk4::EventControllerScrollFlags::VERTICAL | gtk4::EventControllerScrollFlags::DISCRETE,
@@ -270,11 +308,11 @@ impl RdpViewer {
                 if rw == 0 || rh == 0 {
                     return glib::Propagation::Proceed;
                 }
-                let (rx, ry) = map_coordinates(&picture_ref, 0.0, 0.0, rw, rh);
+                let (rx, ry) = map_coordinates(&area_ref, 0.0, 0.0, rw, rh);
                 let _ = tx.send(ToRdp::Wheel { x: rx, y: ry, delta: -(dy as i32) });
                 glib::Propagation::Stop
             });
-            picture.add_controller(controller);
+            area.add_controller(controller);
         }
 
         Self { root }
@@ -287,9 +325,12 @@ impl RdpViewer {
 }
 
 /// Переводит координаты виджета в координаты удалённого экрана.
-fn map_coordinates(picture: &Picture, x: f64, y: f64, remote_w: u32, remote_h: u32) -> (u32, u32) {
-    let widget_w = picture.width().max(1) as f64;
-    let widget_h = picture.height().max(1) as f64;
+///
+/// Экран масштабируется под окно с сохранением пропорций и размещается по
+/// центру — как при отрисовке кадра.
+fn map_coordinates(area: &DrawingArea, x: f64, y: f64, remote_w: u32, remote_h: u32) -> (u32, u32) {
+    let widget_w = area.width().max(1) as f64;
+    let widget_h = area.height().max(1) as f64;
     let scale = (widget_w / remote_w as f64).min(widget_h / remote_h as f64);
     if scale <= 0.0 {
         return (0, 0);

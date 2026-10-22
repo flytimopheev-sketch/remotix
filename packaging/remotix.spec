@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.5.1
+Version:        1.5.2
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
@@ -68,6 +68,12 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Thu Oct 22 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.2
+- RDP: окно больше не расширяется по ширине (экран рисуется в области
+  отрисовки с нулевым минимальным размером и масштабируется под окно)
+- Боковую панель нельзя свернуть совсем (минимальная ширина 200 пикселей)
+- В сообщении об ошибке RDP подсказка «на порту отвечает не RDP-сервер»
+  теперь в начале текста
 * Thu Oct 22 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.1
 - SFTP: исправлен вход в каталоги на сервере (было «[SFTP(2)] no such file»)
 - RDP: перебор вариантов защиты (NLA, NLA+TLS, TLS) и понятное сообщение
