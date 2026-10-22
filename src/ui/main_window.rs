@@ -130,7 +130,12 @@ impl MainWindow {
         // ---------------- Строка состояния ----------------
         let status = Label::new(Some("Готово"));
         status.set_xalign(0.0);
-        status.set_hexpand(true);
+        // Фиксированная ширина: иначе длинный текст (например, ошибка
+        // подключения) растягивает строку состояния и сдвигает кнопки —
+        // и растягивает всё окно. Полный текст — во всплывающей подсказке.
+        status.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+        status.set_lines(1);
+        status.set_width_chars(60);
 
         let history_btn = Button::from_icon_name("view-history-symbolic");
         history_btn.set_tooltip_text(Some("Журнал подключений"));
@@ -713,12 +718,16 @@ impl MainWindow {
         self.reset_status_style();
         self.status.add_css_class(state.css_class());
         self.status.set_text(&text);
+        self.status.set_tooltip_text(Some(&text));
     }
 
     /// Пишет сообщение в строку состояния.
     pub fn set_status(&self, text: &str) {
         self.reset_status_style();
         self.status.set_text(text);
+        // Полный текст — во всплывающей подсказке: в строке состояния он
+        // обрезается, чтобы окно не разъезжалось.
+        self.status.set_tooltip_text(Some(text));
     }
 
     /// Убирает классы состояния из строки состояния.

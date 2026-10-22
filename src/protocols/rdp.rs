@@ -417,17 +417,30 @@ impl Connection for RdpConnection {
         let banner = probe_rdp_banner(&addr);
         // Самое важное — в начало: строка состояния показывает сообщение
         // обрезанным, и пользователь должен сразу увидеть причину.
-        let mut message = match &banner {
-            Some(banner) => format!(
+        let mut message = String::new();
+        if let Some(banner) = &banner {
+            message.push_str(&format!(
                 "На порту {addr} отвечает «{banner}», а не RDP-сервер. \
-                 Проверьте порт (по умолчанию 3389) и адрес узла.\n"
-            ),
-            None => String::new(),
-        };
-        message.push_str(&errors.join("\n"));
+                 Проверьте порт (по умолчанию 3389) и адрес узла. "
+            ));
+        }
+        if errors
+            .iter()
+            .any(|e| e.contains("standard RDP security") || e.contains("Standard RDP Security"))
+        {
+            message.push_str(
+                "Сервер поддерживает только Standard RDP Security (старый шифр RC4) — \
+                 Remotix его не умеет. Включите на сервере TLS/NLA: в xrdp — \
+                 security_layer=negotiate и certificate=/etc/xrdp/xrdp.crt; в Windows — \
+                 политика «Требовать NLA». ",
+            );
+        }
+        // Ошибки соединяем в одну строку: в строке состояния переносы
+        // растягивали бы её на несколько строк.
+        message.push_str(&errors.join(" · "));
         if banner.is_none() {
             message.push_str(
-                "\nПроверьте порт (по умолчанию 3389), адрес узла и требования \
+                " Проверьте порт (по умолчанию 3389), адрес узла и требования \
                  сервера к NLA.",
             );
         }

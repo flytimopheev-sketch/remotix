@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.5.2
+Version:        1.5.3
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
@@ -68,6 +68,14 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Thu Oct 22 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.3
+- Строка состояния больше не растягивает окно: фиксированная ширина метки,
+  текст обрезается многоточием, полный — во всплывающей подсказке
+- SFTP: переходы по каталогам работают и на серверах, не отдающих права
+  объектов; ошибка «не каталог» показывается явно
+- SFTP: сочетания клавиш как в терминале — Ctrl+C (копировать), Ctrl+V
+  (вставить), Delete (удалить)
+- RDP: понятная подсказка, если сервер умеет только Standard RDP Security
 * Thu Oct 22 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.2
 - RDP: окно больше не расширяется по ширине (экран рисуется в области
   отрисовки с нулевым минимальным размером и масштабируется под окно)

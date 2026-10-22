@@ -84,14 +84,36 @@ impl SftpPanel {
     }
 
     /// Перейти в каталог на сервере.
+    ///
+    /// Путь строится от текущего каталога (см. `resolve`). Права объекта
+    /// у некоторых SFTP-серверов не приходят, поэтому каталогом считается
+    /// любой объект, который удалось простатировать.
     pub fn cd(&mut self, path: &str) -> Result<(), String> {
         let full = self.resolve(path);
         let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
-        let stat = sftp
-            .stat(Path::new(&full))
-            .map_err(|e| format!("не удалось открыть каталог {full}: {e}"))?;
-        if !Self::is_dir_mode(stat.perm) {
-            return Err(format!("{full} — не каталог"));
+
+        let stat = match sftp.stat(Path::new(&full)) {
+            Ok(stat) => stat,
+            Err(e) => {
+                // Запасной вариант: сервер мог разрешить путь относительно
+                // своего рабочего каталога.
+                if full != path {
+                    if let Ok(stat) = sftp.stat(Path::new(path)) {
+                        let is_dir = stat.perm.map(|m| (m & 0o170000) == 0o040000).unwrap_or(true);
+                        if is_dir {
+                            self.remote_dir = path.to_string();
+                            return Ok(());
+                        }
+                    }
+                }
+                return Err(format!("не удалось открыть каталог {full}: {e}"));
+            }
+        };
+
+        if let Some(perm) = stat.perm {
+            if (perm & 0o170000) != 0o040000 {
+                return Err(format!("{full} — не каталог"));
+            }
         }
         self.remote_dir = full;
         Ok(())
@@ -181,6 +203,26 @@ impl SftpPanel {
     pub fn remove(&mut self, name: &str) -> Result<(), String> {
         let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
         sftp.unlink(&Path::new(&self.remote_dir).join(name)).map_err(|e| e.to_string())
+    }
+
+    /// Копирование файла на сервере (в пределах текущего каталога).
+    pub fn copy(&mut self, from: &str, to: &str) -> Result<(), String> {
+        use std::io::{Read, Write};
+
+        let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
+        let src = Path::new(&self.remote_dir).join(from);
+        let dst = Path::new(&self.remote_dir).join(to);
+        let mut data = Vec::new();
+        sftp.open(&src)
+            .map_err(|e| format!("не удалось прочитать {from}: {e}"))?
+            .read_to_end(&mut data)
+            .map_err(|e| format!("не удалось прочитать {from}: {e}"))?;
+        let mut file = sftp
+            .create(&dst)
+            .map_err(|e| format!("не удалось создать {to}: {e}"))?;
+        file.write_all(&data)
+            .map_err(|e| format!("не удалось записать {to}: {e}"))?;
+        Ok(())
     }
 }
 

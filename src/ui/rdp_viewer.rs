@@ -64,6 +64,11 @@ impl RdpViewer {
 
         let hint = Label::new(Some("Подключение к удалённому рабочему столу…"));
         hint.add_css_class("remotix-empty");
+        // Текст ошибки бывает длинным: переносим его по словам, чтобы он не
+        // растягивал окно приложения.
+        hint.set_wrap(true);
+        hint.set_max_width_chars(60);
+        hint.set_justify(gtk4::Justification::Center);
 
         let (tx_ui, rx_ui) = mpsc::channel::<ToUi>();
         let (tx_rdp, rx_rdp) = mpsc::channel::<ToRdp>();

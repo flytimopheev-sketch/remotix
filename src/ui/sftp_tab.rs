@@ -10,7 +10,10 @@
 //!   * `F7`           — создать каталог;
 //!   * `F8`           — удалить;
 //!   * `F10`          — закрыть вкладку;
-//!   * `Ctrl+R`       — обновить.
+//!   * `Ctrl+R`       — обновить;
+//!   * `Ctrl+C`       — скопировать объект в буфер обмена;
+//!   * `Ctrl+V`       — вставить объекты из буфера обмена;
+//!   * `Delete`       — удалить выделенный объект.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -35,6 +38,17 @@ enum ToSftp {
     Mkdir(String),
     Remove(String),
     Rename(String, String),
+    /// Копирование файла на сервере (из текущего каталога в текущий).
+    CopyRemote(String, String),
+}
+
+/// Объект в буфере обмена файлового менеджера.
+#[derive(Clone, Debug)]
+enum ClipItem {
+    /// Файл в локальном каталоге.
+    Local(String),
+    /// Файл на сервере.
+    Remote(String),
 }
 
 /// События от потока SFTP к интерфейсу.
@@ -121,10 +135,16 @@ impl SftpTab {
         // Текущий локальный каталог — общий для интерфейса и потока.
         let local_dir = Arc::new(Mutex::new(crate::config::home_dir()));
 
+        // Буфер обмена файлового менеджера (Ctrl+C / Ctrl+V).
+        let clip: Rc<RefCell<Vec<ClipItem>>> = Rc::new(RefCell::new(Vec::new()));
+
         // ---------------- Строка состояния ----------------
         let status = Label::new(Some("Готово"));
         status.set_xalign(0.0);
-        status.set_hexpand(true);
+        // Фиксированная ширина: длинный текст не должен растягивать окно.
+        status.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+        status.set_lines(1);
+        status.set_width_chars(60);
         status.add_css_class("remotix-field-caption");
         let statusbar = GtkBox::new(gtk4::Orientation::Horizontal, 8);
         for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
@@ -205,6 +225,9 @@ impl SftpTab {
                             }
                             ToSftp::Rename(from, to) => {
                                 panel.rename(&from, &to).map(|_| format!("Переименовано в {to}"))
+                            }
+                            ToSftp::CopyRemote(from, to) => {
+                                panel.copy(&from, &to).map(|_| format!("Файл {to} создан на сервере"))
                             }
                         };
                         match result {
@@ -333,7 +356,9 @@ impl SftpTab {
                 let tx = tx.clone();
                 let other = remote_list.clone();
                 let activate = activate.clone();
-                move |_, key, _, _| {
+                let clip = clip.clone();
+                move |_, key, _, state| {
+                    let ctrl = state.contains(gtk4::gdk::ModifierType::CONTROL_MASK);
                     let selected = selected_name(&list, &entries);
                     match key.name().as_deref() {
                         Some("Tab") => {
@@ -350,6 +375,45 @@ impl SftpTab {
                             // Открыть выделенный каталог.
                             if let Some(row) = list.selected_row() {
                                 activate(row.index());
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        Some("c") | Some("C") if ctrl => {
+                            // Скопировать объект в буфер обмена.
+                            if let Some(name) = selected {
+                                clip.borrow_mut().push(ClipItem::Local(name));
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        Some("v") | Some("V") if ctrl => {
+                            // Вставить объекты из буфера обмена.
+                            let items = clip.borrow().clone();
+                            for item in items {
+                                match item {
+                                    ClipItem::Local(name) => {
+                                        let current = dir.lock().unwrap().clone();
+                                        let src = current.join(&name);
+                                        let dst = current.join(unique_copy_name(&current, &name));
+                                        let _ = std::fs::copy(&src, &dst);
+                                    }
+                                    ClipItem::Remote(name) => {
+                                        let _ = tx.send(ToSftp::Download(name));
+                                    }
+                                }
+                            }
+                            reload();
+                            return glib::Propagation::Stop;
+                        }
+                        Some("Delete") => {
+                            // Удалить выделенный объект.
+                            if let Some(name) = selected {
+                                let path = dir.lock().unwrap().join(&name);
+                                let _ = if path.is_dir() {
+                                    std::fs::remove_dir_all(&path)
+                                } else {
+                                    std::fs::remove_file(&path)
+                                };
+                                reload();
                             }
                             return glib::Propagation::Stop;
                         }
@@ -422,7 +486,9 @@ impl SftpTab {
                         return;
                     };
                     if !entry.is_dir {
-                        return;
+                        // Признак «каталог» у некоторых серверов недоступен,
+                        // поэтому пробуем перейти всегда: если это файл,
+                        // панель сообщит об ошибке.
                     }
                     let name = entry.name.clone();
                     drop(items);
@@ -445,7 +511,9 @@ impl SftpTab {
                 let tx = tx_sftp.clone();
                 let other = local_list.clone();
                 let activate = activate.clone();
-                move |_, key, _, _| {
+                let clip = clip.clone();
+                move |_, key, _, state| {
+                    let ctrl = state.contains(gtk4::gdk::ModifierType::CONTROL_MASK);
                     let selected = selected_name(&list, &entries);
                     match key.name().as_deref() {
                         Some("Tab") => {
@@ -490,6 +558,40 @@ impl SftpTab {
                             return glib::Propagation::Stop;
                         }
                         Some("F8") => {
+                            if let Some(name) = selected {
+                                let _ = tx.send(ToSftp::Remove(name));
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        Some("c") | Some("C") if ctrl => {
+                            // Скопировать объект в буфер обмена.
+                            if let Some(name) = selected {
+                                clip.borrow_mut().push(ClipItem::Remote(name));
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        Some("v") | Some("V") if ctrl => {
+                            // Вставить объекты из буфера обмена на сервер.
+                            let items = clip.borrow().clone();
+                            for item in items {
+                                match item {
+                                    ClipItem::Local(name) => {
+                                        let _ = tx.send(ToSftp::Upload(name));
+                                    }
+                                    ClipItem::Remote(name) => {
+                                        let _ = tx.send(ToSftp::CopyRemote(
+                                            name.clone(),
+                                            unique_copy_name(
+                                                &std::path::PathBuf::from("."),
+                                                &name,
+                                            ),
+                                        ));
+                                    }
+                                }
+                            }
+                            return glib::Propagation::Stop;
+                        }
+                        Some("Delete") => {
                             if let Some(name) = selected {
                                 let _ = tx.send(ToSftp::Remove(name));
                             }
@@ -589,6 +691,26 @@ fn fill_list(list: &ListBox, entries: &[Entry]) {
     let index = if selected >= 0 { selected as usize } else { 0 };
     if let Some(row) = rows.get(index) {
         list.select_row(Some(row));
+    }
+}
+
+/// Имя файла для копии: если имя уже занято, добавляем «(копия)».
+///
+/// Используется при вставке из буфера обмена — существующий файл
+/// перезаписывать нельзя.
+fn unique_copy_name(dir: &std::path::Path, name: &str) -> String {
+    if !dir.join(name).exists() {
+        return name.to_string();
+    }
+    let path = std::path::Path::new(name);
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| name.to_string());
+    let ext = path.extension().map(|s| format!(".{}", s.to_string_lossy()));
+    match ext {
+        Some(e) => format!("{stem} (копия){e}"),
+        None => format!("{stem} (копия)"),
     }
 }
 
