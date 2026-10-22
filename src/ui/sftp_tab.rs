@@ -286,12 +286,11 @@ impl SftpTab {
             reload();
 
             // Вход в каталог.
-            {
+            let activate: Rc<dyn Fn(i32)> = {
                 let reload = reload.clone();
                 let dir = dir.clone();
                 let entries = entries.clone();
-                list.connect_row_activated(move |_, row| {
-                    let index = row.index();
+                Rc::new(move |index: i32| {
                     let mut current = dir.lock().unwrap();
                     if index <= 0 {
                         // «..» — в родительский каталог.
@@ -314,6 +313,13 @@ impl SftpTab {
                     *current = current.join(&name);
                     drop(current);
                     reload();
+                })
+            };
+
+            {
+                let activate = activate.clone();
+                list.connect_row_activated(move |_, row| {
+                    activate(row.index());
                 });
             }
 
@@ -326,6 +332,7 @@ impl SftpTab {
                 let reload = reload.clone();
                 let tx = tx.clone();
                 let other = remote_list.clone();
+                let activate = activate.clone();
                 move |_, key, _, _| {
                     let selected = selected_name(&list, &entries);
                     match key.name().as_deref() {
@@ -337,6 +344,13 @@ impl SftpTab {
                         Some("Up") | Some("Down") | Some("Home") | Some("End") => {
                             // GTK4 не листает список стрелками — делаем сами.
                             move_selection(&list, key.name().as_deref().unwrap_or("Down"));
+                            return glib::Propagation::Stop;
+                        }
+                        Some("Return") | Some("KP_Enter") => {
+                            // Открыть выделенный каталог.
+                            if let Some(row) = list.selected_row() {
+                                activate(row.index());
+                            }
                             return glib::Propagation::Stop;
                         }
                         Some("BackSpace") => {
@@ -394,12 +408,11 @@ impl SftpTab {
 
         // ---------------- Удалённая панель ----------------
         {
-            // Вход в каталог.
-            {
+            // Вход в каталог на сервере.
+            let activate: Rc<dyn Fn(i32)> = {
                 let entries = remote_entries.clone();
                 let tx = tx_sftp.clone();
-                remote_list.connect_row_activated(move |_, row| {
-                    let index = row.index();
+                Rc::new(move |index: i32| {
                     if index <= 0 {
                         let _ = tx.send(ToSftp::CdUp);
                         return;
@@ -414,6 +427,13 @@ impl SftpTab {
                     let name = entry.name.clone();
                     drop(items);
                     let _ = tx.send(ToSftp::Cd(name));
+                })
+            };
+
+            {
+                let activate = activate.clone();
+                remote_list.connect_row_activated(move |_, row| {
+                    activate(row.index());
                 });
             }
 
@@ -424,6 +444,7 @@ impl SftpTab {
                 let list = remote_list.clone();
                 let tx = tx_sftp.clone();
                 let other = local_list.clone();
+                let activate = activate.clone();
                 move |_, key, _, _| {
                     let selected = selected_name(&list, &entries);
                     match key.name().as_deref() {
@@ -435,6 +456,13 @@ impl SftpTab {
                         Some("Up") | Some("Down") | Some("Home") | Some("End") => {
                             // GTK4 не листает список стрелками — делаем сами.
                             move_selection(&list, key.name().as_deref().unwrap_or("Down"));
+                            return glib::Propagation::Stop;
+                        }
+                        Some("Return") | Some("KP_Enter") => {
+                            // Открыть выделенный каталог на сервере.
+                            if let Some(row) = list.selected_row() {
+                                activate(row.index());
+                            }
                             return glib::Propagation::Stop;
                         }
                         Some("BackSpace") => {

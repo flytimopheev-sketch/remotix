@@ -391,21 +391,45 @@ impl Connection for RdpConnection {
     }
 
     fn connect(&mut self) -> Result<(), String> {
-        // Современные серверы (Windows 10/11, RDS) требуют NLA (CredSSP).
-        // Если сервер его не поддерживает — повторяем подключение в режиме
-        // PROTOCOL_SSL (TLS без NLA).
+        // Порядок попыток: сначала NLA (CredSSP) — так требуют Windows 10/11
+        // и RDS; затем NLA+TLS; затем только TLS — для серверов без NLA.
+        // Набор запрошенных протоколов влияет на ответ сервера, поэтому при
+        // отказе стоит попробовать другой вариант.
         let nla = self.profile.rdp_options.nla;
-        match self.connect_with(nla) {
-            Ok(()) => Ok(()),
-            Err(e) => {
-                if nla {
-                    eprintln!("Remotix: подключение по NLA не удалось ({e}), пробуем без NLA");
-                    self.connect_with(false)
-                } else {
-                    Err(e)
+        let modes: &[(bool, bool)] = if nla {
+            &[(true, false), (true, true), (false, true)]
+        } else {
+            &[(false, true), (true, true)]
+        };
+
+        let mut errors: Vec<String> = Vec::new();
+        for (credssp, tls) in modes {
+            match self.connect_with(*credssp, *tls) {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    eprintln!("Remotix: режим (NLA={credssp}, TLS={tls}) не сработал: {e}");
+                    errors.push(e);
                 }
             }
         }
+
+        let mut message = errors.join("\n");
+        let addr = format!("{}:{}", self.profile.host, self.profile.port);
+        match probe_rdp_banner(&addr) {
+            Some(banner) => {
+                message.push_str(&format!(
+                    "\nНа порту {addr} отвечает «{banner}», а не RDP-сервер. \
+                     Проверьте порт (по умолчанию 3389) и адрес узла."
+                ));
+            }
+            None => {
+                message.push_str(
+                    "\nПроверьте порт (по умолчанию 3389), адрес узла и требования \
+                     сервера к NLA.",
+                );
+            }
+        }
+        Err(message)
     }
 
     fn disconnect(&mut self) {
@@ -413,11 +437,58 @@ impl Connection for RdpConnection {
     }
 }
 
+/// Проверяет, что на порту отвечает именно RDP-сервер.
+///
+/// Возвращает баннер сервера, если это не RDP (например, «SSH-2.0-OpenSSH…»
+/// или текст HTTP-ошибки), — по нему видно, что указан неверный порт.
+fn probe_rdp_banner(addr: &str) -> Option<String> {
+    use std::time::Duration;
+
+    let mut stream = TcpStream::connect(addr).ok()?;
+    stream.set_read_timeout(Some(Duration::from_secs(3))).ok()?;
+    let mut buf = [0u8; 64];
+    let n = stream.read(&mut buf).ok()?;
+    if n == 0 {
+        return None;
+    }
+    // TPKT-заголовок RDP начинается с 0x03 0x00.
+    if buf[0] == 0x03 && n > 1 && buf[1] == 0x00 {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&buf[..n]);
+    let text = text.trim().replace(['\r', '\n'], " ");
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
+}
+
+/// Разворачивает цепочку ошибок IronRDP в читаемый текст: помимо контекста
+/// («read frame by hint») показывается и настоящая причина (например,
+/// «not enough bytes» — сервер закрыл соединение).
+fn describe_error(e: &ironrdp_connector::ConnectorError) -> String {
+    use std::error::Error as _;
+
+    let mut text = e.to_string();
+    let mut source = e.source();
+    while let Some(cause) = source {
+        let part = cause.to_string();
+        if !part.is_empty() && !text.contains(&part) {
+            text.push_str(": ");
+            text.push_str(&part);
+        }
+        source = cause.source();
+    }
+    text
+}
+
 impl RdpConnection {
-    /// Подключение к RDP-серверу в выбранном режиме аутентификации.
+    /// Подключение к RDP-серверу в выбранном режиме безопасности.
     ///
-    /// `credssp = true` — NLA (CredSSP), `false` — только TLS (PROTOCOL_SSL).
-    fn connect_with(&mut self, credssp: bool) -> Result<(), String> {
+    /// `credssp = true` — NLA (CredSSP), `false` — без NLA.
+    /// `tls = true` — дополнительно предлагать серверу PROTOCOL_SSL.
+    fn connect_with(&mut self, credssp: bool, tls: bool) -> Result<(), String> {
         let opts = &self.profile.rdp_options;
 
         // 1. TCP-подключение к RDP-серверу
@@ -451,7 +522,7 @@ impl RdpConnection {
                 height: opts.height.max(1) as u16,
             },
             desktop_scale_factor: 0,
-            enable_tls: true,
+            enable_tls: tls,
             // NLA (CredSSP) — обязателен для современных серверов Windows.
             enable_credssp: credssp,
             credentials: ironrdp_connector::Credentials::UsernamePassword {
@@ -490,7 +561,7 @@ impl RdpConnection {
 
         // 5. Запускаем процедуру подключения (до TLS-апгрейда)
         let should_upgrade = ironrdp_blocking::connect_begin(&mut framed, &mut connector)
-            .map_err(|e| format!("ошибка начала RDP-подключения: {e}"))?;
+            .map_err(|e| format!("ошибка начала RDP-подключения: {}", describe_error(&e)))?;
 
         // 6. TLS-апгрейд: получаем TCP-стрим и leftover-байты, создаём TLS-стрим
         let (tcp_stream, leftover_bytes) = framed.into_inner();
@@ -536,7 +607,7 @@ impl RdpConnection {
             Vec::new(), // server_public_key не нужен без CredSSP
             None,       // kerberos_config
         )
-        .map_err(|e| format!("ошибка завершения RDP-подключения: {e}"))?;
+        .map_err(|e| format!("ошибка завершения RDP-подключения: {}", describe_error(&e)))?;
 
         // 10. Сохраняем живой TLS-стрим и строим активную стадию (просмотр):
         //     рамки сервера будут декодироваться в изображение методом run().

@@ -36,9 +36,20 @@ impl SftpPanel {
             .userauth_password(&username, profile.password.as_deref().unwrap_or(""))
             .map_err(|e| format!("аутентификация не удалась: {e}"))?;
 
+        // Начальный каталог — абсолютный путь домашнего каталога пользователя.
+        // Относительные пути сервер SFTP разрешает от своего рабочего
+        // каталога, который не обязательно совпадает с домашним, поэтому
+        // дальше работаем только с абсолютными путями.
+        let remote_dir = {
+            let sftp = session.sftp().map_err(|e| e.to_string())?;
+            sftp.realpath(Path::new("."))
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|_| "/".to_string())
+        };
+
         Ok(Self {
             local_dir: crate::config::home_dir(),
-            remote_dir: ".".into(),
+            remote_dir,
             session: Some(session),
         })
     }
@@ -58,16 +69,31 @@ impl SftpPanel {
         perm.map(|mode| (mode & 0o170000) == 0o040000).unwrap_or(false)
     }
 
+    /// Получает абсолютный путь: относительный — относительно текущего
+    /// каталога сервера.
+    fn resolve(&self, path: &str) -> String {
+        if path.starts_with('/') {
+            return path.trim_end_matches('/').to_string();
+        }
+        let current = self.remote_dir.trim_end_matches('/');
+        if current.is_empty() {
+            path.to_string()
+        } else {
+            format!("{current}/{path}")
+        }
+    }
+
     /// Перейти в каталог на сервере.
     pub fn cd(&mut self, path: &str) -> Result<(), String> {
+        let full = self.resolve(path);
         let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
         let stat = sftp
-            .stat(Path::new(path))
-            .map_err(|e| format!("не удалось открыть каталог {path}: {e}"))?;
+            .stat(Path::new(&full))
+            .map_err(|e| format!("не удалось открыть каталог {full}: {e}"))?;
         if !Self::is_dir_mode(stat.perm) {
-            return Err(format!("{path} — не каталог"));
+            return Err(format!("{full} — не каталог"));
         }
-        self.remote_dir = path.to_string();
+        self.remote_dir = full;
         Ok(())
     }
 
@@ -184,4 +210,81 @@ pub fn local_list(dir: &Path) -> Vec<Entry> {
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
+    use crate::models::Protocol;
+
+    /// Профиль тестового SFTP-сервера.
+    fn test_profile() -> Profile {
+        Profile {
+            id: 0,
+            name: "test".to_string(),
+            protocol: Protocol::Ssh,
+            host: "127.0.0.1".to_string(),
+            port: 2222,
+            username: Some("tester".to_string()),
+            password: Some("secret".to_string()),
+            ssh_key_path: None,
+            ssh_key_passphrase: None,
+            root_password: None,
+            group_id: None,
+            tags: vec![],
+            icon: None,
+            notes: None,
+            rdp_options: RdpOptions::default(),
+            vnc_options: VncOptions::default(),
+            ssh_options: SshOptions::default(),
+            created_at: 0,
+            updated_at: 0,
+            last_connected_at: None,
+        }
+    }
+
+    /// SFTP: в каталог можно войти по имени — путь строится от текущего
+    /// каталога сервера, а не от его рабочего каталога.
+    ///
+    /// Требует SSH-сервера на `127.0.0.1:2222`; без него тест пропускается.
+    #[test]
+    fn enters_remote_directory() {
+        if std::net::TcpStream::connect("127.0.0.1:2222").is_err() {
+            eprintln!("SSH-сервер на 127.0.0.1:2222 недоступен — тест пропущен");
+            return;
+        }
+
+        let mut panel = SftpPanel::new(&test_profile()).expect("подключение к SFTP-серверу");
+
+        // Начальный каталог — абсолютный путь.
+        let start = panel.remote_path();
+        assert!(start.starts_with('/'), "начальный путь должен быть абсолютным: {start}");
+
+        // Ищем каталог, в который можно войти.
+        let listing = panel.remote_list().expect("список удалённого каталога");
+        let Some(dir) = listing.iter().find(|e| e.is_dir) else {
+            eprintln!("в домашнем каталоге нет подкаталогов — тест пропущен");
+            return;
+        };
+
+        panel.cd(&dir.name).expect("вход в каталог на сервере");
+        let current = panel.remote_path();
+        assert!(
+            current.starts_with('/'),
+            "после входа путь должен остаться абсолютным: {current}"
+        );
+        assert!(
+            current != start,
+            "после входа путь должен измениться: {current} == {start}"
+        );
+        assert!(
+            current.ends_with(&dir.name),
+            "в пути должно быть имя каталога: {current}"
+        );
+
+        // На уровень выше — снова абсолютный путь.
+        panel.cd_up().expect("переход в родительский каталог");
+        assert_eq!(panel.remote_path(), start);
+    }
 }
