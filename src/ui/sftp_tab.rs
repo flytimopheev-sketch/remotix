@@ -74,6 +74,8 @@ impl Pane {
 
         let list = ListBox::new();
         list.set_selection_mode(gtk4::SelectionMode::Single);
+        // Список должен получать фокус — иначе стрелки не перемещают выделение.
+        list.set_focusable(true);
         list.add_css_class("remotix-file-list");
 
         let scrolled = ScrolledWindow::new();
@@ -150,6 +152,18 @@ impl SftpTab {
         paned.set_position(480);
         paned.set_vexpand(true);
         root.append(&paned);
+
+        // Фокус на удалённой панели: сразу доступны стрелки и Enter.
+        remote_list.grab_focus();
+
+        // Вкладку показывают позже, и ноутбук забирает фокус на себя —
+        // поэтому возвращаем фокус в список, как только панель показана.
+        {
+            let remote_list = remote_list.clone();
+            remote_list.connect_map(move |list| {
+                list.grab_focus();
+            });
+        }
 
         // ---------------- Поток SFTP ----------------
         {
@@ -311,9 +325,20 @@ impl SftpTab {
                 let list = list.clone();
                 let reload = reload.clone();
                 let tx = tx.clone();
+                let other = remote_list.clone();
                 move |_, key, _, _| {
                     let selected = selected_name(&list, &entries);
                     match key.name().as_deref() {
+                        Some("Tab") => {
+                            // Переключаемся на соседнюю панель.
+                            other.grab_focus();
+                            return glib::Propagation::Stop;
+                        }
+                        Some("Up") | Some("Down") | Some("Home") | Some("End") => {
+                            // GTK4 не листает список стрелками — делаем сами.
+                            move_selection(&list, key.name().as_deref().unwrap_or("Down"));
+                            return glib::Propagation::Stop;
+                        }
                         Some("BackSpace") => {
                             let mut current = dir.lock().unwrap();
                             if let Some(parent) = current.parent() {
@@ -398,9 +423,20 @@ impl SftpTab {
                 let entries = remote_entries.clone();
                 let list = remote_list.clone();
                 let tx = tx_sftp.clone();
+                let other = local_list.clone();
                 move |_, key, _, _| {
                     let selected = selected_name(&list, &entries);
                     match key.name().as_deref() {
+                        Some("Tab") => {
+                            // Переключаемся на соседнюю панель.
+                            other.grab_focus();
+                            return glib::Propagation::Stop;
+                        }
+                        Some("Up") | Some("Down") | Some("Home") | Some("End") => {
+                            // GTK4 не листает список стрелками — делаем сами.
+                            move_selection(&list, key.name().as_deref().unwrap_or("Down"));
+                            return glib::Propagation::Stop;
+                        }
                         Some("BackSpace") => {
                             let _ = tx.send(ToSftp::CdUp);
                             return glib::Propagation::Stop;
@@ -471,7 +507,12 @@ impl SftpTab {
 
 /// Заполняет список элементами каталога.
 fn fill_list(list: &ListBox, entries: &[Entry]) {
+    // Прежнее выделение: список обновляется каждые 300 мс, и без этого
+    // выделение постоянно возвращалось бы на первую строку.
+    let selected = list.selected_row().map(|row| row.index()).unwrap_or(-1);
+
     crate::ui::clear_list(list);
+    let mut rows: Vec<ListBoxRow> = Vec::new();
 
     // Строка «вверх» — как в файловом менеджере.
     let up = ListBoxRow::new();
@@ -481,6 +522,7 @@ fn fill_list(list: &ListBox, entries: &[Entry]) {
     up_label.add_css_class("remotix-dir-up");
     up.set_child(Some(&up_label));
     list.append(&up);
+    rows.push(up);
 
     for entry in entries {
         let row = ListBoxRow::new();
@@ -512,6 +554,59 @@ fn fill_list(list: &ListBox, entries: &[Entry]) {
 
         row.set_child(Some(&row_box));
         list.append(&row);
+        rows.push(row);
+    }
+
+    // Восстанавливаем выделение; если его не было — выделяем первую строку.
+    let index = if selected >= 0 { selected as usize } else { 0 };
+    if let Some(row) = rows.get(index) {
+        list.select_row(Some(row));
+    }
+}
+
+/// Перемещает выделение в списке файлов.
+///
+/// GTK4 не обрабатывает стрелки в `GtkListBox` сам (в отличие от GTK3),
+/// поэтому навигацию по списку приходится делать вручную — иначе выделение
+/// не двигается клавишами.
+fn move_selection(list: &ListBox, key: &str) {
+    // Собираем строки списка.
+    let mut rows: Vec<ListBoxRow> = Vec::new();
+    let mut child = list.first_child();
+    while let Some(widget) = child {
+        if let Some(row) = widget.downcast_ref::<ListBoxRow>() {
+            rows.push((*row).clone());
+        }
+        child = widget.next_sibling();
+    }
+    if rows.is_empty() {
+        return;
+    }
+
+    let current = list.selected_row().map(|row| row.index()).unwrap_or(-1);
+    let last_index = (rows.len() - 1) as i32;
+    let next = match key {
+        "Up" => {
+            if current <= 0 {
+                0
+            } else {
+                current - 1
+            }
+        }
+        "Down" => {
+            if current < 0 {
+                0
+            } else {
+                (current + 1).min(last_index)
+            }
+        }
+        "Home" => 0,
+        "End" => last_index,
+        _ => return,
+    };
+
+    if next >= 0 {
+        list.select_row(Some(&rows[next as usize]));
     }
 }
 

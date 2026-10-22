@@ -254,7 +254,6 @@ impl ProfileEditor {
             let root_password = root_password.clone();
             let domain = domain.clone();
             let resolution = resolution.clone();
-            let port = port.clone();
             let cap_key = cap_key.clone();
             let cap_su = cap_su.clone();
             let cap_root_pw = cap_root_pw.clone();
@@ -274,11 +273,6 @@ impl ProfileEditor {
                 cap_domain.set_visible(is_rdp);
                 resolution.set_visible(is_rdp);
                 cap_res.set_visible(is_rdp);
-                port.set_value(f64::from(match protocol_index {
-                    1 => Protocol::Rdp.default_port(),
-                    2 => Protocol::Vnc.default_port(),
-                    _ => Protocol::Ssh.default_port(),
-                }));
             })
         };
 
@@ -287,8 +281,17 @@ impl ProfileEditor {
             update_visibility(protocol.selected());
 
             let on_protocol = update_visibility.clone();
+            let port = port.clone();
             protocol.connect_selected_notify(move |protocol| {
-                on_protocol(protocol.selected());
+                let index = protocol.selected();
+                on_protocol(index);
+                // Порт подставляем только при смене протокола пользователем:
+                // у существующего профиля порт трогать нельзя.
+                port.set_value(f64::from(match index {
+                    1 => Protocol::Rdp.default_port(),
+                    2 => Protocol::Vnc.default_port(),
+                    _ => Protocol::Ssh.default_port(),
+                }));
             });
 
             let su_to_root = su_to_root.clone();

@@ -306,11 +306,6 @@ impl Database {
 
     // PART4
 
-    pub fn delete_profile(&self, id: i64) -> rusqlite::Result<usize> {
-        self.conn()
-            .execute("DELETE FROM profiles WHERE id = ?1", params![id])
-    }
-
     pub fn touch_profile(&self, id: i64) -> rusqlite::Result<()> {
         self.conn().execute(
             "UPDATE profiles SET last_connected_at = ?1 WHERE id = ?2",
@@ -342,6 +337,18 @@ impl Database {
     }
 
     // ---------- history ----------
+
+    /// Удаляет профиль вместе с его историей подключений.
+    ///
+    /// На `profiles.id` ссылается внешний ключ из `connection_history`, поэтому
+    /// записи журнала удаляются первыми — иначе SQLite отвечает
+    /// «FOREIGN KEY constraint failed».
+    pub fn delete_profile(&self, id: i64) -> rusqlite::Result<usize> {
+        self.conn()
+            .execute("DELETE FROM connection_history WHERE profile_id = ?1", params![id])?;
+        self.conn()
+            .execute("DELETE FROM profiles WHERE id = ?1", params![id])
+    }
 
     pub fn add_history(
         &self,
@@ -468,6 +475,23 @@ mod tests {
     fn wrong_master_password_is_rejected() {
         let (db, _key) = opened();
         assert!(db.unlock("wrong").is_err(), "неверный мастер-пароль должен отклоняться");
+    }
+
+    /// Профиль с историей подключений должен удаляться без ошибки
+    /// «FOREIGN KEY constraint failed».
+    #[test]
+    fn profile_is_deleted_with_its_history() {
+        let (db, key) = opened();
+        let id = db.add_profile(&key, &sample()).expect("сохранение профиля");
+        db.add_history(id, 100, Some(200), "success", None)
+            .expect("запись в журнал");
+
+        let removed = db.delete_profile(id).expect("удаление профиля");
+        assert_eq!(removed, 1, "профиль должен быть удалён");
+        assert!(
+            db.history(None, None).expect("журнал").is_empty(),
+            "история подключений должна удаляться вместе с профилем"
+        );
     }
 }
 

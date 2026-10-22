@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.4.0
+Version:        1.5.0
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
@@ -68,6 +68,13 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Thu Oct 22 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.0
+- SFTP: список снова листается стрелками, выделение не сбрасывается при
+  автообновлении каталога
+- Правый клик по профилю больше не выбрасывает программу
+- Удаление профиля больше не падает с «FOREIGN KEY constraint failed»
+- RDP: окно не раздувается по ширине, исправлен обмен токенами NLA (CredSSP)
+- Порт в редакторе профиля больше не сбрасывается на стандартный
 * Wed Oct 21 2026 Remotix Team <flytimopheev@gmail.com> - 1.4.0
 - Исправлен запуск графического интерфейса в РЕД ОС: приложение больше не
   завершается с «GLib-GIO-CRITICAL: This application can not open files»

@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-%D0%A0%D0%95%D0%94%20%D0%9E%D0%A1%207%20%7C%208-crimson?style=flat-square)](#-установка)
 [![CI](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml/badge.svg?branch=main)](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml)
-[![Release](https://img.shields.io/badge/release-1.4.0-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
+[![Release](https://img.shields.io/badge/release-1.5.0-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
 
 Единый интерфейс для подключения к удалённым рабочим столам и серверам.
 Написан на Rust + GTK4, работает **полностью офлайн**: без облака, без телеметрии,
@@ -94,7 +94,7 @@ Remotix — это «одно окно» для всех удалённых по
 ### Готовый RPM-пакет
 
 ```bash
-sudo dnf install ./remotix-1.4.0-1.el9.x86_64.rpm
+sudo dnf install ./remotix-1.5.0-1.el9.x86_64.rpm
 ```
 
 После установки Remotix появляется в меню приложений («Сеть → Remotix»),
@@ -120,7 +120,7 @@ sudo dnf install ./remotix-1.4.0-1.el9.x86_64.rpm
 
 <p align="center">
   <a href="https://github.com/flytimopheev-sketch/remotix/releases">
-    <img src="https://img.shields.io/badge/releases-1.4.0-blue?style=flat-square" alt="Releases">
+    <img src="https://img.shields.io/badge/releases-1.5.0-blue?style=flat-square" alt="Releases">
   </a>
 </p>
 

@@ -10,7 +10,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use gtk4::prelude::*;
-use gtk4::{gdk, glib, Box as GtkBox, Button, Label, Overlay, Picture, Spinner};
+use gtk4::{gdk, glib, Box as GtkBox, Button, Label, Overlay, Picture, ScrolledWindow, Spinner};
 
 use crate::models::Profile;
 use crate::protocols::rdp::{RdpConnection, RdpKey};
@@ -46,9 +46,18 @@ impl RdpViewer {
 
         let picture = Picture::new();
         picture.set_keep_aspect_ratio(true);
-        picture.set_hexpand(true);
-        picture.set_vexpand(true);
         picture.add_css_class("remotix-remote-screen");
+
+        // Экран лежит в прокручиваемой области: сам Picture требует места по
+        // размеру кадра, и без этого окно приложения «раздувается» до
+        // ширины удалённого рабочего стола (и его уже не сузить мышью).
+        let scroll = ScrolledWindow::new();
+        scroll.set_child(Some(&picture));
+        scroll.set_hexpand(true);
+        scroll.set_vexpand(true);
+        scroll.set_policy(gtk4::PolicyType::Never, gtk4::PolicyType::Never);
+        scroll.set_hscrollbar_policy(gtk4::PolicyType::Automatic);
+        scroll.set_vscrollbar_policy(gtk4::PolicyType::Automatic);
 
         let spinner = Spinner::new();
         spinner.set_spinning(true);
@@ -74,7 +83,7 @@ impl RdpViewer {
         panel.append(&cad);
 
         let overlay = Overlay::new();
-        overlay.set_child(Some(&picture));
+        overlay.set_child(Some(&scroll));
         overlay.add_overlay(&spinner);
         overlay.add_overlay(&hint);
         overlay.add_overlay(&panel);

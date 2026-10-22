@@ -304,6 +304,10 @@ impl MainWindow {
             }
         };
 
+        // Запоминаем выбранный профиль: после пересборки списка выделение
+        // пропадает, и кнопка «SFTP-клиент» не находит, к чему подключаться.
+        let selected_id = self.selected_profile().map(|p| p.id);
+
         let filter = self.search.text().trim().to_lowercase();
         let visible: Vec<Profile> = all
             .into_iter()
@@ -337,6 +341,15 @@ impl MainWindow {
             for profile in &visible {
                 let row = self.build_profile_row(profile);
                 self.sidebar.append(&row);
+            }
+        }
+
+        // Восстанавливаем выделение прежнего профиля.
+        if let Some(id) = selected_id {
+            if let Some(index) = visible.iter().position(|p| p.id == id) {
+                if let Some(row) = self.sidebar.row_at_index(index as i32) {
+                    self.sidebar.select_row(Some(&row));
+                }
             }
         }
 
@@ -385,14 +398,31 @@ impl MainWindow {
         // Контекстное меню профиля (правая кнопка мыши).
         {
             let popover = self.profile_popover(profile.clone());
+
             let controller = gtk4::GestureClick::new();
             controller.set_button(3);
-            let popover = popover.clone();
+            let popup = popover.clone();
+            let row_ref = row.clone();
             controller.connect_pressed(move |_, _, x, y| {
-                popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
-                    x as i32, y as i32, 1, 1,
+                // Поповеру нужен родитель — без него GTK ругается в консоль,
+                // а при показе приложение падает. Родителем делаем окно
+                // приложения: строка профиля может быть пересоздана, и
+                // поповер не должен быть её дочерним виджетом.
+                let Some(toplevel) = row_ref.root() else {
+                    return;
+                };
+                if popup.parent().is_none() {
+                    popup.set_parent(&toplevel);
+                }
+
+                // Координаты клика переводим в систему координат окна.
+                let (px, py) = row_ref
+                    .translate_coordinates(&toplevel, x as f64, y as f64)
+                    .unwrap_or((x as f64, y as f64));
+                popup.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
+                    px as i32, py as i32, 1, 1,
                 )));
-                popover.popup();
+                popup.popup();
             });
             row.add_controller(controller);
         }

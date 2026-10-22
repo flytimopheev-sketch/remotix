@@ -123,6 +123,13 @@ const STYLE: &str = r#"
     border-radius: 6px;
 }
 
+/* Контекстное меню: убираем жёсткую рамку стандартного поповера. */
+popover > contents {
+    padding: 4px;
+    border-radius: 12px;
+    border-style: none;
+}
+
 /* --- Файловый менеджер SFTP --- */
 .remotix-file-list {
     background-color: transparent;

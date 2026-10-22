@@ -107,29 +107,34 @@ impl ironrdp_connector::sspi::network_client::NetworkClient for RdpNetworkClient
             .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
         let mut stream = rustls::StreamOwned::new(client, tcp);
 
-        // 2. HTTP/1.1 POST с токеном CredSSP в теле запроса.
+        // 2. HTTP/1.1 POST. Токен CredSSP (SPNEGO) передаётся в заголовке
+        //    `Authorization: Negotiate <base64>` — именно так его ждёт сервер
+        //    Windows; в теле запроса его быть не должно.
+        let token = {
+            use base64::Engine as _;
+            base64::engine::general_purpose::STANDARD.encode(&request.data)
+        };
         let header = format!(
-            "POST / HTTP/1.1
-Host: {host}
-Content-Type: application/octet-stream
-Content-Length: {}
-Connection: close
-
-",
+            "POST / HTTP/1.1\r\n\
+             Host: {host}\r\n\
+             Authorization: Negotiate {token}\r\n\
+             Content-Type: application/octet-stream\r\n\
+             Content-Length: {}\r\n\
+             Connection: close\r\n\
+             \r\n",
             request.data.len(),
         );
         {
             use std::io::Write as _;
             stream.write_all(header.as_bytes())
                 .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
-            stream.write_all(&request.data)
-                .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+            // Тело запроса оставляем пустым: токен уже ушёл в заголовке.
             stream.flush()
                 .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
         }
 
-        // 3. Читаем весь ответ: CredSSP-токен находится в заголовке
-        //    `WWW-Authenticate: Negotiate <token>` (тело ответа пустое).
+        // 3. Читаем весь ответ: ответный токен CredSSP находится в заголовке
+        //    `WWW-Authenticate: Negotiate <base64>`.
         let mut raw = Vec::<u8>::new();
         let mut buf = [0u8; 8192];
         loop {
@@ -140,7 +145,7 @@ Connection: close
             }
         }
 
-        // Токен из заголовка WWW-Authenticate.
+        // Токен из заголовка WWW-Authenticate (base64 → исходные байты).
         if let Some(token) = negotiate_token(&raw) {
             return Ok(token);
         }
@@ -159,7 +164,11 @@ Connection: close
 }
 
 /// Ищет в HTTP-ответе токен CredSSP из заголовка `WWW-Authenticate: Negotiate`.
+///
+/// Значение заголовка — base64; возвращаем исходные байты токена.
 fn negotiate_token(raw: &[u8]) -> Option<Vec<u8>> {
+    use base64::Engine as _;
+
     let header = find_ci(raw, b"www-authenticate:")?;
     let rest = &raw[header + 16..];
     let line_end = rest
@@ -173,10 +182,13 @@ fn negotiate_token(raw: &[u8]) -> Option<Vec<u8>> {
     let value = value.strip_prefix(b"\"").unwrap_or(value);
     let value = value.strip_suffix(b"\"").unwrap_or(value);
     if value.is_empty() {
-        None
-    } else {
-        Some(value.to_vec())
+        return None;
     }
+
+    base64::engine::general_purpose::STANDARD
+        .decode(value)
+        .ok()
+        .filter(|t| !t.is_empty())
 }
 
 /// Поиск подстроки без учёта регистра.
