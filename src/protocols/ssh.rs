@@ -8,12 +8,11 @@ use crate::protocols::Connection;
 pub struct SshConnection {
     pub profile: Profile,
     session: Option<ssh2::Session>,
-    agent: Option<ssh2::Agent>,
 }
 
 impl SshConnection {
     pub fn new(profile: Profile) -> Self {
-        Self { profile, session: None, agent: None }
+        Self { profile, session: None }
     }
 
     /// Возвращает инициализированную сессию (для терминала и SFTP).
@@ -22,66 +21,70 @@ impl SshConnection {
     }
 }
 
+/// Открывает SSH-сессию и аутентифицируется указанным пользователем: по
+/// ключу (ssh-agent или файл) либо по паролю.
+///
+/// Используется и терминалом, и SFTP-клиентом: если способы входа разойдутся,
+/// при входе по ключу SFTP перестанет подключаться.
+pub fn connect_session(profile: &Profile, username: &str) -> Result<ssh2::Session, String> {
+    let addr = format!("{}:{}", profile.host, profile.port);
+    let tcp = TcpStream::connect(&addr)
+        .map_err(|e| format!("не удалось подключиться к {addr}: {e}"))?;
+    let mut session = ssh2::Session::new().map_err(|e| format!("ошибка libssh2: {e}"))?;
+    session.set_tcp_stream(tcp);
+    session
+        .handshake()
+        .map_err(|e| format!("ошибка SSH-рукопожатия: {e}"))?;
+
+    if let Some(key_path) = profile.ssh_key_path.clone() {
+        // Аутентификация по ключу (ssh-agent или прямой файл ключа).
+        if profile.ssh_options.use_agent && session.agent().is_ok() {
+            let mut agent = session.agent().map_err(|e| e.to_string())?;
+            agent.connect().map_err(|e| e.to_string())?;
+            agent.list_identities().map_err(|e| e.to_string())?;
+            let mut authenticated = false;
+            for id in agent.identities().map_err(|e| e.to_string())? {
+                if agent.userauth(username, &id).is_ok() {
+                    authenticated = true;
+                    break;
+                }
+            }
+            if !authenticated {
+                return Err("ни один ключ ssh-agent не подошёл".into());
+            }
+        } else {
+            session
+                .userauth_pubkey_file(
+                    username,
+                    None,
+                    std::path::Path::new(&key_path),
+                    profile.ssh_key_passphrase.as_deref(),
+                )
+                .map_err(|e| format!("аутентификация по ключу не удалась: {e}"))?;
+        }
+    } else {
+        // Аутентификация по паролю (передаётся по зашифрованному SSH-каналу).
+        let password = profile.password.clone().unwrap_or_default();
+        session
+            .userauth_password(username, &password)
+            .map_err(|e| format!("аутентификация по паролю не удалась: {e}"))?;
+    }
+
+    if !session.authenticated() {
+        return Err("аутентификация не пройдена".into());
+    }
+
+    Ok(session)
+}
+
 impl Connection for SshConnection {
     fn profile(&self) -> &Profile {
         &self.profile
     }
 
     fn connect(&mut self) -> Result<(), String> {
-        let addr = format!("{}:{}", self.profile.host, self.profile.port);
-        let tcp = TcpStream::connect(&addr).map_err(|e| format!("не удалось подключиться: {e}"))?;
-        let mut session = ssh2::Session::new()
-            .map_err(|e| format!("ошибка libssh2: {e}"))?;
-        session.set_tcp_stream(tcp);
-        session.handshake().map_err(|e| format!("ошибка SSH-рукопожатия: {e}"))?;
-
-        let username = self
-            .profile
-            .username
-            .clone()
-            .unwrap_or_else(|| whoami());
-
-        if let Some(key_path) = self.profile.ssh_key_path.clone() {
-            // Аутентификация по ключу (ssh-agent или прямой файл ключа).
-            if self.profile.ssh_options.use_agent && session.agent().is_ok() {
-                let mut agent = session.agent().map_err(|e| e.to_string())?;
-                agent.connect().map_err(|e| e.to_string())?;
-                agent.list_identities().map_err(|e| e.to_string())?;
-                for id in agent.identities().map_err(|e| e.to_string())? {
-                    if agent
-                        .userauth(&username, &id)
-                        .map_err(|e| e.to_string())
-                        .is_ok()
-                    {
-                        self.agent = Some(agent);
-                        break;
-                    }
-                }
-                if self.agent.is_none() {
-                    return Err("ни один ключ ssh-agent не подошёл".into());
-                }
-            } else {
-                session
-                    .userauth_pubkey_file(
-                        &username,
-                        None,
-                        std::path::Path::new(&key_path),
-                        self.profile.ssh_key_passphrase.as_deref(),
-                    )
-                    .map_err(|e| format!("аутентификация по ключу не удалась: {e}"))?;
-            }
-        } else {
-            // Аутентификация по паролю (передаётся по зашифрованному SSH-каналу).
-            let password = self.profile.password.clone().unwrap_or_default();
-            session
-                .userauth_password(&username, &password)
-                .map_err(|e| format!("аутентификация по паролю не удалась: {e}"))?;
-        }
-
-        if !session.authenticated() {
-            return Err("аутентификация не пройдена".into());
-        }
-        self.session = Some(session);
+        let username = self.profile.username.clone().unwrap_or_else(whoami);
+        self.session = Some(connect_session(&self.profile, &username)?);
         // Переход в root выполняется отдельно, в том же канале, в котором
         // будет работать терминал (см. `open_shell`).
         Ok(())
@@ -91,7 +94,6 @@ impl Connection for SshConnection {
         if let Some(session) = self.session.take() {
             session.disconnect(None, "Пользователь закрыл сессию", None).ok();
         }
-        self.agent = None;
     }
 }
 

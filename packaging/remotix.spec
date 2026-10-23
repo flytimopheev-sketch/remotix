@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.5.6
+Version:        1.5.7
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
@@ -68,6 +68,12 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Fri Oct 23 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.7
+- SFTP: вход по ключу и через ssh-agent — те же способы, что у терминала
+- SFTP: список не пересоздаётся каждые 300 мс, двойной щелчок по каталогу
+  и прокрутка работают; команды обрабатываются сразу
+- SFTP: распознаются абсолютные пути Windows (C:/…, C:\…) для OpenSSH
+- SFTP: закрытие вкладки завершает фоновый поток и SSH-сессию
 * Fri Oct 23 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.6
 - RDP: подключение к RC4-серверам с сертификатом длиннее 1024 байт
   (проприетарные ключи RSA-4096 и цепочки X.509)

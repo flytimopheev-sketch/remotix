@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 
 use crate::models::Profile;
@@ -29,16 +28,9 @@ pub struct SftpPanel {
 
 impl SftpPanel {
     pub fn new(profile: &Profile) -> Result<Self, String> {
-        let addr = format!("{}:{}", profile.host, profile.port);
-        let tcp = TcpStream::connect(&addr)
-            .map_err(|e| format!("не удалось подключиться к {addr}: {e}"))?;
-        let mut session = ssh2::Session::new().map_err(|e| e.to_string())?;
-        session.set_tcp_stream(tcp);
-        session.handshake().map_err(|e| e.to_string())?;
+        // Способы входа (пароль, ключ, ssh-agent) те же, что у терминала.
         let username = profile.username.clone().unwrap_or_else(|| "root".into());
-        session
-            .userauth_password(&username, profile.password.as_deref().unwrap_or(""))
-            .map_err(|e| format!("аутентификация не удалась: {e}"))?;
+        let session = crate::protocols::ssh::connect_session(profile, &username)?;
 
         // Начальный каталог — абсолютный путь домашнего каталога пользователя.
         // Относительные пути сервер SFTP разрешает от своего рабочего
@@ -80,11 +72,31 @@ impl SftpPanel {
         perm.map(|mode| (mode & 0o170000) == 0).unwrap_or(true)
     }
 
+    /// Абсолютный ли путь на сервере: Unix (`/…`) или Windows (`C:/…`,
+    /// `C:\…`, `\\сервер\…`). SFTP-сервер под Windows отдаёт путь с буквой
+    /// диска, и без этой проверки переход в родительский каталог склеивал
+    /// его с текущим.
+    fn is_absolute(path: &str) -> bool {
+        if path.starts_with('/') || path.starts_with('\\') {
+            return true;
+        }
+        let bytes = path.as_bytes();
+        bytes.len() >= 3 && bytes[1] == b':' && (bytes[2] == b'/' || bytes[2] == b'\\')
+    }
+
     /// Получает абсолютный путь: относительный — относительно текущего
     /// каталога сервера.
     fn resolve(&self, path: &str) -> String {
-        if path.starts_with('/') {
-            return path.trim_end_matches('/').to_string();
+        if Self::is_absolute(path) {
+            let trimmed = path.trim_end_matches('/');
+            return if trimmed.is_empty() {
+                "/".to_string()
+            } else if trimmed.len() == 2 && trimmed.as_bytes()[1] == b':' {
+                // Корень диска Windows: «C:» → «C:/».
+                format!("{trimmed}/")
+            } else {
+                trimmed.to_string()
+            };
         }
         let current = self.remote_dir.trim_end_matches('/');
         if current.is_empty() {
@@ -392,5 +404,31 @@ mod tests {
         // На уровень выше — снова абсолютный путь.
         panel.cd_up().expect("переход в родительский каталог");
         assert_eq!(panel.remote_path(), start);
+    }
+
+    /// SFTP под Windows отдаёт абсолютные пути с буквой диска — такие пути
+    /// не должны склеиваться с текущим каталогом.
+    #[test]
+    fn resolves_windows_and_unix_absolute_paths() {
+        let panel = SftpPanel {
+            local_dir: PathBuf::from("/tmp"),
+            remote_dir: "C:/Users/tester".to_string(),
+            session: None,
+            dir_cache: HashMap::new(),
+        };
+        assert_eq!(panel.resolve("C:/"), "C:/");
+        assert_eq!(panel.resolve("C:\\Windows"), "C:\\Windows");
+        assert_eq!(panel.resolve("Documents"), "C:/Users/tester/Documents");
+        assert_eq!(panel.resolve("C:/Users"), "C:/Users");
+
+        let unix = SftpPanel {
+            local_dir: PathBuf::from("/tmp"),
+            remote_dir: "/home/tester".to_string(),
+            session: None,
+            dir_cache: HashMap::new(),
+        };
+        assert_eq!(unix.resolve("/"), "/");
+        assert_eq!(unix.resolve("/etc"), "/etc");
+        assert_eq!(unix.resolve("docs"), "/home/tester/docs");
     }
 }

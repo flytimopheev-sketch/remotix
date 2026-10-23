@@ -59,6 +59,39 @@ enum ToUi {
     Error(String),
 }
 
+/// Выполняет команду файлового менеджера в потоке SFTP.
+fn run_sftp_command(
+    panel: &mut SftpPanel,
+    local_dir: &Mutex<std::path::PathBuf>,
+    cmd: ToSftp,
+) -> Result<String, String> {
+    match cmd {
+        ToSftp::Refresh => Ok(String::new()),
+        ToSftp::Cd(path) => panel.cd(&path).map(|_| String::new()),
+        ToSftp::CdUp => panel.cd_up().map(|_| String::new()),
+        ToSftp::Upload(name) => {
+            let from = local_dir.lock().unwrap().join(&name);
+            panel
+                .upload(&from, &name)
+                .map(|_| format!("Файл {name} загружен на сервер"))
+        }
+        ToSftp::Download(name) => {
+            let to = local_dir.lock().unwrap().join(&name);
+            panel
+                .download(&name, &to)
+                .map(|_| format!("Файл {name} скачан"))
+        }
+        ToSftp::Mkdir(name) => panel.mkdir(&name).map(|_| format!("Каталог {name} создан")),
+        ToSftp::Remove(name) => panel.remove(&name).map(|_| format!("Объект {name} удалён")),
+        ToSftp::Rename(from, to) => {
+            panel.rename(&from, &to).map(|_| format!("Переименовано в {to}"))
+        }
+        ToSftp::CopyRemote(from, to) => panel
+            .copy(&from, &to)
+            .map(|_| format!("Файл {to} создан на сервере")),
+    }
+}
+
 /// Панель файлового менеджера.
 struct Pane {
     /// Список элементов.
@@ -199,38 +232,25 @@ impl SftpTab {
                 };
                 let _ = tx_ui.send(ToUi::Status("SFTP-сессия установлена".to_string()));
 
+                // Список перерисовывается только при реальном изменении:
+                // постоянная перестройка ломала двойной щелчок по каталогу
+                // и сбрасывала прокрутку.
+                let mut last_listing: Option<(String, Vec<Entry>)> = None;
+                let mut last_error: Option<String> = None;
+
                 loop {
-                    while let Ok(cmd) = rx_sftp.try_recv() {
-                        let result: Result<String, String> = match cmd {
-                            ToSftp::Refresh => Ok(String::new()),
-                            ToSftp::Cd(path) => panel.cd(&path).map(|_| String::new()),
-                            ToSftp::CdUp => panel.cd_up().map(|_| String::new()),
-                            ToSftp::Upload(name) => {
-                                let from = local_dir.lock().unwrap().join(&name);
-                                panel
-                                    .upload(&from, &name)
-                                    .map(|_| format!("Файл {name} загружен на сервер"))
-                            }
-                            ToSftp::Download(name) => {
-                                let to = local_dir.lock().unwrap().join(&name);
-                                panel
-                                    .download(&name, &to)
-                                    .map(|_| format!("Файл {name} скачан"))
-                            }
-                            ToSftp::Mkdir(name) => {
-                                panel.mkdir(&name).map(|_| format!("Каталог {name} создан"))
-                            }
-                            ToSftp::Remove(name) => {
-                                panel.remove(&name).map(|_| format!("Объект {name} удалён"))
-                            }
-                            ToSftp::Rename(from, to) => {
-                                panel.rename(&from, &to).map(|_| format!("Переименовано в {to}"))
-                            }
-                            ToSftp::CopyRemote(from, to) => {
-                                panel.copy(&from, &to).map(|_| format!("Файл {to} создан на сервере"))
-                            }
-                        };
-                        match result {
+                    // Ждём команду, но просыпаемся и сами, чтобы заметить
+                    // изменения каталога, сделанные снаружи.
+                    let first = match rx_sftp.recv_timeout(Duration::from_millis(1000)) {
+                        Ok(cmd) => Some(cmd),
+                        Err(mpsc::RecvTimeoutError::Timeout) => None,
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                    };
+
+                    let mut changed = false;
+                    for cmd in first.into_iter().chain(rx_sftp.try_iter()) {
+                        changed = true;
+                        match run_sftp_command(&mut panel, &local_dir, cmd) {
                             Ok(msg) if !msg.is_empty() => {
                                 let _ = tx_ui.send(ToUi::Status(msg));
                             }
@@ -244,14 +264,23 @@ impl SftpTab {
                     match panel.remote_list() {
                         Ok(files) => {
                             let path = panel.remote_path();
-                            let _ = tx_ui.send(ToUi::Remote(files, path));
+                            let listing_changed = changed
+                                || last_listing.as_ref().map_or(true, |(last_path, last_files)| {
+                                    last_path != &path || last_files != &files
+                                });
+                            if listing_changed {
+                                last_listing = Some((path.clone(), files.clone()));
+                                let _ = tx_ui.send(ToUi::Remote(files, path));
+                            }
+                            last_error = None;
                         }
                         Err(e) => {
-                            let _ = tx_ui.send(ToUi::Error(e));
+                            if last_error.as_deref() != Some(e.as_str()) {
+                                last_error = Some(e.clone());
+                                let _ = tx_ui.send(ToUi::Error(e));
+                            }
                         }
                     }
-
-                    std::thread::sleep(Duration::from_millis(300));
                 }
             });
         }
