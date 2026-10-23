@@ -14,7 +14,11 @@ const SERVER_ENCRYPTION_LEVEL_SIZE: usize = 4;
 const SERVER_RANDOM_LEN_SIZE: usize = 4;
 const SERVER_CERT_LEN_SIZE: usize = 4;
 const SERVER_RANDOM_LEN: usize = 0x20;
-const MAX_SERVER_CERT_LEN: usize = 1024;
+// Upstream caps this at 1024, which is too small for real servers: a
+// proprietary certificate with a 4096-bit RSA key is ~1.1 KiB, and an X.509
+// certificate chain (certChainVersion 2) is larger still. The actual packet
+// length is enforced by `ensure_size!` below, so this is only a sanity bound.
+const MAX_SERVER_CERT_LEN: usize = 16384;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

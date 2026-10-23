@@ -363,38 +363,25 @@ pub const SEC_XP_VARIANT: u16 = 0x8000;
 /// the lifetime of the session (key streams persist across both phases).
 pub type SharedSecurity = std::sync::Arc<std::sync::Mutex<RdpSecurity>>;
 
-/// RSA-encrypt the 32-byte client random with the proprietary server
-/// certificate public key (the "RSA1" blob inside ServerSecurityData).
+/// RSA-encrypt the 32-byte client random with the server certificate public
+/// key carried in Server Security Data (MS-RDPBCGR 2.2.1.4.3.1.1.1).
 ///
 /// Ground truth from live captures: modulus, plaintext and ciphertext are all
 /// **little-endian** on the wire; the plaintext block is client_random (32B)
-/// zero-padded to the modulus length — no PKCS#1 padding.
-pub fn encrypt_client_random(server_cert: &[u8], client_random: &[u8]) -> Result<Vec<u8>, SecurityError> {
-    const RSA1_MAGIC: &[u8; 4] = b"RSA1";
-    let pos = server_cert
-        .windows(4)
-        .position(|w| w == RSA1_MAGIC)
-        .ok_or(SecurityError::CertNoPublicKey)?;
-    let key_len = u32::from_le_bytes(
-        server_cert
-            .get(pos + 4..pos + 8)
-            .ok_or(SecurityError::CertTruncated)?
-            .try_into()
-            .unwrap(),
-    ) as usize;
-    let pub_exp = u32::from_le_bytes(
-        server_cert
-            .get(pos + 16..pos + 20)
-            .ok_or(SecurityError::CertTruncated)?
-            .try_into()
-            .unwrap(),
-    );
-    let mod_len = key_len - 8;
-    let modulus = server_cert
-        .get(pos + 20..pos + 20 + mod_len)
-        .ok_or(SecurityError::CertTruncated)?;
+/// zero-padded to the modulus length — no PKCS#1 padding. The same raw scheme
+/// is used for both certificate shapes below.
+pub fn encrypt_client_random(
+    server_cert: &[u8],
+    client_random: &[u8],
+) -> Result<Vec<u8>, SecurityError> {
+    let (modulus, pub_exp) = server_public_key(server_cert)?;
+    let mod_len = modulus.len();
 
-    let m = num_bigint::BigUint::from_bytes_le(modulus);
+    if client_random.len() > mod_len {
+        return Err(SecurityError::RandomTooShort);
+    }
+
+    let m = num_bigint::BigUint::from_bytes_le(&modulus);
     let e = num_bigint::BigUint::from(pub_exp);
     let mut block = client_random.to_vec();
     block.resize(mod_len, 0u8);
@@ -403,6 +390,135 @@ pub fn encrypt_client_random(server_cert: &[u8], client_random: &[u8]) -> Result
     let mut out = cipher.to_bytes_le();
     out.resize(mod_len, 0u8);
     Ok(out)
+}
+
+const CERT_CHAIN_VERSION_MASK: u32 = 0x7fff_ffff;
+const CERT_CHAIN_VERSION_2: u32 = 2;
+/// A certificate chain longer than this is not something a real RDP server
+/// sends; bound the count to keep the loop cheap on hostile input.
+const MAX_CERT_CHAIN_LEN: u32 = 64;
+
+/// Extract the RSA public key (modulus little-endian, exponent) from the
+/// certificate carried in Server Security Data.
+///
+/// Two shapes exist:
+/// - certChainVersion 1: a proprietary certificate holding an `RSA1` public key
+///   blob (what Windows and xrdp normally send);
+/// - certChainVersion 2: an X.509 chain whose **last** certificate is the
+///   terminal server certificate.
+fn server_public_key(server_cert: &[u8]) -> Result<(Vec<u8>, u32), SecurityError> {
+    let version = read_u32_le(server_cert, 0).map(|version| version & CERT_CHAIN_VERSION_MASK);
+
+    if version == Some(CERT_CHAIN_VERSION_2) {
+        if let Some(key) = x509_chain_public_key(server_cert) {
+            return Ok(key);
+        }
+    }
+
+    // Also the fallback when the version field is missing or unexpected: scan
+    // for the proprietary key blob, which is what earlier releases did.
+    proprietary_public_key(server_cert)
+}
+
+fn proprietary_public_key(server_cert: &[u8]) -> Result<(Vec<u8>, u32), SecurityError> {
+    const RSA1_MAGIC: &[u8; 4] = b"RSA1";
+
+    let pos = server_cert
+        .windows(RSA1_MAGIC.len())
+        .position(|window| window == RSA1_MAGIC)
+        .ok_or(SecurityError::CertNoPublicKey)?;
+
+    let key_len =
+        usize::try_from(read_u32_le(server_cert, pos + 4).ok_or(SecurityError::CertTruncated)?)
+            .map_err(|_| SecurityError::CertTruncated)?;
+    let pub_exp = read_u32_le(server_cert, pos + 16).ok_or(SecurityError::CertTruncated)?;
+
+    // RSA_PUBLIC_KEY: magic (4) + keylen (4) + bitlen (4) + datalen (4) +
+    // pubExp (4) + modulus (keylen - 8). The last 8 bytes are zero padding.
+    let mod_len = key_len.checked_sub(8).ok_or(SecurityError::CertTruncated)?;
+    let modulus_start = pos.checked_add(20).ok_or(SecurityError::CertTruncated)?;
+    let modulus_end = modulus_start
+        .checked_add(mod_len)
+        .ok_or(SecurityError::CertTruncated)?;
+    let modulus = server_cert
+        .get(modulus_start..modulus_end)
+        .ok_or(SecurityError::CertTruncated)?;
+
+    Ok((modulus.to_vec(), pub_exp))
+}
+
+fn x509_chain_public_key(server_cert: &[u8]) -> Option<(Vec<u8>, u32)> {
+    // TS_SERVER_CERTIFICATE: dwVersion (4), numCertBlobs (4), then for each
+    // certificate: cbCertificate (4) followed by the DER-encoded certificate.
+    let count = read_u32_le(server_cert, 4)?;
+    if count == 0 || count > MAX_CERT_CHAIN_LEN {
+        return None;
+    }
+
+    let mut pos = 8usize;
+    let mut terminal_certificate = None;
+
+    for _ in 0..count {
+        let len = usize::try_from(read_u32_le(server_cert, pos)?).ok()?;
+        pos = pos.checked_add(4)?;
+        let end = pos.checked_add(len)?;
+        terminal_certificate = Some(server_cert.get(pos..end)?);
+        pos = end;
+    }
+
+    x509_public_key(terminal_certificate?)
+}
+
+fn x509_public_key(cert_der: &[u8]) -> Option<(Vec<u8>, u32)> {
+    use x509_cert::der::Decode as _;
+
+    let certificate = x509_cert::Certificate::from_der(cert_der).ok()?;
+    let rsa_public_key_der = certificate
+        .tbs_certificate
+        .subject_public_key_info
+        .subject_public_key
+        .raw_bytes();
+
+    // The subjectPublicKey BIT STRING holds a DER RSAPublicKey:
+    // SEQUENCE { modulus INTEGER, publicExponent INTEGER }.
+    let (_, key) = der_parser::parse_der(rsa_public_key_der).ok()?;
+    let key = key.as_sequence().ok()?;
+    if key.len() != 2 {
+        return None;
+    }
+
+    let modulus_be = strip_leading_zeros(key[0].as_slice().ok()?);
+    let exponent_be = strip_leading_zeros(key[1].as_slice().ok()?);
+
+    if modulus_be.is_empty() || exponent_be.is_empty() || exponent_be.len() > 4 {
+        return None;
+    }
+
+    let mut exponent = 0u32;
+    for &byte in exponent_be {
+        exponent = (exponent << 8) | u32::from(byte);
+    }
+
+    // FreeRDP feeds the modulus into the textbook RSA routine byte-reversed
+    // (little-endian), exactly like the proprietary `RSA1` path.
+    let mut modulus = modulus_be.to_vec();
+    modulus.reverse();
+
+    Some((modulus, exponent))
+}
+
+fn read_u32_le(data: &[u8], offset: usize) -> Option<u32> {
+    let end = offset.checked_add(4)?;
+    let bytes: [u8; 4] = data.get(offset..end)?.try_into().ok()?;
+    Some(u32::from_le_bytes(bytes))
+}
+
+fn strip_leading_zeros(bytes: &[u8]) -> &[u8] {
+    let start = bytes
+        .iter()
+        .position(|&byte| byte != 0)
+        .unwrap_or(bytes.len());
+    &bytes[start..]
 }
 
 /// Errors.
@@ -416,7 +532,7 @@ pub enum SecurityError {
 impl core::fmt::Display for SecurityError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            SecurityError::CertNoPublicKey => write!(f, "server certificate has no RSA1 public key"),
+            SecurityError::CertNoPublicKey => write!(f, "server certificate has no RSA public key"),
             SecurityError::CertTruncated => write!(f, "server certificate truncated"),
             SecurityError::RandomTooShort => write!(f, "client random shorter than modulus"),
         }

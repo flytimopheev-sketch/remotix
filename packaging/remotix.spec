@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.5.5
+Version:        1.5.6
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
@@ -68,6 +68,11 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Fri Oct 23 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.6
+- RDP: подключение к RC4-серверам с сертификатом длиннее 1024 байт
+  (проприетарные ключи RSA-4096 и цепочки X.509)
+- RDP: поддержка certChainVersion 2 — ключ берётся из последнего
+  (терминального) сертификата цепочки
 * Fri Oct 23 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.5
 - RDP: поддержка Standard RDP Security (RC4) — запасной режим для серверов
   без TLS/NLA (xrdp с security_layer=rdp, старые версии Windows)
