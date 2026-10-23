@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.5.7
+Version:        1.5.8
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
@@ -68,6 +68,13 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Fri Oct 23 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.8
+- SFTP: одиночный щелчок только выделяет, вход — двойным щелчком или Enter
+- Список профилей: одиночный щелчок выбирает профиль, подключение — двойным
+- SFTP: после перехода выделяется «..», выделение не застревает
+- SFTP: имя выделенного каталога читается (белым по синему)
+- Включены исправления 1.5.7: вход по ключу/ssh-agent, стабильные переходы,
+  пути Windows, завершение потока при закрытии вкладки
 * Fri Oct 23 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.7
 - SFTP: вход по ключу и через ssh-agent — те же способы, что у терминала
 - SFTP: список не пересоздаётся каждые 300 мс, двойной щелчок по каталогу

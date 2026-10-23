@@ -142,11 +142,17 @@ popover > contents {
 .remotix-file-list row:hover {
     background-color: alpha(currentColor, 0.08);
 }
-.remotix-file-list row.selected {
-    background-color: @accent_bg_color;
+.remotix-file-list row.selected,
+.remotix-file-list row:selected,
+.remotix-file-list row.selected:backdrop,
+.remotix-file-list row:selected:backdrop {
+    background-color: #3584e4;
 }
-.remotix-file-list row.selected label {
-    color: @accent_fg_color;
+.remotix-file-list row.selected label,
+.remotix-file-list row:selected label,
+.remotix-file-list row.selected:backdrop label,
+.remotix-file-list row:selected:backdrop label {
+    color: #ffffff;
 }
 .remotix-dir {
     color: #3584e4;

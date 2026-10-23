@@ -71,6 +71,11 @@ impl MainWindow {
         // ---------------- Боковая панель ----------------
         let sidebar = ListBox::new();
         sidebar.set_selection_mode(gtk4::SelectionMode::Single);
+        // В GTK4 список по умолчанию активируется одиночным щелчком. Для
+        // профилей это неудобно: чтобы выбрать профиль для SFTP или
+        // редактирования, приходилось бы каждый раз открывать сессию.
+        // Подключаемся по двойному щелчку, как написано в README.
+        sidebar.set_activate_on_single_click(false);
         sidebar.add_css_class("remotix-sidebar");
 
         let quick_entry = Entry::new();

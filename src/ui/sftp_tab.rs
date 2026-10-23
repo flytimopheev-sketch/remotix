@@ -121,6 +121,11 @@ impl Pane {
 
         let list = ListBox::new();
         list.set_selection_mode(gtk4::SelectionMode::Single);
+        // В GTK4 список по умолчанию активируется одиночным щелчком. В
+        // файловом менеджере это мешает выделить каталог для копирования
+        // или удаления: щелчок сразу входил бы в него. Вход — двойным
+        // щелчком или Enter.
+        list.set_activate_on_single_click(false);
         // Список должен получать фокус — иначе стрелки не перемещают выделение.
         list.set_focusable(true);
         list.add_css_class("remotix-file-list");
@@ -296,8 +301,15 @@ impl SftpTab {
                 loop {
                     match rx_ui.try_recv() {
                         Ok(ToUi::Remote(files, path)) => {
+                            let title = format!("Сервер: {path}");
+                            if remote_path.text().as_str() != title {
+                                // После входа в другой каталог выделяем «..»:
+                                // прежний номер строки может указывать в
+                                // пустоту или на случайный файл.
+                                list_ref.select_row(None::<&ListBoxRow>);
+                            }
                             fill_list(&list_ref, &files);
-                            remote_path.set_text(&format!("Сервер: {path}"));
+                            remote_path.set_text(&title);
                             *entries_ref.borrow_mut() = files;
                         }
                         Ok(ToUi::Status(s)) => {
@@ -330,8 +342,14 @@ impl SftpTab {
                 move || {
                     let current = dir.lock().unwrap().clone();
                     let files = list_local_dir(&current);
+                    let title = format!("Локальный: {}", current.display());
+                    if path.text().as_str() != title {
+                        // Новый каталог — выделяем «..», а не строку с тем же
+                        // номером из прежнего каталога.
+                        list.select_row(None::<&ListBoxRow>);
+                    }
                     fill_list(&list, &files);
-                    path.set_text(&format!("Локальный: {}", current.display()));
+                    path.set_text(&title);
                     *entries.borrow_mut() = files;
                 }
             };
@@ -714,10 +732,13 @@ fn fill_list(list: &ListBox, entries: &[Entry]) {
         rows.push(row);
     }
 
-    // Восстанавливаем выделение; если его не было — выделяем первую строку.
+    // Восстанавливаем выделение; если прежняя строка исчезла (удалили файл,
+    // вошли в пустой каталог) — выделяем первую, иначе в списке остаётся
+    // невидимое выделение на несуществующей строке.
     let index = if selected >= 0 { selected as usize } else { 0 };
-    if let Some(row) = rows.get(index) {
-        list.select_row(Some(row));
+    match rows.get(index).or_else(|| rows.first()) {
+        Some(row) => list.select_row(Some(row)),
+        None => list.select_row(None::<&ListBoxRow>),
     }
 }
 
