@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.5.4
+Version:        1.5.5
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
@@ -68,6 +68,11 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Fri Oct 23 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.5
+- RDP: поддержка Standard RDP Security (RC4) — запасной режим для серверов
+  без TLS/NLA (xrdp с security_layer=rdp, старые версии Windows)
+- RDP: шифруются Client Info, лицензирование, slow-path/fast-path PDU,
+  ввод мыши и клавиатуры; IronRDP собран из third_party/
 * Fri Oct 23 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.4
 - SFTP: вход в каталоги на серверах, не сообщающих тип объекта в атрибутах
   (проверка по opendir, канонизация пути через realpath)
@@ -106,3 +111,4 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 - Рабочий список профилей, редактор подключений, поиск и горячие клавиши
 * Mon Sep 07 2026 Remotix Team <flytimopheev@gmail.com> - 1.4.0
 - Первый выпуск: RDP/VNC/SSH, SFTP, шифрование, история подключений
+

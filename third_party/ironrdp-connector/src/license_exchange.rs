@@ -1,12 +1,17 @@
 use core::fmt::Debug;
 use core::panic::RefUnwindSafe;
 use core::{fmt, mem};
+use std::borrow::Cow;
 use std::str;
 use std::sync::Arc;
 
-use ironrdp_core::WriteBuf;
+use ironrdp_core::{Encode, WriteBuf, encode_buf, encode_vec};
 use ironrdp_pdu::PduHint;
+use ironrdp_pdu::mcs;
+use ironrdp_pdu::rdp::headers::BASIC_SECURITY_HEADER_SIZE;
 use ironrdp_pdu::rdp::server_license::{self, LicenseInformation, LicensePdu, ServerLicenseError};
+use ironrdp_pdu::rdpsec::{SEC_LICENSE_ENCRYPT_CS, SEC_LICENSE_PKT, SharedSecurity};
+use ironrdp_pdu::x224::X224;
 use rand::RngCore as _;
 use tracing::{debug, error, info, trace};
 
@@ -62,6 +67,9 @@ pub struct LicenseExchangeSequence {
     pub domain: Option<String>,
     pub hardware_id: [u32; 4],
     pub license_cache: Arc<dyn LicenseCache>,
+    /// Standard RDP Security cryptor, carried over from the connector when the
+    /// GCC exchange selected the standard path. `None` otherwise.
+    pub security: Option<SharedSecurity>,
 }
 
 // Use RefUnwindSafe so that types that embed LicenseCache remain UnwindSafe
@@ -98,7 +106,42 @@ impl LicenseExchangeSequence {
             domain,
             hardware_id,
             license_cache,
+            security: None,
         }
+    }
+
+    /// Send a license PDU, applying the Standard RDP Security envelope when
+    /// the cryptor is armed. License PDUs embed their own 4-byte security
+    /// header; on the encrypted wire it dissolves into the envelope (type
+    /// bits in `SEC_LICENSE_PKT | SEC_LICENSE_ENCRYPT_CS`) while the
+    /// plaintext path keeps the full PDU shape. Licensing traffic rides the
+    /// I/O channel and always carries the plain MAC.
+    fn send_license_pdu<T: Encode>(
+        &mut self,
+        initiator_id: u16,
+        channel_id: u16,
+        msg: &T,
+        output: &mut WriteBuf,
+    ) -> ConnectorResult<usize> {
+        let Some(security) = &self.security else {
+            return encode_send_data_request(initiator_id, channel_id, msg, output);
+        };
+
+        let encoded = encode_vec(msg).map_err(ConnectorError::encode)?;
+        let body = encoded
+            .get(BASIC_SECURITY_HEADER_SIZE..)
+            .ok_or_else(|| general_err!("license PDU too short to carry a BASIC_SECURITY_HEADER"))?;
+        let envelope = security
+            .lock()
+            .unwrap()
+            .encrypt_envelope(SEC_LICENSE_PKT | SEC_LICENSE_ENCRYPT_CS, body, false);
+
+        let pdu = mcs::SendDataRequest {
+            initiator_id,
+            channel_id,
+            user_data: Cow::Owned(envelope),
+        };
+        encode_buf(&X224(pdu), output).map_err(ConnectorError::encode)
     }
 }
 
@@ -127,7 +170,7 @@ impl Sequence for LicenseExchangeSequence {
 
             LicenseExchangeState::NewLicenseRequest => {
                 let send_data_indication_ctx =
-                    ironrdp_pdu::mcs::decode_send_data_indication(input).map_err(ConnectorError::decode)?;
+                    mcs::decode_send_data_indication(input).map_err(ConnectorError::decode)?;
                 let license_pdu = send_data_indication_ctx
                     .decode_user_data::<LicensePdu>()
                     .map_err(ConnectorError::decode)
@@ -171,10 +214,11 @@ impl Sequence for LicenseExchangeSequence {
                                     trace!(?encryption_data, "Successfully generated Client License Info");
                                     trace!(message = ?client_license_info, "Send");
 
-                                    let written = encode_send_data_request::<LicensePdu>(
+                                    let pdu: LicensePdu = client_license_info.into();
+                                    let written = self.send_license_pdu(
                                         send_data_indication_ctx.initiator_id,
                                         send_data_indication_ctx.channel_id,
-                                        &client_license_info.into(),
+                                        &pdu,
                                         output,
                                     )?;
 
@@ -202,10 +246,11 @@ impl Sequence for LicenseExchangeSequence {
                                     trace!(?encryption_data, "Successfully generated Client New License Request");
                                     trace!(message = ?new_license_request, "Send");
 
-                                    let written = encode_send_data_request::<LicensePdu>(
+                                    let pdu: LicensePdu = new_license_request.into();
+                                    let written = self.send_license_pdu(
                                         send_data_indication_ctx.initiator_id,
                                         send_data_indication_ctx.channel_id,
-                                        &new_license_request.into(),
+                                        &pdu,
                                         output,
                                     )?;
 
@@ -261,7 +306,7 @@ impl Sequence for LicenseExchangeSequence {
 
             LicenseExchangeState::PlatformChallenge { encryption_data } => {
                 let send_data_indication_ctx =
-                    ironrdp_pdu::mcs::decode_send_data_indication(input).map_err(ConnectorError::decode)?;
+                    mcs::decode_send_data_indication(input).map_err(ConnectorError::decode)?;
 
                 let license_pdu = send_data_indication_ctx
                     .decode_user_data::<LicensePdu>()
@@ -282,10 +327,11 @@ impl Sequence for LicenseExchangeSequence {
 
                         debug!(message = ?challenge_response, "Send");
 
-                        let written = encode_send_data_request::<LicensePdu>(
+                        let pdu: LicensePdu = challenge_response.into();
+                        let written = self.send_license_pdu(
                             send_data_indication_ctx.initiator_id,
                             send_data_indication_ctx.channel_id,
-                            &challenge_response.into(),
+                            &pdu,
                             output,
                         )?;
 
@@ -315,7 +361,7 @@ impl Sequence for LicenseExchangeSequence {
 
             LicenseExchangeState::UpgradeLicense { encryption_data } => {
                 let send_data_indication_ctx =
-                    ironrdp_pdu::mcs::decode_send_data_indication(input).map_err(ConnectorError::decode)?;
+                    mcs::decode_send_data_indication(input).map_err(ConnectorError::decode)?;
 
                 let license_pdu = send_data_indication_ctx
                     .decode_user_data::<LicensePdu>()
@@ -367,3 +413,4 @@ impl Sequence for LicenseExchangeSequence {
         Ok(written)
     }
 }
+

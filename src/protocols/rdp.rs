@@ -75,6 +75,50 @@ impl<S: Write> Write for PrefixedStream<S> {
     }
 }
 
+/// Поток активной RDP-сессии: либо «голый» TCP (Standard RDP Security,
+/// шифрование RC4 на уровне протокола), либо TCP поверх TLS.
+///
+/// Тип объединяет оба варианта, чтобы остальная часть клиента (Framed,
+/// неблокирующий режим) не зависела от выбранного режима безопасности.
+enum SessionStream {
+    Plain(TcpStream),
+    Tls(PrefixedStream<rustls::StreamOwned<rustls::ClientConnection, TcpStream>>),
+}
+
+impl SessionStream {
+    fn set_nonblocking(&self, nonblocking: bool) -> std::io::Result<()> {
+        match self {
+            Self::Plain(stream) => stream.set_nonblocking(nonblocking),
+            Self::Tls(stream) => stream.inner.sock.set_nonblocking(nonblocking),
+        }
+    }
+}
+
+impl Read for SessionStream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Plain(stream) => stream.read(buf),
+            Self::Tls(stream) => stream.read(buf),
+        }
+    }
+}
+
+impl Write for SessionStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Plain(stream) => stream.write(buf),
+            Self::Tls(stream) => stream.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Plain(stream) => stream.flush(),
+            Self::Tls(stream) => stream.flush(),
+        }
+    }
+}
+
 /// NetworkClient для NLA (CredSSP): выполняет обмен токенами через HTTP POST
 /// по TLS к серверу RDP и возвращает ответный токен. Вызывается коннектором
 /// в `enable_credssp` режиме (NLA). В режиме PROTOCOL_SSL (только TLS) коннектор
@@ -270,8 +314,8 @@ impl rustls::client::danger::ServerCertVerifier for NoCertificateVerification {
 /// TLS+графический вход (PROTOCOL_SSL). Активная стадия даёт ввод (мышь/
 /// клавиатура через fast-path), двунаправленный буфер обмена (CLIPRDR)
 /// и декодированное изображение рабочего стола для отрисовки.
-/// Типы активной RDP-сессии (TLS-стрим поверх TCP и состояния просмотра).
-type RdpFramed = ironrdp_blocking::Framed<PrefixedStream<rustls::StreamOwned<rustls::ClientConnection, TcpStream>>>;
+/// Типы активной RDP-сессии (поток поверх TCP — TLS или «голый» для RC4).
+type RdpFramed = ironrdp_blocking::Framed<SessionStream>;
 type RdpStage = ironrdp_session::ActiveStage;
 type RdpImage = ironrdp_session::image::DecodedImage;
 
@@ -337,6 +381,10 @@ impl RdpConnection {
             compression_type: connection_result.compression_type,
             enable_server_pointer: connection_result.enable_server_pointer,
             pointer_software_rendering: connection_result.pointer_software_rendering,
+            // Криптор Standard RDP Security (RC4): коннектор уже зашифровал
+            // им Client Info и лицензирование, сессия продолжает шифровать
+            // fast-path/slow-path тем же потоком ключей.
+            security: connection_result.security,
         }.build());
     }
 
@@ -392,22 +440,27 @@ impl Connection for RdpConnection {
 
     fn connect(&mut self) -> Result<(), String> {
         // Порядок попыток: сначала NLA (CredSSP) — так требуют Windows 10/11
-        // и RDS; затем NLA+TLS; затем только TLS — для серверов без NLA.
-        // Набор запрошенных протоколов влияет на ответ сервера, поэтому при
-        // отказе стоит попробовать другой вариант.
+        // и RDS; затем NLA+TLS; затем только TLS — для серверов без NLA;
+        // последняя попытка — Standard RDP Security (RC4 без TLS) для старых
+        // серверов и xrdp с security_layer=rdp.
         let nla = self.profile.rdp_options.nla;
-        let modes: &[(bool, bool)] = if nla {
-            &[(true, false), (true, true), (false, true)]
+        let modes: &[(bool, bool, bool)] = if nla {
+            &[
+                (true, false, false),
+                (true, true, false),
+                (false, true, false),
+                (false, false, true),
+            ]
         } else {
-            &[(false, true), (true, true)]
+            &[(false, true, false), (true, true, false), (false, false, true)]
         };
 
         let mut errors: Vec<String> = Vec::new();
-        for (credssp, tls) in modes {
-            match self.connect_with(*credssp, *tls) {
+        for (credssp, tls, legacy) in modes {
+            match self.connect_with(*credssp, *tls, *legacy) {
                 Ok(()) => return Ok(()),
                 Err(e) => {
-                    eprintln!("Remotix: режим (NLA={credssp}, TLS={tls}) не сработал: {e}");
+                    eprintln!("Remotix: режим (NLA={credssp}, TLS={tls}, RC4={legacy}) не сработал: {e}");
                     errors.push(e);
                 }
             }
@@ -429,11 +482,10 @@ impl Connection for RdpConnection {
             .any(|e| e.contains("standard RDP security") || e.contains("Standard RDP Security"))
         {
             message.push_str(
-                "Сервер принимает только Standard RDP Security (устаревший шифр RC4) — \
-                 Remotix такой режим не поддерживает; Remmina работает, потому что FreeRDP \
-                 его умеет. Включите на сервере TLS/NLA: в xrdp — security_layer=negotiate \
-                 и certificate=/etc/xrdp/xrdp.crt; в Windows — «Уровень безопасности: \
-                 Согласование» либо политика «Требовать NLA». ",
+                "Сервер работает только со Standard RDP Security (шифр RC4), и подключиться \
+                 в этом режиме не удалось. Проверьте логин/пароль, а также настройки сервера: \
+                 в xrdp — security_layer=rdp и права пользователя; в Windows — «Уровень \
+                 безопасности: RDP» и членство в группе удалённых рабочих столов. ",
             );
         }
         // Ошибки соединяем в одну строку: в строке состояния переносы
@@ -504,7 +556,8 @@ impl RdpConnection {
     ///
     /// `credssp = true` — NLA (CredSSP), `false` — без NLA.
     /// `tls = true` — дополнительно предлагать серверу PROTOCOL_SSL.
-    fn connect_with(&mut self, credssp: bool, tls: bool) -> Result<(), String> {
+    /// `legacy = true` — Standard RDP Security (PROTOCOL_RDP, RC4, без TLS).
+    fn connect_with(&mut self, credssp: bool, tls: bool, legacy: bool) -> Result<(), String> {
         let opts = &self.profile.rdp_options;
 
         // 1. TCP-подключение к RDP-серверу
@@ -570,6 +623,7 @@ impl RdpConnection {
             enable_server_pointer: true,
             pointer_software_rendering: false,
             multitransport_flags: None,
+            enable_standard_rdp_security: legacy,
         };
 
         // 4. Создаём коннектор IronRDP
@@ -579,39 +633,45 @@ impl RdpConnection {
         let should_upgrade = ironrdp_blocking::connect_begin(&mut framed, &mut connector)
             .map_err(|e| format!("ошибка начала RDP-подключения: {}", describe_error(&e)))?;
 
-        // 6. TLS-апгрейд: получаем TCP-стрим и leftover-байты, создаём TLS-стрим
+        // 6. Апгрейд безопасности: либо Standard RDP Security (без TLS),
+        //    либо TLS-рукопожатие поверх уже открытого TCP-соединения.
         let (tcp_stream, leftover_bytes) = framed.into_inner();
 
-        let tls_stream = {
-            let mut config = rustls::client::ClientConfig::builder()
-                .dangerous()
-                .with_custom_certificate_verifier(Arc::new(NoCertificateVerification))
-                .with_no_client_auth();
+        let (mut framed, upgraded) = if legacy {
+            let stream = SessionStream::Plain(tcp_stream);
+            let framed = ironrdp_blocking::Framed::new_with_leftover(stream, leftover_bytes);
+            let upgraded = ironrdp_blocking::mark_as_upgraded(should_upgrade, &mut connector);
+            (framed, upgraded)
+        } else {
+            let tls_stream = {
+                let mut config = rustls::client::ClientConfig::builder()
+                    .dangerous()
+                    .with_custom_certificate_verifier(Arc::new(NoCertificateVerification))
+                    .with_no_client_auth();
 
-            // Поддержка SSLKEYLOGFILE для отладки (Wireshark)
-            config.key_log = Arc::new(rustls::KeyLogFile::new());
-            // CredSSP не поддерживает TLS session resumption — отключаем
-            config.resumption = rustls::client::Resumption::disabled();
+                // Поддержка SSLKEYLOGFILE для отладки (Wireshark)
+                config.key_log = Arc::new(rustls::KeyLogFile::new());
+                // CredSSP не поддерживает TLS session resumption — отключаем
+                config.resumption = rustls::client::Resumption::disabled();
 
-            let config = Arc::new(config);
+                let config = Arc::new(config);
 
-            let server_name = rustls::pki_types::ServerName::try_from(self.profile.host.clone())
-                .map_err(|e| format!("некорректное имя сервера: {e}"))?;
+                let server_name = rustls::pki_types::ServerName::try_from(self.profile.host.clone())
+                    .map_err(|e| format!("некорректное имя сервера: {e}"))?;
 
-            let client = rustls::ClientConnection::new(config, server_name)
-                .map_err(|e| format!("ошибка создания TLS-соединения: {e}"))?;
+                let client = rustls::ClientConnection::new(config, server_name)
+                    .map_err(|e| format!("ошибка создания TLS-соединения: {e}"))?;
 
-            let stream = rustls::StreamOwned::new(client, tcp_stream);
+                let stream = rustls::StreamOwned::new(client, tcp_stream);
 
-            // Оборачиваем в PrefixedStream, чтобы сначала отдать leftover-байты
-            PrefixedStream::new(leftover_bytes.to_vec(), stream)
+                // Оборачиваем в PrefixedStream, чтобы сначала отдать leftover-байты
+                PrefixedStream::new(leftover_bytes.to_vec(), stream)
+            };
+
+            let framed = ironrdp_blocking::Framed::new(SessionStream::Tls(tls_stream));
+            let upgraded = ironrdp_blocking::mark_as_upgraded(should_upgrade, &mut connector);
+            (framed, upgraded)
         };
-
-        // 7. Создаём новый Framed с TLS-стримом
-        let mut framed = ironrdp_blocking::Framed::new(tls_stream);
-
-        // 8. Отмечаем, что TLS-апгрейд выполнен
-        let upgraded = ironrdp_blocking::mark_as_upgraded(should_upgrade, &mut connector);
 
         // 9. Завершаем процедуру подключения (NLA — через RdpNetworkClient).
         let connection_result = ironrdp_blocking::connect_finalize(
@@ -650,8 +710,6 @@ impl RdpConnection {
             .ok_or("RDP-сессия не инициализирована")?;
         let (stream, _) = framed.get_inner_mut();
         stream
-            .inner_mut()
-            .get_mut()
             .set_nonblocking(nonblocking)
             .map_err(|e| format!("не удалось переключить сокет в неблокирующий режим: {e}"))
     }
@@ -668,39 +726,51 @@ impl RdpConnection {
         self.image.as_ref().map(|i| i.data()).unwrap_or(&[])
     }
 
-    /// Сигнал удалённому серверу: перерисовать рабочий стол (Sync).
-    pub fn request_sync(&mut self) {
+    /// Отправляет готовую fast-path рамку в сокет, зашифровав её при
+    /// необходимости (Standard RDP Security: ввод тоже идёт в RC4-потоке).
+    fn write_input_frame(&mut self, frame: Vec<u8>) {
+        if frame.is_empty() {
+            return;
+        }
+
+        let frame = match self.stage.as_ref() {
+            Some(stage) => match stage.secure_outgoing_frame(frame) {
+                Ok(frame) => frame,
+                Err(e) => {
+                    eprintln!("Remotix: не удалось зашифровать кадр ввода: {e}");
+                    return;
+                }
+            },
+            None => frame,
+        };
+
         if let Some(framed) = &mut self.framed {
-            let _ = framed.write_all(&[0x04]);
+            let _ = framed.write_all(&frame);
         }
     }
 
-    /// Отправить нажатие клавиши на сервер.
-    ///
-    /// Основной путь — событие со X11-сканкодом: сервер сам учитывает
-    /// состояние Shift/Ctrl/Alt по таким событиям. `Char` — запасной вариант
-    /// для раскладок, где сканкод определить не удалось.
+    /// Отправить нажатие/отпускание клавиши (fast-path Keyboard-событие).
+    /// `code` — сканкод клавиши; для раскладок, где сканкод определить не удалось,
+    /// используется Unicode-событие.
     pub fn send_key(&mut self, key: RdpKey, pressed: bool) {
-        if let Some(framed) = &mut self.framed {
-            use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
-            let mut flags = KeyboardFlags::empty();
-            if !pressed {
-                flags |= KeyboardFlags::RELEASE;
-            }
-            let event = match key {
-                RdpKey::Scancode { code, extended } => {
-                    if extended {
-                        flags |= KeyboardFlags::EXTENDED1;
-                    }
-                    FastPathInputEvent::KeyboardEvent(flags, code)
-                }
-                RdpKey::Char(c) => {
-                    FastPathInputEvent::UnicodeKeyboardEvent(flags, c as u16)
-                }
-            };
-            let pdu = FastPathInput::single(event);
-            let _ = framed.write_all(&ironrdp_pdu::encode_vec(&pdu).unwrap_or_default());
+        use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
+        let mut flags = KeyboardFlags::empty();
+        if !pressed {
+            flags |= KeyboardFlags::RELEASE;
         }
+        let event = match key {
+            RdpKey::Scancode { code, extended } => {
+                if extended {
+                    flags |= KeyboardFlags::EXTENDED1;
+                }
+                FastPathInputEvent::KeyboardEvent(flags, code)
+            }
+            RdpKey::Char(c) => {
+                FastPathInputEvent::UnicodeKeyboardEvent(flags, c as u16)
+            }
+        };
+        let pdu = FastPathInput::single(event);
+        self.write_input_frame(ironrdp_pdu::encode_vec(&pdu).unwrap_or_default());
     }
 
     /// Отправить в удалённую сессию последовательность `Ctrl+Alt+Del`.
@@ -724,48 +794,44 @@ impl RdpConnection {
     /// Отправить движение/клик мыши (fast-path Mouse-событие).
     /// `buttons`: 1 — левая, 2 — правая, 3 — средняя кнопка.
     pub fn send_mouse(&mut self, x: u32, y: u32, buttons: u8, is_move: bool) {
-        if let Some(framed) = &mut self.framed {
-            use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
-            let mut flags = ironrdp_pdu::input::mouse::PointerFlags::MOVE;
-            if !is_move {
-                flags |= ironrdp_pdu::input::mouse::PointerFlags::DOWN;
-                match buttons {
-                    1 => flags |= ironrdp_pdu::input::mouse::PointerFlags::LEFT_BUTTON,
-                    2 => flags |= ironrdp_pdu::input::mouse::PointerFlags::RIGHT_BUTTON,
-                    3 => flags |= ironrdp_pdu::input::mouse::PointerFlags::MIDDLE_BUTTON_OR_WHEEL,
-                    _ => {}
-                }
+        use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
+        let mut flags = ironrdp_pdu::input::mouse::PointerFlags::MOVE;
+        if !is_move {
+            flags |= ironrdp_pdu::input::mouse::PointerFlags::DOWN;
+            match buttons {
+                1 => flags |= ironrdp_pdu::input::mouse::PointerFlags::LEFT_BUTTON,
+                2 => flags |= ironrdp_pdu::input::mouse::PointerFlags::RIGHT_BUTTON,
+                3 => flags |= ironrdp_pdu::input::mouse::PointerFlags::MIDDLE_BUTTON_OR_WHEEL,
+                _ => {}
             }
-            let pdu = ironrdp_pdu::input::MousePdu {
-                flags,
-                number_of_wheel_rotation_units: 0,
-                x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
-                y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
-            };
-            let fp = FastPathInput::single(FastPathInputEvent::MouseEvent(pdu));
-            let _ = framed.write_all(&ironrdp_pdu::encode_vec(&fp).unwrap_or_default());
         }
+        let pdu = ironrdp_pdu::input::MousePdu {
+            flags,
+            number_of_wheel_rotation_units: 0,
+            x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
+            y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
+        };
+        let fp = FastPathInput::single(FastPathInputEvent::MouseEvent(pdu));
+        self.write_input_frame(ironrdp_pdu::encode_vec(&fp).unwrap_or_default());
     }
 
     /// Отправить колесо мыши (fast-path Mouse-событие с вертикальным колесом).
     /// `delta` — условные единицы прокрутки (положительные — вверх).
     pub fn send_wheel(&mut self, x: u32, y: u32, delta: i32) {
-        if let Some(framed) = &mut self.framed {
-            use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
-            let mut flags = ironrdp_pdu::input::mouse::PointerFlags::VERTICAL_WHEEL;
-            if delta < 0 {
-                flags |= ironrdp_pdu::input::mouse::PointerFlags::WHEEL_NEGATIVE;
-            }
-            let units = delta.unsigned_abs().min(i16::MAX as u32) as i16;
-            let pdu = ironrdp_pdu::input::MousePdu {
-                flags,
-                number_of_wheel_rotation_units: units,
-                x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
-                y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
-            };
-            let fp = FastPathInput::single(FastPathInputEvent::MouseEvent(pdu));
-            let _ = framed.write_all(&ironrdp_pdu::encode_vec(&fp).unwrap_or_default());
+        use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
+        let mut flags = ironrdp_pdu::input::mouse::PointerFlags::VERTICAL_WHEEL;
+        if delta < 0 {
+            flags |= ironrdp_pdu::input::mouse::PointerFlags::WHEEL_NEGATIVE;
         }
+        let units = delta.unsigned_abs().min(i16::MAX as u32) as i16;
+        let pdu = ironrdp_pdu::input::MousePdu {
+            flags,
+            number_of_wheel_rotation_units: units,
+            x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
+            y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
+        };
+        let fp = FastPathInput::single(FastPathInputEvent::MouseEvent(pdu));
+        self.write_input_frame(ironrdp_pdu::encode_vec(&fp).unwrap_or_default());
     }
 
     /// Загрузить текст в удалённый буфер обмена (уходит на сервер RDP).
@@ -854,6 +920,17 @@ mod tests {
         assert!(size.0 > 0 && size.1 > 0, "некорректный размер кадра: {size:?}");
         assert!(!conn.image_pixels().is_empty(), "кадр пустой");
         assert!(got_frame, "кадр не получен");
+
+        // Обратное направление: события мыши уходят fast-path'ом в том же
+        // RC4-потоке (Standard RDP Security). Сервер не должен разорвать
+        // сессию из-за неверного шифрования ввода.
+        conn.send_mouse(10, 10, 0, true);
+        for _ in 0..20 {
+            match conn.run() {
+                Ok(_) => std::thread::sleep(Duration::from_millis(50)),
+                Err(e) => panic!("сессия разорвана после отправки ввода: {e}"),
+            }
+        }
     }
 }
 

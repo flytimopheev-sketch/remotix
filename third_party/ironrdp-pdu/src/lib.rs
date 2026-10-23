@@ -18,6 +18,7 @@ pub mod mcs;
 pub mod nego;
 pub mod pcb;
 pub mod rdp;
+pub mod rdpsec;
 pub mod tpdu;
 pub mod tpkt;
 pub mod utf16;

@@ -256,6 +256,21 @@ pub struct Config {
     /// [\[MS-RDPBCGR\] 2.2.1.3.7]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/861f2bbb-6ca2-4c5a-8c44-0714fa901e70
     /// [`MultiTransportChannelData`]: ironrdp_pdu::gcc::MultiTransportChannelData
     pub multitransport_flags: Option<gcc::MultiTransportFlags>,
+
+    /// Allow negotiating the legacy Standard RDP Security (PROTOCOL_RDP, RC4)
+    /// when no enhanced security protocol is offered.
+    ///
+    /// Standard RDP Security is considered insecure (no server authentication,
+    /// weak ciphers) and is disabled by default. It is required by servers
+    /// configured with "Require use of specific security layer: RDP" and by
+    /// xrdp with `security_layer=rdp`.
+    ///
+    /// When enabled and the server selects PROTOCOL_RDP, a Security Exchange
+    /// PDU is sent and every subsequent PDU (slow-path and fast-path) is
+    /// encrypted with the negotiated RC4 keys. The cryptor is returned in
+    /// [`ConnectionResult::security`](crate::ConnectionResult::security) so the
+    /// session layer can keep securing the wire after the connection sequence.
+    pub enable_standard_rdp_security: bool,
 }
 
 ironrdp_core::assert_impl!(Config: Send, Sync);

@@ -1,6 +1,6 @@
 [package]
 name = "remotix"
-version = "1.5.4"
+version = "1.5.5"
 edition = "2021"
 description = "Remotix — клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС"
 license = "MIT"
@@ -43,3 +43,11 @@ x509-cert = { version = "0.2", default-features = false, features = ["std"] }
 [profile.release]
 opt-level = 3
 lto = true
+
+# Локальные патчи IronRDP: поддержка Standard RDP Security (RC4).
+# Патченные крейты лежат в third_party/, а не в vendor/: CI пересобирает
+# vendor/ через `cargo vendor`, поэтому правки в vendor/ были бы потеряны.
+[patch.crates-io]
+ironrdp-pdu = { path = "third_party/ironrdp-pdu" }
+ironrdp-connector = { path = "third_party/ironrdp-connector" }
+ironrdp-session = { path = "third_party/ironrdp-session" }
