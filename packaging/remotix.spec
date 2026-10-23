@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.5.3
+Version:        1.5.4
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
@@ -68,6 +68,11 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Fri Oct 23 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.4
+- SFTP: вход в каталоги на серверах, не сообщающих тип объекта в атрибутах
+  (проверка по opendir, канонизация пути через realpath)
+- SFTP: верные значки папок и сортировка «сначала каталоги» на таких серверах
+- RDP: уточнённое сообщение для серверов только со Standard RDP Security
 * Thu Oct 22 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.3
 - Строка состояния больше не растягивает окно: фиксированная ширина метки,
   текст обрезается многоточием, полный — во всплывающей подсказке

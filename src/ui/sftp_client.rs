@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 
@@ -21,6 +22,9 @@ pub struct SftpPanel {
     pub local_dir: PathBuf,
     pub remote_dir: String,
     session: Option<ssh2::Session>,
+    /// Кэш «объект является каталогом» для серверов, которые не присылают
+    /// тип объекта в атрибутах (`S_IFDIR`). Сбрасывается при смене каталога.
+    dir_cache: HashMap<String, bool>,
 }
 
 impl SftpPanel {
@@ -51,6 +55,7 @@ impl SftpPanel {
             local_dir: crate::config::home_dir(),
             remote_dir,
             session: Some(session),
+            dir_cache: HashMap::new(),
         })
     }
 
@@ -69,6 +74,12 @@ impl SftpPanel {
         perm.map(|mode| (mode & 0o170000) == 0o040000).unwrap_or(false)
     }
 
+    /// Тип объекта в атрибутах неизвестен: сервер прислал только права
+    /// доступа (`0o755`), без битов `S_IF*`.
+    fn type_unknown(perm: Option<u32>) -> bool {
+        perm.map(|mode| (mode & 0o170000) == 0).unwrap_or(true)
+    }
+
     /// Получает абсолютный путь: относительный — относительно текущего
     /// каталога сервера.
     fn resolve(&self, path: &str) -> String {
@@ -85,37 +96,54 @@ impl SftpPanel {
 
     /// Перейти в каталог на сервере.
     ///
-    /// Путь строится от текущего каталога (см. `resolve`). Права объекта
-    /// у некоторых SFTP-серверов не приходят, поэтому каталогом считается
-    /// любой объект, который удалось простатировать.
+    /// Путь строится от текущего каталога (см. `resolve`). Надёжный признак
+    /// каталога — возможность его открыть (`opendir`): часть SFTP-серверов
+    /// не присылает тип объекта (`S_IFDIR`) в атрибутах, и проверка по
+    /// режиму ошибочно объявляла каталог файлом.
     pub fn cd(&mut self, path: &str) -> Result<(), String> {
         let full = self.resolve(path);
         let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
 
-        let stat = match sftp.stat(Path::new(&full)) {
-            Ok(stat) => stat,
-            Err(e) => {
-                // Запасной вариант: сервер мог разрешить путь относительно
-                // своего рабочего каталога.
-                if full != path {
-                    if let Ok(stat) = sftp.stat(Path::new(path)) {
-                        let is_dir = stat.perm.map(|m| (m & 0o170000) == 0o040000).unwrap_or(true);
-                        if is_dir {
-                            self.remote_dir = path.to_string();
-                            return Ok(());
-                        }
-                    }
-                }
-                return Err(format!("не удалось открыть каталог {full}: {e}"));
-            }
-        };
-
-        if let Some(perm) = stat.perm {
-            if (perm & 0o170000) != 0o040000 {
-                return Err(format!("{full} — не каталог"));
+        let mut target = full.clone();
+        let mut opened = sftp.opendir(Path::new(&target)).is_ok();
+        if !opened && full != path {
+            // Запасной вариант: сервер мог разрешить путь относительно
+            // своего рабочего каталога.
+            if sftp.opendir(Path::new(path)).is_ok() {
+                target = path.to_string();
+                opened = true;
             }
         }
-        self.remote_dir = full;
+        if !opened {
+            // Различаем «это файл» и «каталог недоступен», чтобы сообщение
+            // было понятным.
+            if let Ok(stat) = sftp.stat(Path::new(&full)) {
+                let is_file = stat
+                    .perm
+                    .map(|mode| {
+                        let kind = mode & 0o170000;
+                        kind != 0 && kind != 0o040000
+                    })
+                    .unwrap_or(false);
+                if is_file {
+                    return Err(format!("{full} — не каталог"));
+                }
+            }
+            return Err(format!("не удалось открыть каталог {full}"));
+        }
+
+        // Канонический путь: корректно обрабатываем «..» и символические
+        // ссылки, чтобы дальнейшие переходы строились от реального каталога.
+        if let Ok(real) = sftp.realpath(Path::new(&target)) {
+            let real = real.to_string_lossy().into_owned();
+            if !real.is_empty() {
+                target = real;
+            }
+        }
+
+        drop(sftp);
+        self.remote_dir = target;
+        self.dir_cache.clear();
         Ok(())
     }
 
@@ -132,24 +160,60 @@ impl SftpPanel {
 
     /// Список файлов удалённого каталога.
     pub fn remote_list(&mut self) -> Result<Vec<Entry>, String> {
-        let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
-        let mut out = Vec::new();
-        for entry in sftp.readdir(Path::new(&self.remote_dir)).map_err(|e| e.to_string())? {
-            let (path, stat) = entry;
-            let name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            if name.is_empty() || name == "." || name == ".." {
-                continue;
+        let mut out: Vec<Entry> = Vec::new();
+        // Объекты, тип которых сервер не сообщил: проверим их отдельно.
+        let mut unknown: Vec<(usize, String)> = Vec::new();
+
+        {
+            let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
+            for entry in sftp
+                .readdir(Path::new(&self.remote_dir))
+                .map_err(|e| e.to_string())?
+            {
+                let (path, stat) = entry;
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                if name.is_empty() || name == "." || name == ".." {
+                    continue;
+                }
+                if Self::type_unknown(stat.perm) {
+                    let full = Path::new(&self.remote_dir)
+                        .join(&name)
+                        .to_string_lossy()
+                        .into_owned();
+                    unknown.push((out.len(), full));
+                }
+                out.push(Entry {
+                    name,
+                    is_dir: Self::is_dir_mode(stat.perm),
+                    size: stat.size.unwrap_or(0),
+                    modified: stat.mtime.unwrap_or(0) as i64,
+                });
             }
-            out.push(Entry {
-                name,
-                is_dir: Self::is_dir_mode(stat.perm),
-                size: stat.size.unwrap_or(0),
-                modified: stat.mtime.unwrap_or(0) as i64,
-            });
         }
+
+        // Сервер не присылает тип объекта — определяем каталог по
+        // возможности его открыть. Результат кэшируем, чтобы не делать
+        // лишних запросов при каждом обновлении списка.
+        if !unknown.is_empty() {
+            let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
+            for (idx, full) in unknown {
+                let is_dir = match self.dir_cache.get(&full) {
+                    Some(cached) => *cached,
+                    None => {
+                        let probe = sftp.opendir(Path::new(&full)).is_ok();
+                        self.dir_cache.insert(full, probe);
+                        probe
+                    }
+                };
+                if let Some(entry) = out.get_mut(idx) {
+                    entry.is_dir = is_dir;
+                }
+            }
+        }
+
         // Сначала каталоги, затем файлы — как в файловом менеджере.
         out.sort_by(|a, b| {
             b.is_dir

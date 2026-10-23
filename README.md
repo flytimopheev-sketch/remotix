@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-%D0%A0%D0%95%D0%94%20%D0%9E%D0%A1%207%20%7C%208-crimson?style=flat-square)](#-установка)
 [![CI](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml/badge.svg?branch=main)](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml)
-[![Release](https://img.shields.io/badge/release-1.5.3-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
+[![Release](https://img.shields.io/badge/release-1.5.4-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
 
 Единый интерфейс для подключения к удалённым рабочим столам и серверам.
 Написан на Rust + GTK4, работает **полностью офлайн**: без облака, без телеметрии,
@@ -94,7 +94,7 @@ Remotix — это «одно окно» для всех удалённых по
 ### Готовый RPM-пакет
 
 ```bash
-sudo dnf install ./remotix-1.5.3-1.el9.x86_64.rpm
+sudo dnf install ./remotix-1.5.4-1.el9.x86_64.rpm
 ```
 
 После установки Remotix появляется в меню приложений («Сеть → Remotix»),
@@ -120,7 +120,7 @@ sudo dnf install ./remotix-1.5.3-1.el9.x86_64.rpm
 
 <p align="center">
   <a href="https://github.com/flytimopheev-sketch/remotix/releases">
-    <img src="https://img.shields.io/badge/releases-1.5.3-blue?style=flat-square" alt="Releases">
+    <img src="https://img.shields.io/badge/releases-1.5.4-blue?style=flat-square" alt="Releases">
   </a>
 </p>
 
@@ -259,6 +259,33 @@ CI собирает пакет **внутри окружения AlmaLinux 9 (EL
 Windows 10/11 и RDS; если сервер NLA не поддерживает, Remotix повторяет
 подключение по TLS. Кнопка `Ctrl+Alt+Del` в панели просмотрщика отправляет
 соответствующую последовательность в удалённую сессию.
+
+#### Сервер принимает только Standard RDP Security (RC4)
+
+Если при подключении появляется сообщение «Сервер принимает только Standard
+RDP Security (устаревший шифр RC4)», значит на сервере выбран устаревший
+режим безопасности без TLS. Remmina в этом случае работает, потому что
+FreeRDP поддерживает этот режим, а Remotix — нет: современный стек IronRDP
+умеет только усиленную безопасность (TLS и NLA).
+
+Включите на сервере TLS/NLA — это займёт пару минут:
+
+- **xrdp** (`/etc/xrdp/xrdp.ini`):
+
+  ```ini
+  security_layer=negotiate
+  certificate=/etc/xrdp/xrdp.crt
+  key_file=/etc/xrdp/xrdp.key
+  ```
+
+  Затем `systemctl restart xrdp`. Сертификат создаётся командой
+  `openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+   -keyout /etc/xrdp/xrdp.key -out /etc/xrdp/xrdp.crt -subj /CN=$(hostname)`.
+
+- **Windows**: «Параметры системы» → «Удалённый рабочий стол» → включить
+  «Требовать проверку подлинности на уровне сети» (политика
+  «Требовать NLA»), либо в свойствах подключения выбрать «Уровень
+  безопасности: Согласование».
 
 ### Где лежат данные
 

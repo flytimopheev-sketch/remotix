@@ -429,10 +429,11 @@ impl Connection for RdpConnection {
             .any(|e| e.contains("standard RDP security") || e.contains("Standard RDP Security"))
         {
             message.push_str(
-                "Сервер поддерживает только Standard RDP Security (старый шифр RC4) — \
-                 Remotix его не умеет. Включите на сервере TLS/NLA: в xrdp — \
-                 security_layer=negotiate и certificate=/etc/xrdp/xrdp.crt; в Windows — \
-                 политика «Требовать NLA». ",
+                "Сервер принимает только Standard RDP Security (устаревший шифр RC4) — \
+                 Remotix такой режим не поддерживает; Remmina работает, потому что FreeRDP \
+                 его умеет. Включите на сервере TLS/NLA: в xrdp — security_layer=negotiate \
+                 и certificate=/etc/xrdp/xrdp.crt; в Windows — «Уровень безопасности: \
+                 Согласование» либо политика «Требовать NLA». ",
             );
         }
         // Ошибки соединяем в одну строку: в строке состояния переносы
