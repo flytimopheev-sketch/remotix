@@ -1,6 +1,7 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+use zeroize::Zeroizing;
 
 use super::schema;
 use super::crypto;
@@ -70,7 +71,7 @@ impl Database {
     pub fn init_master(&self, master_password: &str) -> Result<(), String> {
         let salt = crypto::new_salt();
         let params_ = crypto::Argon2Params::default();
-        let key = crypto::derive_key(master_password, &salt, &params_);
+        let key = Zeroizing::new(crypto::derive_key(master_password, &salt, &params_));
         let verifier = crypto::encrypt(&key, b"remotix-verifier");
         self.meta_set("argon2_salt", &salt).map_err(|e| e.to_string())?;
         self.meta_set("argon2_params", serde_json::to_vec(&params_).unwrap().as_slice())
@@ -90,20 +91,25 @@ impl Database {
             .meta_get("argon2_params")
             .and_then(|v| serde_json::from_slice(&v).ok())
             .unwrap_or_default();
-        let key = crypto::derive_key(master_password, &salt, &params_);
+        let key = Zeroizing::new(crypto::derive_key(master_password, &salt, &params_));
         let verifier = self.meta_get("verifier").ok_or("хранилище повреждено")?;
-        let ok = crypto::decrypt(&key, &verifier)? == b"remotix-verifier";
-        if ok { Ok(key) } else { Err("неверный мастер-пароль".into()) }
+        let plain = crypto::decrypt(&key, &verifier)?;
+        let ok = &*plain == b"remotix-verifier";
+        if ok {
+            Ok(*key)
+        } else {
+            Err("неверный мастер-пароль".into())
+        }
     }
 
     // PART2
 
     /// Смена мастер-пароля: перешифровка всех учётных данных.
     pub fn change_master_password(&self, old: &str, new: &str) -> Result<(), String> {
-        let old_key = self.unlock(old)?;
+        let old_key = Zeroizing::new(self.unlock(old)?);
         let new_salt = crypto::new_salt();
         let new_params = crypto::Argon2Params::default();
-        let new_key = crypto::derive_key(new, &new_salt, &new_params);
+        let new_key = Zeroizing::new(crypto::derive_key(new, &new_salt, &new_params));
         let verifier = crypto::encrypt(&new_key, b"remotix-verifier");
 
         let mut stmt = self
@@ -300,6 +306,46 @@ impl Database {
                 updated_at,
                 last_connected_at,
             });
+        }
+        Ok(out)
+    }
+
+    /// Возвращает только идентификаторы профилей для проверки дублей при
+    /// импорте: протокол, хост, порт и логин. Пароли не расшифровываются.
+    pub fn profile_identities(
+        &self,
+        key: &[u8; 32],
+    ) -> Result<Vec<(Protocol, String, u16, Option<String>)>, String> {
+        let mut stmt = self
+            .conn()
+            .prepare("SELECT protocol, host, port, username FROM profiles")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, u16>(2)?,
+                    blob_column(r, 3)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+
+        let mut out = Vec::new();
+        for row in rows {
+            let (protocol, host, port, username) = row.map_err(|e| e.to_string())?;
+            let protocol = match protocol.as_str() {
+                "RDP" => Protocol::Rdp,
+                "VNC" => Protocol::Vnc,
+                "SSH" => Protocol::Ssh,
+                _ => continue,
+            };
+            let username = username.and_then(|blob| {
+                crypto::decrypt(key, &blob)
+                    .ok()
+                    .map(|v| String::from_utf8_lossy(&v).into_owned())
+            });
+            out.push((protocol, host, port, username));
         }
         Ok(out)
     }

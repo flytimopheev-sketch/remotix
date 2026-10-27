@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-%D0%A0%D0%95%D0%94%20%D0%9E%D0%A1%207%20%7C%208-crimson?style=flat-square)](#-установка)
 [![CI](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml/badge.svg?branch=main)](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml)
-[![Release](https://img.shields.io/badge/release-1.5.8-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
+[![Release](https://img.shields.io/badge/release-1.6.0-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
 
 Единый интерфейс для подключения к удалённым рабочим столам и серверам.
 Написан на Rust + GTK4, работает **полностью офлайн**: без облака, без телеметрии,
@@ -36,6 +36,8 @@ Remotix — это «одно окно» для всех удалённых по
 | Профили подключений: создание, правка, удаление, дублирование | ✅ готово |
 | Мастер-пароль (Argon2id) + шифрование учётных данных (AES-256-GCM) | ✅ готово |
 | SSH-подключение со встроенным терминалом (VTE / упрощённый) | ✅ готово |
+| Проверка ключа SSH-хоста по `known_hosts`, SHA256-отпечаток | ✅ готово |
+| Импорт из `~/.ssh/config`, Remmina, `.rdp` и JSON с предпросмотром | ✅ готово |
 | **RDP: просмотрщик удалённого рабочего стола (IronRDP, NLA/CredSSP)** | ✅ готово |
 | SFTP: две панели, загрузка/скачивание, создание и удаление | ✅ готово |
 | Журнал подключений с экспортом в CSV | ✅ готово |
@@ -94,7 +96,7 @@ Remotix — это «одно окно» для всех удалённых по
 ### Готовый RPM-пакет
 
 ```bash
-sudo dnf install ./remotix-1.5.8-1.el9.x86_64.rpm
+sudo dnf install ./remotix-1.6.0-1.x86_64.rpm
 ```
 
 После установки Remotix появляется в меню приложений («Сеть → Remotix»),
@@ -120,7 +122,7 @@ sudo dnf install ./remotix-1.5.8-1.el9.x86_64.rpm
 
 <p align="center">
   <a href="https://github.com/flytimopheev-sketch/remotix/releases">
-    <img src="https://img.shields.io/badge/releases-1.5.8-blue?style=flat-square" alt="Releases">
+    <img src="https://img.shields.io/badge/releases-1.6.0-blue?style=flat-square" alt="Releases">
   </a>
 </p>
 
@@ -216,6 +218,33 @@ CI собирает пакет **внутри окружения AlmaLinux 9 (EL
   кнопка «Удалить профиль» в редакторе.
 - **Подключиться** — двойной щелчок по профилю.
 
+### Импорт профилей
+
+Параметры → **Профили** (или меню «☰» → «Импорт подключений…») позволяют
+перенести подключения из:
+
+- `~/.ssh/config` — учитываются `Host`, `HostName`, `User`, `Port`,
+  `IdentityFile` и `Include`; шаблоны `*`/`?` и `ProxyJump` пропускаются;
+- Remmina — `~/.local/share/remmina/*.remmina`; VNC-туннели и шлюзы
+  пропускаются с причиной;
+- файлов `.rdp` — можно выбрать несколько;
+- JSON-экспорта Remotix.
+
+Перед записью в базу открывается предпросмотр: сколько профилей будет
+добавлено и сколько пропущено с причиной. Дубли определяются по протоколу,
+хосту, порту и логину — и по базе, и внутри источника. **Пароли не
+импортируются и не экспортируются**: их нужно ввести заново.
+
+### Проверка ключа SSH-хоста
+
+При первом подключении к серверу Remotix показывает SHA256-отпечаток и тип
+ключа. Принять ключ можно только явно; он дописывается в
+`~/.ssh/known_hosts` (путь можно переопределить переменной
+`REMOTIX_KNOWN_HOSTS`). Если ключ известного хоста изменился, подключение
+прерывается — проверьте сервер и запись в `known_hosts`, не удаляйте её
+вслепую. Для неинтерактивных вызовов используется доверие при первом
+подключении (TOFU).
+
 ### Файловый менеджер SFTP
 
 Вкладка SFTP — двухпанельный менеджер (локальный каталог слева, каталог на
@@ -250,7 +279,7 @@ CI собирает пакет **внутри окружения AlmaLinux 9 (EL
 | **Терминал** | Шрифт, размер, мигание курсора, цветовая схема |
 | **RDP** | Разрешение экрана, NLA (CredSSP), буфер обмена, глубина цвета, `Ctrl+Alt+Del` |
 | **Безопасность** | Смена мастер-пароля (все сохранённые пароли перешифровываются) |
-| **Профили** | Импорт и экспорт профилей в JSON |
+| **Профили** | Импорт из `~/.ssh/config`, Remmina, `.rdp`, JSON; экспорт в JSON |
 
 ### Удалённый рабочий стол (RDP)
 
@@ -422,7 +451,7 @@ strace -f -o /tmp/remotix.strace remotix  # если окно не появля�
 - [x] SFTP-клиент с двумя панелями
 - [x] Современный интерфейс в стиле GTK4
 - [ ] Поддержка VNC
-- [ ] Группы профилей, импорт/экспорт (JSON)
+- [ ] Группы профилей
 - [ ] Двухсторонний буфер обмена RDP (CLIPRDR)
 - [ ] `Ctrl+Alt+Del` в RDP-сессии
 

@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use gtk4::prelude::*;
 use gtk4::{gio, glib, Application, ApplicationWindow, Button, Label};
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::db::repository::Database;
 use crate::ui::main_window::MainWindow;
@@ -18,12 +19,47 @@ use crate::ui::settings_window::SettingsWindow;
 #[derive(Clone)]
 pub struct AppState {
     pub db: Rc<Database>,
-    pub key: Option<[u8; 32]>,
+    /// Ключ шифрования в общей ячейке: все копии `AppState` видят одно и
+    /// то же значение, поэтому блокировка стирает ключ сразу везде.
+    key: Rc<RefCell<Option<[u8; 32]>>>,
 }
 
 impl AppState {
-    pub fn unlocked_key(&self) -> [u8; 32] {
-        self.key.expect("приложение разблокировано")
+    pub fn new(db: Rc<Database>, key: [u8; 32]) -> Self {
+        Self {
+            db,
+            key: Rc::new(RefCell::new(Some(key))),
+        }
+    }
+
+    /// Копия ключа в `Zeroizing`: временная копия на стеке/в куче также
+    /// будет затёрта при выходе из области видимости.
+    pub fn unlocked_key(&self) -> Zeroizing<[u8; 32]> {
+        let key = self.key.borrow();
+        Zeroizing::new(key.expect("приложение разблокировано"))
+    }
+
+    /// Устанавливает ключ после повторной разблокировки.
+    pub fn set_key(&self, mut key: [u8; 32]) {
+        if let Some(old) = self.key.borrow_mut().replace(key) {
+            let mut old = old;
+            old.zeroize();
+        }
+        // В ячейке осталась копия, локальную больше не держим.
+        key.zeroize();
+    }
+
+    /// Стирает ключ из памяти при блокировке.
+    pub fn lock(&self) {
+        let old = self.key.borrow_mut().take();
+        if let Some(mut key) = old {
+            key.zeroize();
+        }
+    }
+
+    /// Заблокировано ли хранилище (ключ стёрт).
+    pub fn is_locked(&self) -> bool {
+        self.key.borrow().is_none()
     }
 }
 
@@ -103,8 +139,9 @@ fn ensure_window(app: &Application) {
 }
 
 /// Создаёт и показывает главное окно приложения.
-fn build_main_window(app: &Application, db: Rc<Database>, key: [u8; 32]) {
-    let state = AppState { db, key: Some(key) };
+fn build_main_window(app: &Application, db: Rc<Database>, mut key: [u8; 32]) {
+    let state = AppState::new(db, key);
+    key.zeroize();
 
     let window = ApplicationWindow::builder()
         .application(app)
@@ -193,6 +230,12 @@ fn build_main_window(app: &Application, db: Rc<Database>, key: [u8; 32]) {
     }
     actions.add_action(&settings_action);
 
+    let import_action = gio::SimpleAction::new("import", None);
+    {
+        import_action.connect_activate(move |_, _| open_import());
+    }
+    actions.add_action(&import_action);
+
     let about_action = gio::SimpleAction::new("about", None);
     {
         let window = window.clone();
@@ -223,21 +266,68 @@ fn build_main_window(app: &Application, db: Rc<Database>, key: [u8; 32]) {
 
 /// Открывает окно «Параметры».
 fn open_settings() {
+    open_settings_page(None);
+}
+
+/// Открывает окно «Параметры» сразу на странице импорта профилей.
+fn open_import() {
+    open_settings_page(Some(4));
+}
+
+/// Открывает настройки на указанной странице (или переиспользует открытое
+/// окно). `None` — страница по умолчанию.
+fn open_settings_page(page: Option<u32>) {
+    if SETTINGS_WINDOW.with(|w| w.borrow().as_ref().map(|w| w.is_visible()).unwrap_or(false)) {
+        SETTINGS_WINDOW.with(|w| {
+            if let Some(window) = w.borrow().as_ref() {
+                if let Some(page) = page {
+                    window.present_page(page);
+                } else {
+                    window.present();
+                }
+            }
+        });
+        return;
+    }
+
     let state = match APP_STATE.with(|s| s.borrow().clone()) {
         Some(s) => s,
         None => return,
     };
 
     let settings = crate::settings::Settings::new(state.db.clone());
+    let state_for_close = state.clone();
     let window = SettingsWindow::new(settings, state.clone(), move || {
-        // После закрытия настроек применяем тему.
-        let settings = crate::settings::Settings::new(state.db.clone());
+        // После закрытия настроек применяем тему и обновляем список профилей
+        // (импорт мог добавить новые записи).
+        let settings = crate::settings::Settings::new(state_for_close.db.clone());
         if let Some(w) = MAIN_WINDOW.with(|w| w.borrow().clone()) {
             crate::ui::theme::apply(&settings.theme(), &w);
         }
+        refresh_main_profiles();
     });
-    window.present();
+    if let Some(page) = page {
+        window.present_page(page);
+    } else {
+        window.present();
+    }
     SETTINGS_WINDOW.with(|w| *w.borrow_mut() = Some(window));
+}
+
+/// Обновляет боковую панель главного окна после импорта.
+pub(crate) fn refresh_main_profiles() {
+    let unlocked = APP_STATE.with(|s| {
+        s.borrow()
+            .as_ref()
+            .map(|state| !state.is_locked())
+            .unwrap_or(false)
+    });
+    if !unlocked {
+        return;
+    }
+    if let Some(main) = MAIN_UI.with(|m| m.borrow().clone()) {
+        main.refresh_profiles();
+    }
 }
 
 /// Блокирует интерфейс: окно прячется, пользователь вводит мастер-пароль.
@@ -246,21 +336,47 @@ fn lock_window(app: &Application, window: &ApplicationWindow) {
         Some(db) => db,
         None => return,
     };
+    let state = match APP_STATE.with(|s| s.borrow().clone()) {
+        Some(state) => state,
+        None => return,
+    };
+    let main = MAIN_UI.with(|m| m.borrow().clone());
 
     window.set_visible(false);
 
+    // Стираем ключ и расшифрованные профили из памяти. Активные вкладки
+    // сессий продолжают работать, но новые подключения без разблокировки
+    // невозможны.
+    if let Some(main) = &main {
+        main.lock_secrets();
+    }
+    state.lock();
+
     let locked_window = window.clone();
-    let dialog = MasterPasswordDialog::new(app, db, move |_db, _key| {
+    let state_for_unlock = state.clone();
+    let main_for_unlock = main.clone();
+    let dialog = MasterPasswordDialog::new(app, db, move |_db, key| {
+        state_for_unlock.set_key(key);
+        if let Some(main) = &main_for_unlock {
+            main.refresh_profiles();
+        }
         locked_window.set_visible(true);
         locked_window.present();
     });
 
-    // Если пользователь закрыл диалог разблокировки — возвращаем окно.
+    // Если пользователь закрыл диалог, не показываем окно с уже стёртым
+    // ключом: это привело бы к панике при первом же обращении к профилям.
     {
         let locked_window = window.clone();
+        let state = state.clone();
+        let app = app.clone();
         dialog.window().connect_destroy(move |_| {
-            locked_window.set_visible(true);
-            locked_window.present();
+            if state.is_locked() {
+                app.quit();
+            } else {
+                locked_window.set_visible(true);
+                locked_window.present();
+            }
         });
     }
 

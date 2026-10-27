@@ -79,24 +79,36 @@ pub fn export_profiles(db: &Database, key: &[u8; 32], path: &Path) -> Result<usi
     Ok(file.profiles.len())
 }
 
+/// Читает и проверяет JSON-файл экспорта.
+pub fn read_export(path: &Path) -> Result<ExportFile, String> {
+    let text =
+        std::fs::read_to_string(path).map_err(|e| format!("не удалось прочитать файл: {e}"))?;
+    parse_export_text(&text)
+}
+
+/// Разбирает JSON экспорта из строки.
+pub fn parse_export_text(text: &str) -> Result<ExportFile, String> {
+    let file: ExportFile =
+        serde_json::from_str(text).map_err(|e| format!("неверный формат файла: {e}"))?;
+    if file.format != FORMAT {
+        return Err(format!("неожиданный формат файла: {}", file.format));
+    }
+    Ok(file)
+}
+
 /// Загружает профили из JSON-файла. Возвращает количество добавленных профилей.
 ///
 /// Существующие профили не изменяются — импортированные добавляются как новые.
 pub fn import_profiles(db: &Database, key: &[u8; 32], path: &Path) -> Result<usize, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("не удалось прочитать файл: {e}"))?;
-    let file: ExportFile =
-        serde_json::from_str(&text).map_err(|e| format!("неверный формат файла: {e}"))?;
-
-    if file.format != FORMAT {
-        return Err(format!("неожиданный формат файла: {}", file.format));
-    }
+    let file = read_export(path)?;
 
     let mut added = 0;
     for item in file.profiles {
-        let protocol = match item.protocol.as_str() {
+        let protocol = match item.protocol.to_ascii_uppercase().as_str() {
             "RDP" => crate::models::Protocol::Rdp,
             "VNC" => crate::models::Protocol::Vnc,
-            _ => crate::models::Protocol::Ssh,
+            "SSH" => crate::models::Protocol::Ssh,
+            _ => continue,
         };
         let profile = NewProfile {
             name: item.name,
@@ -117,4 +129,50 @@ pub fn import_profiles(db: &Database, key: &[u8; 32], path: &Path) -> Result<usi
     }
 
     Ok(added)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{NewProfile, Protocol};
+
+    #[test]
+    fn export_never_contains_secrets() {
+        let db = Database::open(":memory:").expect("открытие тестовой БД");
+        db.init_master("master").expect("создание мастер-пароля");
+        let key = db.unlock("master").expect("разблокировка");
+
+        let profile = NewProfile {
+            name: "secret-profile".to_string(),
+            protocol: Some(Protocol::Ssh),
+            host: "example.org".to_string(),
+            port: 22,
+            username: Some("alice".to_string()),
+            password: Some("password-secret".to_string()),
+            ssh_key_passphrase: Some("passphrase-secret".to_string()),
+            root_password: Some("root-secret".to_string()),
+            ..Default::default()
+        };
+        db.add_profile(&key, &profile).expect("добавление профиля");
+
+        let path = std::env::temp_dir().join(format!(
+            "remotix-export-secrets-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        export_profiles(&db, &key, &path).expect("экспорт профилей");
+        let text = std::fs::read_to_string(&path).expect("чтение экспорта");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(!text.contains("password-secret"));
+        assert!(!text.contains("passphrase-secret"));
+        assert!(!text.contains("root-secret"));
+        assert!(!text.contains("password"));
+        assert!(!text.contains("passphrase"));
+        assert!(text.contains("secret-profile"));
+        assert!(text.contains("alice"));
+    }
 }

@@ -11,6 +11,7 @@ use std::rc::Rc;
 
 use gtk4::prelude::*;
 use gtk4::{Application, ApplicationWindow, Button, Label, PasswordEntry};
+use zeroize::Zeroize;
 
 use crate::db::repository::Database;
 
@@ -120,31 +121,43 @@ impl MasterPasswordDialog {
             let status = status.clone();
 
             Rc::new(move || {
-                let entered = password.text().to_string();
+                let mut entered = password.text().to_string();
 
                 if db.meta_get("argon2_salt").is_none()
                     && entered != confirm.text().to_string()
                 {
+                    entered.zeroize();
                     status.set_text("Пароли не совпадают");
                     return;
                 }
 
                 match unlock_with_password(&db, &entered) {
                     Ok(key) => {
+                        entered.zeroize();
+                        password.set_text("");
+                        confirm.set_text("");
                         let cb = callback.borrow_mut().take();
                         if let Some(cb) = cb {
                             cb(db.clone(), key);
                         }
                         window.destroy();
                     }
-                    Err(e) => status.set_text(&e),
+                    Err(e) => {
+                        entered.zeroize();
+                        status.set_text(&e);
+                    }
                 }
             })
         };
 
         // Автоматический сценарий без графического интерфейса.
-        if let Ok(master) = std::env::var("REMOTIX_MASTER_PASSWORD") {
-            if let Ok(key) = unlock_with_password(&db, &master) {
+        if let Ok(mut master) = std::env::var("REMOTIX_MASTER_PASSWORD") {
+            let unlocked = unlock_with_password(&db, &master);
+            master.zeroize();
+            // Переменная окружения — тоже секрет; после первого чтения она
+            // больше не нужна (например, при перезапуске по Ctrl+L).
+            std::env::remove_var("REMOTIX_MASTER_PASSWORD");
+            if let Ok(key) = unlocked {
                 let cb = callback.borrow_mut().take();
                 if let Some(cb) = cb {
                     cb(db.clone(), key);

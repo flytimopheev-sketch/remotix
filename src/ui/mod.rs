@@ -1,5 +1,6 @@
 pub mod connection_dialog;
 pub mod history_tab;
+pub mod host_key;
 pub mod main_window;
 pub mod master_password;
 pub mod profile_editor;

@@ -310,6 +310,15 @@ impl MainWindow {
         }
     }
 
+    /// Стирает расшифрованные профили из памяти при блокировке.
+    ///
+    /// Активные вкладки сессий уже держат собственные копии профиля и
+    /// продолжают работать; их секреты очистятся при закрытии вкладки.
+    pub fn lock_secrets(&self) {
+        self.profiles.borrow_mut().clear();
+        crate::ui::clear_list(&self.sidebar);
+    }
+
     /// Перечитывает профили из базы и обновляет боковую панель.
     pub fn refresh_profiles(&self) {
         let key = self.state.unlocked_key();
@@ -755,6 +764,7 @@ fn build_main_menu() -> gio::Menu {
     profiles.append(Some("Новый профиль"), Some("win.new-profile"));
     profiles.append(Some("Дублировать профиль"), Some("win.duplicate-profile"));
     profiles.append(Some("Удалить профиль"), Some("win.delete-profile"));
+    profiles.append(Some("Импорт подключений…"), Some("win.import"));
     menu.append_section(None, &profiles);
 
     let services = gio::Menu::new();

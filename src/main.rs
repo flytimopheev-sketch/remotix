@@ -19,6 +19,7 @@
 mod app;
 mod config;
 mod db;
+mod import;
 mod models;
 mod profiles_io;
 mod protocols;

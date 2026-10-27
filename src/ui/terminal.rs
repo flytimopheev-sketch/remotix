@@ -15,8 +15,7 @@ use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::{Box as GtkBox, CssProvider, EventControllerKey, Label, ScrolledWindow, TextView};
 
-use crate::protocols::ssh::SshConnection;
-use crate::protocols::Connection;
+use crate::protocols::ssh::{HostKeyConfig, HostKeyPrompt, SshConnection};
 
 const PROMPT_MS: u64 = 10;
 const BASE_FONT_PX: f64 = 12.0;
@@ -600,11 +599,24 @@ impl TerminalTab {
 
         let (tx_in, rx_in) = mpsc::channel::<ToThread>();
         let (tx_out, rx_out) = mpsc::channel::<ToUi>();
+        let (tx_hk_prompt, rx_hk_prompt) = mpsc::channel::<HostKeyPrompt>();
+        let (tx_hk_answer, rx_hk_answer) = mpsc::channel::<bool>();
 
         // Поток: подключение, shell/su → root, неблокирующий цикл обмена.
         std::thread::spawn(move || {
             let mut conn = conn;
-            if let Err(e) = conn.connect() {
+            let verifier = move |prompt: &HostKeyPrompt| {
+                tx_hk_prompt.send(prompt.clone()).is_ok()
+                    && rx_hk_answer
+                        .recv_timeout(Duration::from_secs(300))
+                        .unwrap_or(false)
+            };
+            let host_key = HostKeyConfig {
+                accept_new: false,
+                verifier: Some(&verifier),
+                ..Default::default()
+            };
+            if let Err(e) = conn.connect_with(&host_key) {
                 let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Failed(e)));
                 return;
             }
@@ -625,7 +637,7 @@ impl TerminalTab {
                     wait_password(
                         &mut ch,
                         &mut session,
-                        conn.profile.root_password.clone().unwrap_or_default(),
+                        conn.profile.root_password.as_deref().unwrap_or_default(),
                     )?;
                 } else {
                     ch.shell().map_err(|e| e.to_string())?;
@@ -645,7 +657,15 @@ impl TerminalTab {
 
             session.set_blocking(false);
             let mut buf = [0u8; 8192];
+            let mut last_keepalive = std::time::Instant::now();
             loop {
+                // В неблокирующем режиме libssh2 не шлёт keepalive сам:
+                // раз в 5 секунд проверяем, не пора ли отправить пустой пакет
+                // (интервал задан в connect_with — 30 секунд).
+                if last_keepalive.elapsed() >= Duration::from_secs(5) {
+                    let _ = session.keepalive_send();
+                    last_keepalive = std::time::Instant::now();
+                }
                 match ch.read(&mut buf) {
                     Ok(0) => {
                         let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Closed));
@@ -713,6 +733,33 @@ impl TerminalTab {
             }
         });
         root.append(&status);
+
+        // Неизвестный ключ хоста: поток подключения ждёт ответа, диалог
+        // показываем в главном потоке GTK.
+        {
+            let tx_hk_answer = tx_hk_answer.clone();
+            let parent_weak = root.downgrade();
+            glib::timeout_add_local(Duration::from_millis(100), move || loop {
+                match rx_hk_prompt.try_recv() {
+                    Ok(prompt) => {
+                        let tx_answer = tx_hk_answer.clone();
+                        let parent = parent_weak
+                            .upgrade()
+                            .and_then(|widget| widget.root())
+                            .and_then(|root| root.downcast::<gtk4::Window>().ok());
+                        crate::ui::host_key::ask_unknown(
+                            parent.as_ref(),
+                            prompt,
+                            move |accepted| {
+                                let _ = tx_answer.send(accepted);
+                            },
+                        );
+                    }
+                    Err(mpsc::TryRecvError::Empty) => return glib::ControlFlow::Continue,
+                    Err(mpsc::TryRecvError::Disconnected) => return glib::ControlFlow::Break,
+                }
+            });
+        }
 
         setup_input(&term, &scroll, tx_in);
         Ok(Self {
@@ -824,7 +871,7 @@ fn setup_input(term: &Rc<TerminalView>, scroll: &ScrolledWindow, tx_in: Sender<T
 fn wait_password(
     ch: &mut ssh2::Channel,
     session: &mut ssh2::Session,
-    password: String,
+    password: &str,
 ) -> Result<(), String> {
     use std::io::{Read, Write};
     let mut buf = [0u8; 512];

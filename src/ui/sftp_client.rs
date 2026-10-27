@@ -28,9 +28,19 @@ pub struct SftpPanel {
 
 impl SftpPanel {
     pub fn new(profile: &Profile) -> Result<Self, String> {
+        Self::new_with_host_key(profile, &crate::protocols::ssh::HostKeyConfig::default())
+    }
+
+    /// Подключение с явной проверкой ключа хоста (терминал/SFTP используют
+    /// диалог подтверждения, тесты — временный known_hosts).
+    pub fn new_with_host_key(
+        profile: &Profile,
+        host_key: &crate::protocols::ssh::HostKeyConfig<'_>,
+    ) -> Result<Self, String> {
         // Способы входа (пароль, ключ, ssh-agent) те же, что у терминала.
-        let username = profile.username.clone().unwrap_or_else(|| "root".into());
-        let session = crate::protocols::ssh::connect_session(profile, &username)?;
+        let username = profile.username.as_deref().unwrap_or("root");
+        let session =
+            crate::protocols::ssh::connect_session_with(profile, username, host_key)?;
 
         // Начальный каталог — абсолютный путь домашнего каталога пользователя.
         // Относительные пути сервер SFTP разрешает от своего рабочего
@@ -49,6 +59,16 @@ impl SftpPanel {
             session: Some(session),
             dir_cache: HashMap::new(),
         })
+    }
+
+    /// Отправляет keepalive, если libssh2 считает, что пора.
+    ///
+    /// SFTP-поток работает в блокирующем режиме, но между операциями может
+    /// простаивать; явный вызов не даёт NAT забыть сессию.
+    pub fn keepalive(&self) {
+        if let Some(session) = self.session.as_ref() {
+            let _ = session.keepalive_send();
+        }
     }
 
     /// Текущий каталог сервера (абсолютный путь).
@@ -335,6 +355,16 @@ mod tests {
     use super::*;
     use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
     use crate::models::Protocol;
+    use crate::protocols::ssh::HostKeyConfig;
+
+    /// Временный known_hosts: тест не должен трогать файл пользователя.
+    struct TempKnownHosts(PathBuf);
+
+    impl Drop for TempKnownHosts {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
 
     /// Профиль тестового SFTP-сервера.
     fn test_profile() -> Profile {
@@ -373,7 +403,22 @@ mod tests {
             return;
         }
 
-        let mut panel = SftpPanel::new(&test_profile()).expect("подключение к SFTP-серверу");
+        let known_hosts = TempKnownHosts(std::env::temp_dir().join(format!(
+            "remotix-sftp-known-hosts-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        )));
+        let host_key = HostKeyConfig {
+            known_hosts: known_hosts.0.clone(),
+            accept_new: true,
+            verifier: None,
+        };
+        let profile = test_profile();
+        let mut panel = SftpPanel::new_with_host_key(&profile, &host_key)
+            .expect("подключение к SFTP-серверу");
 
         // Начальный каталог — абсолютный путь.
         let start = panel.remote_path();

@@ -24,12 +24,9 @@ impl Connection for VncConnection {
         if opts.via_ssh_tunnel {
             // VNC-трафик туннелируется через SSH (ssh2 crate):
             // локальный порт 59xx -> удалённый 5900.
-            let ssh_profile = Profile {
-                protocol: crate::models::Protocol::Ssh,
-                host: self.profile.host.clone(),
-                port: 22,
-                ..self.profile.clone()
-            };
+            let mut ssh_profile = self.profile.clone();
+            ssh_profile.protocol = crate::models::Protocol::Ssh;
+            ssh_profile.port = 22;
             let mut ssh = crate::protocols::ssh::SshConnection::new(ssh_profile);
             ssh.connect().map_err(|e| format!("не удалось поднять SSH-туннель: {e}"))?;
         }

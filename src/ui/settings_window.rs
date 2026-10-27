@@ -15,6 +15,7 @@ use crate::ui::theme;
 /// Окно настроек приложения.
 pub struct SettingsWindow {
     window: Window,
+    notebook: Notebook,
 }
 
 impl SettingsWindow {
@@ -86,12 +87,26 @@ impl SettingsWindow {
             });
         }
 
-        Self { window }
+        Self {
+            window,
+            notebook: notebook.clone(),
+        }
     }
 
     /// Показывает окно.
     pub fn present(&self) {
         self.window.present();
+    }
+
+    /// Показывает конкретную страницу (0 — оформление, 4 — профили).
+    pub fn present_page(&self, page: u32) {
+        self.notebook.set_current_page(Some(page));
+        self.window.present();
+    }
+
+    /// Открыто ли окно в данный момент.
+    pub fn is_visible(&self) -> bool {
+        self.window.is_visible()
     }
 }
 
@@ -453,24 +468,22 @@ fn profiles_page(state: &Rc<AppState>, parent: &Window) -> gtk4::Box {
     status.set_xalign(0.0);
     page.append(&status);
 
-    let export = Button::with_label("Экспортировать профили в JSON…");
-    let import = Button::with_label("Импортировать профили из JSON…");
-    page.append(&export);
-    page.append(&import);
-
     let hint = Label::new(Some(
         "Экспорт сохраняет адреса, порты, протоколы и параметры, но не пароли — \
-         их придётся ввести заново. Импорт добавляет новые профили, не заменяя \
-         существующие.",
+         их придётся ввести заново. Импорт сначала показывает предпросмотр: \
+         сколько профилей будет добавлено и почему остальные пропущены. \
+         Пароли не импортируются никогда.",
     ));
     hint.set_wrap(true);
     hint.set_xalign(0.0);
     hint.add_css_class("remotix-field-caption");
     page.append(&hint);
 
+    let export = Button::with_label("Экспортировать профили в JSON…");
+    page.append(&export);
+
     // --- Экспорт ---
     {
-        let export = export.clone();
         let state = state.clone();
         let status = status.clone();
         let parent = parent.clone();
@@ -502,39 +515,18 @@ fn profiles_page(state: &Rc<AppState>, parent: &Window) -> gtk4::Box {
         });
     }
 
-    // --- Импорт ---
-    {
-        let import = import.clone();
-        let state = state.clone();
-        let status = status.clone();
-        let parent = parent.clone();
-        import.connect_clicked(move |_| {
-            let chooser = gtk4::FileChooserNative::new(
-                Some("Импорт профилей"),
-                Some(&parent),
-                gtk4::FileChooserAction::Open,
-                Some("Импортировать"),
-                Some("Отмена"),
-            );
-            chooser.set_filter(&gtk4::FileFilter::new());
+    page.append(&gtk4::Separator::new(gtk4::Orientation::Horizontal));
 
-            let state = state.clone();
-            let status = status.clone();
-            chooser.connect_response(move |chooser, response| {
-                if response == gtk4::ResponseType::Accept {
-                    if let Some(path) = chooser.file().and_then(|f| f.path()) {
-                        let key = state.unlocked_key();
-                        match crate::profiles_io::import_profiles(&state.db, &key, &path) {
-                            Ok(n) => status.set_text(&format!("Импортировано профилей: {n}")),
-                            Err(e) => status.set_text(&e),
-                        }
-                    }
-                }
-                chooser.destroy();
-            });
-            chooser.show();
-        });
-    }
+    let import_title = Label::new(Some("Импорт из стандартных источников"));
+    import_title.add_css_class("remotix-section-title");
+    page.append(&import_title);
+
+    page.append(&crate::import::ui::build(
+        state,
+        parent,
+        &status,
+        Rc::new(|| crate::app::refresh_main_profiles()),
+    ));
 
     page
 }

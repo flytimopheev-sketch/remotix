@@ -2,6 +2,7 @@ use aes_gcm::aead::{Aead, KeyInit, OsRng};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use argon2::Argon2;
 use rand::RngCore;
+use zeroize::Zeroizing;
 
 /// Размер соли Argon2id (байты).
 pub const SALT_LEN: usize = 16;
@@ -53,7 +54,10 @@ pub fn encrypt(key: &[u8; 32], plaintext: &[u8]) -> Vec<u8> {
 }
 
 /// Расшифровывает данные AES-256-GCM (nonce || ciphertext).
-pub fn decrypt(key: &[u8; 32], blob: &[u8]) -> Result<Vec<u8>, String> {
+///
+/// Результат обёрнут в `Zeroizing`: расшифрованный пароль/логин не остаётся
+/// в куче после того, как вызывающий код преобразовал его в `String`.
+pub fn decrypt(key: &[u8; 32], blob: &[u8]) -> Result<Zeroizing<Vec<u8>>, String> {
     if blob.len() < NONCE_LEN {
         return Err("повреждённый шифротекст".into());
     }
@@ -61,6 +65,7 @@ pub fn decrypt(key: &[u8; 32], blob: &[u8]) -> Result<Vec<u8>, String> {
     let (nonce_bytes, ct) = blob.split_at(NONCE_LEN);
     cipher
         .decrypt(Nonce::from_slice(nonce_bytes), ct)
+        .map(Zeroizing::new)
         .map_err(|_| "неверный мастер-пароль или повреждённые данные".to_string())
 }
 
@@ -101,7 +106,7 @@ mod tests {
     fn encrypt_decrypt_roundtrip() {
         let key = derive_key("master", &new_salt(), &test_params());
         let blob = encrypt(&key, b"secret");
-        assert_eq!(decrypt(&key, &blob).unwrap(), b"secret");
+        assert_eq!(&*decrypt(&key, &blob).unwrap(), b"secret");
     }
 
     #[test]

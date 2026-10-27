@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.5.8
+Version:        1.6.0
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
 License:        MIT
@@ -68,6 +68,15 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Tue Oct 27 2026 Remotix Team <flytimopheev@gmail.com> - 1.6.0
+- SSH: строгая проверка ключа хоста, диалог с SHA256-отпечатком, запрет
+  изменённых ключей, безопасное дополнение known_hosts
+- SSH: тайм-ауты подключения и рукопожатия, keepalive для долгих сеансов
+- Секреты: скрытие в Debug, затирание памяти, очистка при блокировке
+- Импорт профилей из ~/.ssh/config, Remmina, файлов .rdp и JSON Remotix
+- Предпросмотр импорта с числом добавляемых/пропущенных и причинами
+- Защита от дублей по протоколу, хосту, порту и логину; пароли не
+  импортируются и не экспортируются
 * Fri Oct 23 2026 Remotix Team <flytimopheev@gmail.com> - 1.5.8
 - SFTP: одиночный щелчок только выделяет, вход — двойным щелчком или Enter
 - Список профилей: одиночный щелчок выбирает профиль, подключение — двойным

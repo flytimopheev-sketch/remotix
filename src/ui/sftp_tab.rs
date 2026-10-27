@@ -25,6 +25,7 @@ use gtk4::prelude::*;
 use gtk4::{glib, Box as GtkBox, Label, ListBox, ListBoxRow, Paned, ScrolledWindow};
 
 use crate::models::Profile;
+use crate::protocols::ssh::{HostKeyConfig, HostKeyPrompt};
 use crate::ui::sftp_client::{local_list as list_local_dir, Entry, SftpPanel};
 use crate::ui::SessionState;
 
@@ -169,6 +170,8 @@ impl SftpTab {
 
         let (tx_ui, rx_ui) = mpsc::channel::<ToUi>();
         let (tx_sftp, rx_sftp) = mpsc::channel::<ToSftp>();
+        let (tx_hk_prompt, rx_hk_prompt) = mpsc::channel::<HostKeyPrompt>();
+        let (tx_hk_answer, rx_hk_answer) = mpsc::channel::<bool>();
 
         // Текущий локальный каталог — общий для интерфейса и потока.
         let local_dir = Arc::new(Mutex::new(crate::config::home_dir()));
@@ -228,7 +231,18 @@ impl SftpTab {
             let tx_ui = tx_ui.clone();
             let local_dir = local_dir.clone();
             std::thread::spawn(move || {
-                let mut panel = match SftpPanel::new(&profile) {
+                let verifier = move |prompt: &HostKeyPrompt| {
+                    tx_hk_prompt.send(prompt.clone()).is_ok()
+                        && rx_hk_answer
+                            .recv_timeout(Duration::from_secs(300))
+                            .unwrap_or(false)
+                };
+                let host_key = HostKeyConfig {
+                    accept_new: false,
+                    verifier: Some(&verifier),
+                    ..Default::default()
+                };
+                let mut panel = match SftpPanel::new_with_host_key(&profile, &host_key) {
                     Ok(p) => p,
                     Err(e) => {
                         let _ = tx_ui.send(ToUi::Error(format!("Не удалось подключиться: {e}")));
@@ -244,6 +258,7 @@ impl SftpTab {
                 let mut last_error: Option<String> = None;
 
                 loop {
+                    panel.keepalive();
                     // Ждём команду, но просыпаемся и сами, чтобы заметить
                     // изменения каталога, сделанные снаружи.
                     let first = match rx_sftp.recv_timeout(Duration::from_millis(1000)) {
@@ -321,6 +336,32 @@ impl SftpTab {
                         }
                         Err(_) => return glib::ControlFlow::Continue,
                     }
+                }
+            });
+        }
+
+        // ---------------- Проверка ключа SSH-хоста ----------------
+        {
+            let tx_hk_answer = tx_hk_answer.clone();
+            let parent_weak = root.downgrade();
+            glib::timeout_add_local(Duration::from_millis(100), move || loop {
+                match rx_hk_prompt.try_recv() {
+                    Ok(prompt) => {
+                        let tx_answer = tx_hk_answer.clone();
+                        let parent = parent_weak
+                            .upgrade()
+                            .and_then(|widget| widget.root())
+                            .and_then(|root| root.downcast::<gtk4::Window>().ok());
+                        crate::ui::host_key::ask_unknown(
+                            parent.as_ref(),
+                            prompt,
+                            move |accepted| {
+                                let _ = tx_answer.send(accepted);
+                            },
+                        );
+                    }
+                    Err(mpsc::TryRecvError::Empty) => return glib::ControlFlow::Continue,
+                    Err(mpsc::TryRecvError::Disconnected) => return glib::ControlFlow::Break,
                 }
             });
         }
