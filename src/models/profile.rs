@@ -1,7 +1,7 @@
 use std::fmt;
 
+use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroize;
 
 /// Протокол подключения.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,6 +58,10 @@ pub struct RdpOptions {
     /// Аутентификация NLA (CredSSP). Современные серверы Windows требуют её.
     #[serde(default = "default_true")]
     pub nla: bool,
+    /// Разрешить Standard RDP Security (RC4 без TLS). По умолчанию выключено:
+    /// этот режим не защищает от подмены сервера и считается устаревшим.
+    #[serde(default)]
+    pub allow_legacy_security: bool,
 }
 
 fn default_color_depth() -> u32 {
@@ -82,6 +86,7 @@ impl Default for RdpOptions {
             clipboard_to_remote: true,
             clipboard_from_remote: true,
             nla: true,
+            allow_legacy_security: false,
         }
     }
 }
@@ -127,14 +132,16 @@ pub struct Profile {
     pub host: String,
     pub port: u16,
     pub username: Option<String>,
-    #[serde(default, skip_serializing)]
-    pub password: Option<String>,
+    /// Пароль. Секрет не попадает в Debug и сериализацию, память затирается.
+    #[serde(skip)]
+    pub password: Option<SecretString>,
     pub ssh_key_path: Option<String>,
-    #[serde(default, skip_serializing)]
-    pub ssh_key_passphrase: Option<String>,
+    /// Пароль ключа SSH. Хранится как SecretString, а не как обычная строка.
+    #[serde(skip)]
+    pub ssh_key_passphrase: Option<SecretString>,
     /// Пароль root для двухступенчатого входа (su) — зашифрован.
-    #[serde(default, skip_serializing)]
-    pub root_password: Option<String>,
+    #[serde(skip)]
+    pub root_password: Option<SecretString>,
     pub group_id: Option<i64>,
     #[serde(default)]
     pub tags: Vec<String>,
@@ -196,10 +203,10 @@ pub struct NewProfile {
     pub host: String,
     pub port: u16,
     pub username: Option<String>,
-    pub password: Option<String>,
+    pub password: Option<SecretString>,
     pub ssh_key_path: Option<String>,
-    pub ssh_key_passphrase: Option<String>,
-    pub root_password: Option<String>,
+    pub ssh_key_passphrase: Option<SecretString>,
+    pub root_password: Option<SecretString>,
     pub group_id: Option<i64>,
     pub tags: Vec<String>,
     pub icon: Option<String>,
@@ -242,20 +249,6 @@ impl fmt::Debug for NewProfile {
     }
 }
 
-fn zeroize_opt(value: &mut Option<String>) {
-    if let Some(secret) = value {
-        secret.zeroize();
-    }
-}
-
-impl Drop for Profile {
-    fn drop(&mut self) {
-        zeroize_opt(&mut self.password);
-        zeroize_opt(&mut self.ssh_key_passphrase);
-        zeroize_opt(&mut self.root_password);
-    }
-}
-
 /// Группа подключений.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewGroup {
@@ -289,10 +282,10 @@ mod tests {
             host: "example.org".to_string(),
             port: 22,
             username: Some("alice".to_string()),
-            password: Some("password-secret".to_string()),
+            password: Some(SecretString::from("password-secret".to_string())),
             ssh_key_path: None,
-            ssh_key_passphrase: Some("passphrase-secret".to_string()),
-            root_password: Some("root-secret".to_string()),
+            ssh_key_passphrase: Some(SecretString::from("passphrase-secret".to_string())),
+            root_password: Some(SecretString::from("root-secret".to_string())),
             group_id: None,
             tags: vec![],
             icon: None,
@@ -327,10 +320,18 @@ mod tests {
     }
 
     #[test]
+    fn legacy_rdp_security_is_off_by_default() {
+        let options: RdpOptions =
+            serde_json::from_str("{}").expect("старый JSON без новых полей");
+        assert!(options.nla);
+        assert!(!options.allow_legacy_security);
+    }
+
+    #[test]
     fn debug_redacts_new_profile_secrets() {
         let profile = NewProfile {
-            password: Some("password-secret".to_string()),
-            root_password: Some("root-secret".to_string()),
+            password: Some(SecretString::from("password-secret".to_string())),
+            root_password: Some(SecretString::from("root-secret".to_string())),
             ..Default::default()
         };
         let text = format!("{profile:?}");

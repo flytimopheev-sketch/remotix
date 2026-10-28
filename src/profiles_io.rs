@@ -140,6 +140,7 @@ pub fn import_profiles(db: &Database, key: &[u8; 32], path: &Path) -> Result<usi
 mod tests {
     use super::*;
     use crate::models::{NewProfile, Protocol};
+    use secrecy::SecretString;
 
     #[test]
     fn export_never_contains_secrets() {
@@ -153,9 +154,9 @@ mod tests {
             host: "example.org".to_string(),
             port: 22,
             username: Some("alice".to_string()),
-            password: Some("password-secret".to_string()),
-            ssh_key_passphrase: Some("passphrase-secret".to_string()),
-            root_password: Some("root-secret".to_string()),
+            password: Some(SecretString::from("password-secret".to_string())),
+            ssh_key_passphrase: Some(SecretString::from("passphrase-secret".to_string())),
+            root_password: Some(SecretString::from("root-secret".to_string())),
             mac_address: Some("AA:BB:CC:DD:EE:FF".to_string()),
             ..Default::default()
         };

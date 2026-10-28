@@ -332,7 +332,10 @@ impl SftpTab {
                             on_state(SessionState::Connected);
                         }
                         Ok(ToUi::Error(e)) => {
-                            status_out.set_text(&e);
+                            status_out.set_text(&crate::logging::sanitize(&e));
+                            if crate::protocols::ssh::is_host_key_mismatch(&e) {
+                                on_state(SessionState::Failed(e.clone()));
+                            }
                         }
                         Err(_) => return glib::ControlFlow::Continue,
                     }

@@ -31,9 +31,9 @@ pub fn db_path() -> PathBuf {
 pub fn init_dirs() {
     let dir = data_dir();
     if let Err(e) = std::fs::create_dir_all(&dir) {
-        eprintln!(
-            "Remotix: не удалось создать каталог данных {}: {e}",
+        crate::logging::warn(&format!(
+            "не удалось создать каталог данных {}: {e}",
             dir.display()
-        );
+        ));
     }
 }

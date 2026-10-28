@@ -220,7 +220,9 @@ impl RdpViewer {
                                     hint.set_visible(false);
                                 }
                                 Err(e) => {
-                                    eprintln!("Remotix: не удалось подготовить кадр RDP: {e}");
+                                    crate::logging::warn(&format!(
+                                        "не удалось подготовить кадр RDP: {e}"
+                                    ));
                                 }
                             }
                         }

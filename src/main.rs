@@ -21,6 +21,7 @@ mod config;
 mod db;
 mod host_check;
 mod import;
+mod logging;
 mod models;
 mod profiles_io;
 mod protocols;

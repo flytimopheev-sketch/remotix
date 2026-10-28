@@ -2550,6 +2550,7 @@ dependencies = [
  "rand 0.8.8",
  "rusqlite",
  "rustls",
+ "secrecy",
  "serde",
  "serde_json",
  "ssh2",

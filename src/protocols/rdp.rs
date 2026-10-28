@@ -1,9 +1,19 @@
-use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::io::{self, Read, Write};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use secrecy::ExposeSecret;
 
 use crate::models::Profile;
 use crate::protocols::Connection;
+
+/// Общий дедлайн на TCP-подключение к RDP-серверу.
+const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Тайм-аут чтения/записи во время рукопожатия RDP.
+const RDP_IO_TIMEOUT: Duration = Duration::from_secs(30);
+/// Быстрая проверка баннера не должна задерживать сообщение об ошибке.
+const RDP_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Флаги канала RDP-буфера обмена (cliprdr, VirtualChannel CLIPRDR).
 /// Передаются в настройки IronRDP при создании коннектора.
@@ -440,34 +450,29 @@ impl Connection for RdpConnection {
 
     fn connect(&mut self) -> Result<(), String> {
         // Порядок попыток: сначала NLA (CredSSP) — так требуют Windows 10/11
-        // и RDS; затем NLA+TLS; затем только TLS — для серверов без NLA;
-        // последняя попытка — Standard RDP Security (RC4 без TLS) для старых
-        // серверов и xrdp с security_layer=rdp.
+        // и RDS; затем NLA+TLS; затем только TLS — для серверов без NLA.
+        // Standard RDP Security (RC4 без TLS) пробуем только при явном
+        // разрешении в профиле: молчаливый откат на устаревший режим
+        // недопустим (нет проверки сервера, слабое шифрование).
         let nla = self.profile.rdp_options.nla;
-        let modes: &[(bool, bool, bool)] = if nla {
-            &[
-                (true, false, false),
-                (true, true, false),
-                (false, true, false),
-                (false, false, true),
-            ]
-        } else {
-            &[(false, true, false), (true, true, false), (false, false, true)]
-        };
+        let allow_legacy = self.profile.rdp_options.allow_legacy_security;
+        let modes = security_modes(nla, allow_legacy);
 
         let mut errors: Vec<String> = Vec::new();
         for (credssp, tls, legacy) in modes {
-            match self.connect_with(*credssp, *tls, *legacy) {
+            match self.connect_with(credssp, tls, legacy) {
                 Ok(()) => return Ok(()),
                 Err(e) => {
-                    eprintln!("Remotix: режим (NLA={credssp}, TLS={tls}, RC4={legacy}) не сработал: {e}");
+                    crate::logging::warn(&format!(
+                        "режим RDP (NLA={credssp}, TLS={tls}, RC4={legacy}) не сработал: {e}"
+                    ));
                     errors.push(e);
                 }
             }
         }
 
         let addr = format!("{}:{}", self.profile.host, self.profile.port);
-        let banner = probe_rdp_banner(&addr);
+        let banner = probe_rdp_banner(&self.profile.host, self.profile.port);
         // Самое важное — в начало: строка состояния показывает сообщение
         // обрезанным, и пользователь должен сразу увидеть причину.
         let mut message = String::new();
@@ -477,15 +482,22 @@ impl Connection for RdpConnection {
                  Проверьте порт (по умолчанию 3389) и адрес узла. "
             ));
         }
-        if errors
+        let standard_security_error = errors
             .iter()
-            .any(|e| e.contains("standard RDP security") || e.contains("Standard RDP Security"))
-        {
+            .any(|e| e.contains("standard RDP security") || e.contains("Standard RDP Security"));
+        if standard_security_error && allow_legacy {
             message.push_str(
                 "Сервер работает только со Standard RDP Security (шифр RC4), и подключиться \
                  в этом режиме не удалось. Проверьте логин/пароль, а также настройки сервера: \
                  в xrdp — security_layer=rdp и права пользователя; в Windows — «Уровень \
                  безопасности: RDP» и членство в группе удалённых рабочих столов. ",
+            );
+        } else if !allow_legacy && (standard_security_error || banner.is_none()) {
+            message.push_str(
+                "Если сервер поддерживает только Standard RDP Security (устаревший RC4 \
+                 без TLS), включите в свойствах профиля «Разрешить незащищённый RDP (RC4)». \
+                 Этот режим не проверяет подлинность сервера — используйте его только \
+                 в доверенной сети. ",
             );
         }
         // Ошибки соединяем в одну строку: в строке состояния переносы
@@ -509,11 +521,9 @@ impl Connection for RdpConnection {
 ///
 /// Возвращает баннер сервера, если это не RDP (например, «SSH-2.0-OpenSSH…»
 /// или текст HTTP-ошибки), — по нему видно, что указан неверный порт.
-fn probe_rdp_banner(addr: &str) -> Option<String> {
-    use std::time::Duration;
-
-    let mut stream = TcpStream::connect(addr).ok()?;
-    stream.set_read_timeout(Some(Duration::from_secs(3))).ok()?;
+fn probe_rdp_banner(host: &str, port: u16) -> Option<String> {
+    let mut stream = tcp_connect(host, port, RDP_PROBE_TIMEOUT).ok()?;
+    stream.set_read_timeout(Some(RDP_PROBE_TIMEOUT)).ok()?;
     let mut buf = [0u8; 64];
     let n = stream.read(&mut buf).ok()?;
     if n == 0 {
@@ -530,6 +540,51 @@ fn probe_rdp_banner(addr: &str) -> Option<String> {
     } else {
         Some(text)
     }
+}
+
+/// Режимы безопасности RDP в порядке попыток.
+///
+/// Standard RDP Security (RC4) попадает в список только при явном разрешении:
+/// иначе даже последняя попытка остаётся с TLS/NLA.
+fn security_modes(nla: bool, allow_legacy: bool) -> Vec<(bool, bool, bool)> {
+    let mut modes = if nla {
+        vec![
+            (true, false, false),
+            (true, true, false),
+            (false, true, false),
+        ]
+    } else {
+        vec![(false, true, false), (true, true, false)]
+    };
+    if allow_legacy {
+        modes.push((false, false, true));
+    }
+    modes
+}
+
+/// TCP-подключение с общим дедлайном на все адреса хоста.
+///
+/// `TcpStream::connect` использует системный тайм-аут: при выключенном хосте
+/// это могут быть минуты. Здесь каждый адрес получает только оставшееся время.
+fn tcp_connect(host: &str, port: u16, timeout: Duration) -> io::Result<TcpStream> {
+    let addrs = (host, port).to_socket_addrs()?;
+    let deadline = Instant::now() + timeout;
+    let mut last_error = None;
+
+    for addr in addrs {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        match TcpStream::connect_timeout(&addr, remaining) {
+            Ok(stream) => return Ok(stream),
+            Err(error) => last_error = Some(error),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        io::Error::new(io::ErrorKind::TimedOut, "истёк тайм-аут подключения")
+    }))
 }
 
 /// Разворачивает цепочку ошибок IronRDP в читаемый текст: помимо контекста
@@ -560,14 +615,22 @@ impl RdpConnection {
     fn connect_with(&mut self, credssp: bool, tls: bool, legacy: bool) -> Result<(), String> {
         let opts = &self.profile.rdp_options;
 
-        // 1. TCP-подключение к RDP-серверу
+        // 1. TCP-подключение к RDP-серверу. connect_timeout не даёт окну
+        //    висеть на системном тайм-ауте, если хост выключен или молчит.
         let addr = format!("{}:{}", self.profile.host, self.profile.port);
-        let tcp_stream = TcpStream::connect(&addr).map_err(|e| {
-            format!(
-                "не удалось подключиться к {addr}: {e}\n\
-                 Проверьте адрес и порт (по умолчанию 3389) и доступность узла."
-            )
-        })?;
+        let tcp_stream = tcp_connect(&self.profile.host, self.profile.port, RDP_CONNECT_TIMEOUT)
+            .map_err(|e| {
+                format!(
+                    "не удалось подключиться к {addr}: {e}\n\
+                     Проверьте адрес и порт (по умолчанию 3389) и доступность узла."
+                )
+            })?;
+        tcp_stream
+            .set_read_timeout(Some(RDP_IO_TIMEOUT))
+            .map_err(|e| format!("не удалось задать тайм-аут чтения: {e}"))?;
+        tcp_stream
+            .set_write_timeout(Some(RDP_IO_TIMEOUT))
+            .map_err(|e| format!("не удалось задать тайм-аут записи: {e}"))?;
 
         let client_addr = tcp_stream
             .local_addr()
@@ -578,7 +641,12 @@ impl RdpConnection {
 
         // 3. Формируем конфигурацию коннектора IronRDP
         let username = self.profile.username.as_deref().ok_or("не указан логин")?;
-        let password = self.profile.password.as_deref().unwrap_or("");
+        let password = self
+            .profile
+            .password
+            .as_ref()
+            .map(|p| p.expose_secret())
+            .unwrap_or("");
         let domain = if opts.domain.is_empty() {
             None
         } else {
@@ -737,7 +805,7 @@ impl RdpConnection {
             Some(stage) => match stage.secure_outgoing_frame(frame) {
                 Ok(frame) => frame,
                 Err(e) => {
-                    eprintln!("Remotix: не удалось зашифровать кадр ввода: {e}");
+                    crate::logging::warn(&format!("не удалось зашифровать кадр ввода: {e}"));
                     return;
                 }
             },
@@ -853,6 +921,7 @@ mod tests {
     use super::*;
     use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
     use crate::models::Protocol;
+    use secrecy::SecretString;
     use std::time::Duration;
 
     /// Профиль для тестового RDP-сервера.
@@ -864,7 +933,7 @@ mod tests {
             host: "127.0.0.1".to_string(),
             port: 3389,
             username: Some("tester".to_string()),
-            password: Some("secret".to_string()),
+            password: Some(SecretString::from("secret".to_string())),
             ssh_key_path: None,
             ssh_key_passphrase: None,
             root_password: None,
@@ -883,6 +952,23 @@ mod tests {
             created_at: 0,
             updated_at: 0,
             last_connected_at: None,
+        }
+    }
+
+    #[test]
+    fn legacy_security_requires_explicit_opt_in() {
+        for nla in [true, false] {
+            let modes = security_modes(nla, false);
+            assert!(
+                modes.iter().all(|(_, _, legacy)| !legacy),
+                "RC4 не должен включаться без разрешения (NLA={nla})"
+            );
+
+            let modes = security_modes(nla, true);
+            assert!(
+                modes.contains(&(false, false, true)),
+                "с разрешением должен быть режим Standard RDP Security"
+            );
         }
     }
 

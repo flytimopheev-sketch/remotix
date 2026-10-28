@@ -20,6 +20,8 @@ aes-gcm = "0.10"
 rand = "0.8"
 base64 = "0.22"
 zeroize = "1"
+# SecretString: секреты не попадают в Debug/Display, копии затираются при drop.
+secrecy = "0.10"
 ssh2 = "0.9"
 chrono = "0.4"
 # Динамическая загрузка VTE для GTK4 (libvte-2.91-gtk4.so.0) во время

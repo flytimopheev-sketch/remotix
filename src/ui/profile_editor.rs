@@ -12,6 +12,7 @@ use gtk4::{
     glib, Adjustment, Button, DropDown, Entry, Grid, Image, Label, PasswordEntry, SpinButton,
     StringList, Switch, Window,
 };
+use secrecy::{ExposeSecret, SecretString};
 
 use crate::app::AppState;
 use crate::models::{NewProfile, Protocol};
@@ -51,7 +52,7 @@ impl ProfileEditor {
                 None => "Новое подключение",
             })
             .default_width(620)
-            .default_height(560)
+            .default_height(620)
             .modal(true)
             .build();
 
@@ -113,6 +114,13 @@ impl ProfileEditor {
             ]))
             .selected(0)
             .build();
+        let legacy_rdp = Switch::new();
+        legacy_rdp.set_active(false);
+        legacy_rdp.set_tooltip_text(Some(
+            "Standard RDP Security: шифрование RC4 без TLS и без проверки \
+             подлинности сервера. Включайте только для доверенных сетей и \
+             старых серверов, которые не поддерживают NLA/TLS.",
+        ));
 
         // Значения по умолчанию берём из настроек приложения.
         let settings = crate::settings::Settings::new(state.db.clone());
@@ -132,7 +140,7 @@ impl ProfileEditor {
                 user.set_text(u);
             }
             if let Some(pw) = p.password.as_ref() {
-                password.set_text(pw);
+                password.set_text(pw.expose_secret());
             }
             if let Some(mac_address) = p.mac_address.as_ref() {
                 mac.set_text(mac_address);
@@ -142,7 +150,7 @@ impl ProfileEditor {
             }
             su_to_root.set_active(p.ssh_options.su_to_root);
             if let Some(rp) = p.root_password.as_ref() {
-                root_password.set_text(rp);
+                root_password.set_text(rp.expose_secret());
             }
             if !p.rdp_options.domain.is_empty() {
                 domain.set_text(&p.rdp_options.domain);
@@ -156,6 +164,7 @@ impl ProfileEditor {
                 _ => 0,
             };
             resolution.set_selected(idx);
+            legacy_rdp.set_active(p.rdp_options.allow_legacy_security);
         } else {
             port.set_value(f64::from(Protocol::Ssh.default_port()));
             // Разрешение экрана по умолчанию — из настроек приложения.
@@ -206,6 +215,12 @@ impl ProfileEditor {
         let cap_root_pw = add_field(&extra_grid, 2, "Пароль root:", &root_password);
         let cap_domain = add_field(&extra_grid, 3, "Домен (RDP):", &domain);
         let cap_res = add_field(&extra_grid, 4, "Разрешение экрана (RDP):", &resolution);
+        let cap_legacy = add_field(
+            &extra_grid,
+            5,
+            "Разрешить незащищённый RDP (RC4):",
+            &legacy_rdp,
+        );
 
         name.set_hexpand(true);
         host.set_hexpand(true);
@@ -267,11 +282,13 @@ impl ProfileEditor {
             let root_password = root_password.clone();
             let domain = domain.clone();
             let resolution = resolution.clone();
+            let legacy_rdp = legacy_rdp.clone();
             let cap_key = cap_key.clone();
             let cap_su = cap_su.clone();
             let cap_root_pw = cap_root_pw.clone();
             let cap_domain = cap_domain.clone();
             let cap_res = cap_res.clone();
+            let cap_legacy = cap_legacy.clone();
             Rc::new(move |protocol_index: u32| {
                 let is_ssh = protocol_index == 0;
                 let is_rdp = protocol_index == 1;
@@ -286,6 +303,8 @@ impl ProfileEditor {
                 cap_domain.set_visible(is_rdp);
                 resolution.set_visible(is_rdp);
                 cap_res.set_visible(is_rdp);
+                legacy_rdp.set_visible(is_rdp);
+                cap_legacy.set_visible(is_rdp);
             })
         };
 
@@ -329,6 +348,7 @@ impl ProfileEditor {
             let root_password = root_password.clone();
             let domain = domain.clone();
             let resolution = resolution.clone();
+            let legacy_rdp = legacy_rdp.clone();
             let db = state.db.clone();
             let on_saved = Rc::new(on_saved);
 
@@ -366,17 +386,21 @@ impl ProfileEditor {
                     }
                 };
 
+                let password_secret = Some(SecretString::from(password.text().to_string()))
+                    .filter(|s| !s.expose_secret().is_empty());
+                let root_password_secret =
+                    Some(SecretString::from(root_password.text().to_string()))
+                        .filter(|s| !s.expose_secret().is_empty());
                 let mut profile = NewProfile {
                     name: name.text().trim().to_string(),
                     protocol: Some(protocol),
                     host: host.clone(),
                     port: port.value() as u16,
                     username: Some(user.text().trim().to_string()).filter(|s| !s.is_empty()),
-                    password: Some(password.text().to_string()).filter(|s| !s.is_empty()),
+                    password: password_secret,
                     ssh_key_path: Some(key_path.text().trim().to_string())
                         .filter(|s| !s.is_empty()),
-                    root_password: Some(root_password.text().to_string())
-                        .filter(|s| !s.is_empty()),
+                    root_password: root_password_secret,
                     mac_address,
                     ..Default::default()
                 };
@@ -393,6 +417,7 @@ impl ProfileEditor {
                 rdp.height = height;
                 rdp.domain = domain.text().trim().to_string();
                 rdp.nla = nla_default;
+                rdp.allow_legacy_security = legacy_rdp.is_active();
                 profile.rdp_options = rdp;
 
                 let result = match profile_id {

@@ -356,6 +356,7 @@ mod tests {
     use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
     use crate::models::Protocol;
     use crate::protocols::ssh::HostKeyConfig;
+    use secrecy::SecretString;
 
     /// Временный known_hosts: тест не должен трогать файл пользователя.
     struct TempKnownHosts(PathBuf);
@@ -375,7 +376,7 @@ mod tests {
             host: "127.0.0.1".to_string(),
             port: 2222,
             username: Some("tester".to_string()),
-            password: Some("secret".to_string()),
+            password: Some(SecretString::from("secret".to_string())),
             ssh_key_path: None,
             ssh_key_passphrase: None,
             root_password: None,

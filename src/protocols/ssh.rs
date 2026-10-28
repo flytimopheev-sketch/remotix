@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 
 use base64::engine::general_purpose::{STANDARD as BASE64, STANDARD_NO_PAD};
 use base64::Engine as _;
+use secrecy::ExposeSecret;
 use ssh2::{CheckResult, HashType, KnownHostFileKind};
 
 use crate::models::Profile;
@@ -172,7 +173,10 @@ pub fn connect_session_with(
                     username,
                     None,
                     Path::new(key_path),
-                    profile.ssh_key_passphrase.as_deref(),
+                    profile
+                        .ssh_key_passphrase
+                        .as_ref()
+                        .map(|p| p.expose_secret()),
                 )
                 .map_err(|e| format!("аутентификация по ключу не удалась: {e}"))?;
         }
@@ -181,7 +185,8 @@ pub fn connect_session_with(
         // Не клонируем пароль: libssh2 получает только ссылку на строку.
         let password = profile
             .password
-            .as_deref()
+            .as_ref()
+            .map(|p| p.expose_secret())
             .filter(|p| !p.is_empty())
             .ok_or("в профиле не задан пароль")?;
         session
@@ -231,6 +236,14 @@ pub(crate) fn tcp_connect(host: &str, port: u16, timeout: Duration) -> Result<Tc
     ))
 }
 
+/// Отличает ошибку «ключ хоста изменился» от прочих сбоев подключения.
+///
+/// По этому признаку интерфейс показывает отдельный диалог, а не только
+/// строку состояния: изменение ключа — повод немедленно остановиться.
+pub fn is_host_key_mismatch(message: &str) -> bool {
+    message.contains("ключ хоста") && message.contains("изменился")
+}
+
 /// Проверяет ключ сервера по `~/.ssh/known_hosts` и системному файлу.
 ///
 /// * совпал — продолжаем;
@@ -271,8 +284,9 @@ fn verify_host_key(
         CheckResult::Mismatch => Err(format!(
             "ключ хоста {host}:{port} изменился!\n\
              Отпечаток сервера: {fingerprint} ({key_type}).\n\
-             Возможна MITM-атака. Если сервер действительно переустановлен, \
-             удалите устаревшую запись из {} и подключитесь снова.",
+             Подключение заблокировано: возможна MITM-атака. Если сервер \
+             действительно переустановлен, удалите устаревшую запись из {} \
+             и подключитесь снова.",
             config.known_hosts.display()
         )),
         CheckResult::NotFound => {
@@ -432,7 +446,8 @@ impl SshConnection {
         let root_password = self
             .profile
             .root_password
-            .as_deref()
+            .as_ref()
+            .map(|p| p.expose_secret())
             .filter(|p| !p.is_empty())
             .ok_or("в профиле не задан пароль root")?;
 
@@ -503,7 +518,8 @@ impl SshConnection {
         let root_password = self
             .profile
             .root_password
-            .as_deref()
+            .as_ref()
+            .map(|p| p.expose_secret())
             .filter(|p| !p.is_empty())
             .ok_or("в профиле не задан пароль root")?;
         let session = self.session.as_mut().ok_or("нет активной сессии")?;
@@ -546,6 +562,7 @@ mod tests {
     use super::*;
     use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
     use crate::models::Protocol;
+    use secrecy::SecretString;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     /// Профиль для тестового сервера.
@@ -557,7 +574,7 @@ mod tests {
             host: "127.0.0.1".to_string(),
             port: 2222,
             username: Some("tester".to_string()),
-            password: Some("secret".to_string()),
+            password: Some(SecretString::from("secret".to_string())),
             ssh_key_path: None,
             ssh_key_passphrase: None,
             root_password: None,
@@ -630,7 +647,7 @@ mod tests {
         }
 
         let mut profile = test_profile();
-        profile.password = Some("wrong-password".to_string());
+        profile.password = Some(SecretString::from("wrong-password".to_string()));
         let mut conn = SshConnection::new(profile);
         assert!(
             conn.connect_with(&test_host_key_config()).is_err(),
@@ -720,6 +737,15 @@ mod tests {
             ),
             "запись [IPv6]:22 должна проверяться на стандартном порту"
         );
+    }
+
+    #[test]
+    fn recognizes_host_key_mismatch_error() {
+        assert!(is_host_key_mismatch(
+            "ключ хоста example.org:22 изменился!\nПодключение заблокировано"
+        ));
+        assert!(!is_host_key_mismatch("не удалось подключиться к example.org"));
+        assert!(!is_host_key_mismatch("ключ хоста не предоставлен"));
     }
 
     #[test]

@@ -530,7 +530,45 @@ impl MainWindow {
             self.set_status("VNC: поддержка протокола в разработке");
             return;
         }
+        if profile.protocol == Protocol::Rdp && profile.rdp_options.allow_legacy_security {
+            self.confirm_legacy_rdp(profile);
+            return;
+        }
         self.check_host_then(profile, ConnectAction::Session);
+    }
+
+    /// Предупреждает перед подключением с Standard RDP Security (RC4).
+    ///
+    /// Флаг включается только в профиле, но даже при нём пользователь должен
+    /// каждый раз подтвердить, что понимает риск: в этом режиме нет TLS и
+    /// проверки подлинности сервера.
+    fn confirm_legacy_rdp(&self, profile: Profile) {
+        let dialog = gtk4::MessageDialog::builder()
+            .modal(true)
+            .message_type(gtk4::MessageType::Warning)
+            .buttons(gtk4::ButtonsType::None)
+            .text("Небезопасный режим RDP")
+            .secondary_text(
+                "Профиль разрешает Standard RDP Security (шифр RC4 без TLS). \
+                 В этом режиме Remotix не проверяет подлинность сервера, а \
+                 трафик защищён устаревшим шифрованием.\n\n\
+                 Продолжайте, только если доверяете сети и серверу.",
+            )
+            .build();
+        dialog.set_transient_for(self.window().as_ref());
+        dialog.add_button("Продолжить", gtk4::ResponseType::Accept);
+        dialog.add_button("Отмена", gtk4::ResponseType::Cancel);
+
+        let win = self.clone();
+        dialog.connect_response(move |dialog, response| {
+            dialog.destroy();
+            if response == gtk4::ResponseType::Accept {
+                win.check_host_then(profile.clone(), ConnectAction::Session);
+            } else {
+                win.set_status(&format!("{}: подключение отменено", profile.host));
+            }
+        });
+        dialog.present();
     }
 
     /// Проверяет доступность узла и вызывает действие только после успеха.
@@ -1065,6 +1103,11 @@ impl MainWindow {
 
     /// Обновляет состояние сессии в строке состояния.
     pub fn on_session_state(&self, title: &str, state: SessionState) {
+        if let SessionState::Failed(error) = &state {
+            if crate::protocols::ssh::is_host_key_mismatch(error) {
+                self.show_host_key_mismatch(error);
+            }
+        }
         {
             let mut sessions = self.sessions.borrow_mut();
             if let Some(item) = sessions.iter_mut().find(|(name, _)| name == title) {
@@ -1074,11 +1117,30 @@ impl MainWindow {
             }
         }
 
-        let text = format!("{title}: {}", state.text());
+        let text = format!("{title}: {}", crate::logging::sanitize(&state.text()));
         self.reset_status_style();
         self.status.add_css_class(state.css_class());
         self.status.set_text(&text);
         self.status.set_tooltip_text(Some(&text));
+    }
+
+    /// Показывает диалог при изменении ключа SSH-хоста.
+    ///
+    /// Подключение к этому моменту уже прервано; диалог нужен, чтобы
+    /// пользователь не пропустил предупреждение в строке состояния.
+    fn show_host_key_mismatch(&self, error: &str) {
+        let message = crate::logging::sanitize(error);
+        let dialog = gtk4::MessageDialog::builder()
+            .modal(true)
+            .message_type(gtk4::MessageType::Error)
+            .buttons(gtk4::ButtonsType::None)
+            .text("Ключ SSH-хоста изменился")
+            .secondary_text(message.as_str())
+            .build();
+        dialog.set_transient_for(self.window().as_ref());
+        dialog.add_button("Закрыть", gtk4::ResponseType::Close);
+        dialog.connect_response(|dialog, _| dialog.destroy());
+        dialog.present();
     }
 
     /// Пишет сообщение в строку состояния.

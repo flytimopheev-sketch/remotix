@@ -260,6 +260,7 @@ pub fn expand_home(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secrecy::SecretString;
 
     fn draft(name: &str, host: &str) -> NewProfile {
         NewProfile {
@@ -267,9 +268,9 @@ mod tests {
             host: host.to_string(),
             protocol: Some(Protocol::Ssh),
             port: 22,
-            password: Some("secret".to_string()),
-            ssh_key_passphrase: Some("passphrase".to_string()),
-            root_password: Some("root".to_string()),
+            password: Some(SecretString::from("secret".to_string())),
+            ssh_key_passphrase: Some(SecretString::from("passphrase".to_string())),
+            root_password: Some(SecretString::from("root".to_string())),
             ..Default::default()
         }
     }

@@ -1,4 +1,5 @@
 use rusqlite::{params, Connection, OptionalExtension};
+use secrecy::{ExposeSecret, SecretString};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use zeroize::Zeroizing;
@@ -164,8 +165,12 @@ impl Database {
     // ---------- profiles ----------
 
     pub fn add_profile(&self, key: &[u8; 32], p: &crate::models::NewProfile) -> Result<i64, String> {
-        let enc = |s: &Option<String>| -> Option<Vec<u8>> {
+        let enc_text = |s: &Option<String>| -> Option<Vec<u8>> {
             s.as_ref().map(|v| crypto::encrypt(key, v.as_bytes()))
+        };
+        let enc_secret = |s: &Option<SecretString>| -> Option<Vec<u8>> {
+            s.as_ref()
+                .map(|v| crypto::encrypt(key, v.expose_secret().as_bytes()))
         };
         let t = now();
         self.conn().execute(
@@ -178,11 +183,11 @@ impl Database {
                 p.protocol.unwrap_or(Protocol::Ssh).as_str(),
                 p.host,
                 p.port,
-                enc(&p.username),
-                enc(&p.password),
+                enc_text(&p.username),
+                enc_secret(&p.password),
                 p.ssh_key_path,
-                enc(&p.ssh_key_passphrase),
-                enc(&p.root_password),
+                enc_secret(&p.ssh_key_passphrase),
+                enc_secret(&p.root_password),
                 p.group_id,
                 p.tags.join(","),
                 p.icon,
@@ -205,8 +210,12 @@ impl Database {
         id: i64,
         p: &crate::models::NewProfile,
     ) -> Result<(), String> {
-        let enc = |s: &Option<String>| -> Option<Vec<u8>> {
+        let enc_text = |s: &Option<String>| -> Option<Vec<u8>> {
             s.as_ref().map(|v| crypto::encrypt(key, v.as_bytes()))
+        };
+        let enc_secret = |s: &Option<SecretString>| -> Option<Vec<u8>> {
+            s.as_ref()
+                .map(|v| crypto::encrypt(key, v.expose_secret().as_bytes()))
         };
         self.conn()
             .execute(
@@ -221,11 +230,11 @@ impl Database {
                     p.protocol.unwrap_or(Protocol::Ssh).as_str(),
                     p.host,
                     p.port,
-                    enc(&p.username),
-                    enc(&p.password),
+                    enc_text(&p.username),
+                    enc_secret(&p.password),
                     p.ssh_key_path,
-                    enc(&p.ssh_key_passphrase),
-                    enc(&p.root_password),
+                    enc_secret(&p.ssh_key_passphrase),
+                    enc_secret(&p.root_password),
                     p.group_id,
                     p.tags.join(","),
                     p.icon,
@@ -245,12 +254,15 @@ impl Database {
     /// Загружает все профили, расшифровывая учётные данные.
     pub fn list_profiles(&self, key: &[u8; 32]) -> Result<Vec<crate::models::Profile>, String> {
         use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
-        let dec = |blob: &Option<Vec<u8>>| -> Option<String> {
+        let dec_text = |blob: &Option<Vec<u8>>| -> Option<String> {
             match blob {
                 Some(b) => crypto::decrypt(key, b.as_slice()).ok()
                     .map(|v| String::from_utf8_lossy(&v).into_owned()),
                 None => None,
             }
+        };
+        let dec_secret = |blob: &Option<Vec<u8>>| -> Option<SecretString> {
+            dec_text(blob).map(SecretString::from)
         };
         let mut stmt = self.conn().prepare(
             "SELECT id, name, protocol, host, port, username, password, ssh_key_path,
@@ -290,11 +302,11 @@ impl Database {
                 protocol,
                 host,
                 port,
-                username: dec(&username),
-                password: dec(&password),
+                username: dec_text(&username),
+                password: dec_secret(&password),
                 ssh_key_path,
-                ssh_key_passphrase: dec(&ssh_key_passphrase),
-                root_password: dec(&root_password),
+                ssh_key_passphrase: dec_secret(&ssh_key_passphrase),
+                root_password: dec_secret(&root_password),
                 group_id,
                 tags: tags.unwrap_or_default()
                     .split(',')
@@ -410,7 +422,9 @@ impl Database {
         error: Option<(String, String)>,
     ) -> rusqlite::Result<()> {
         let (code, msg) = match error {
-            Some((c, m)) => (Some(c), Some(m)),
+            // Даже если вызывающий код забыл очистить текст, в журнал не
+            // должно попасть значение пароля/токена.
+            Some((c, m)) => (Some(c), Some(crate::logging::sanitize(&m))),
             None => (None, None),
         };
         self.conn().execute(
@@ -441,7 +455,9 @@ impl Database {
                 ended_at: r.get(4)?,
                 status: r.get(5)?,
                 error_code: r.get(6)?,
-                error_message: r.get(7)?,
+                error_message: r
+                    .get::<_, Option<String>>(7)?
+                    .map(|message| crate::logging::sanitize(&message)),
             })
         })
         .map_err(|e| e.to_string())?;
@@ -461,7 +477,7 @@ impl Database {
                 h.ended_at.map(|v| v.to_string()).unwrap_or_default(),
                 h.status,
                 h.error_code.clone().unwrap_or_default(),
-                h.error_message.clone().unwrap_or_default()
+                crate::logging::sanitize(h.error_message.as_deref().unwrap_or_default())
             ));
         }
         std::fs::write(path, csv).map_err(|e| e.to_string())?;
@@ -473,6 +489,7 @@ impl Database {
 mod tests {
     use super::*;
     use crate::models::NewProfile;
+    use secrecy::{ExposeSecret, SecretString};
 
     fn opened() -> (Database, [u8; 32]) {
         let db = Database::open(":memory:").expect("открытие БД");
@@ -488,7 +505,7 @@ mod tests {
             host: "example.org".to_string(),
             port: 22,
             username: Some("user".to_string()),
-            password: Some("secret".to_string()),
+            password: Some(SecretString::from("secret".to_string())),
             mac_address: Some("AA:BB:CC:DD:EE:FF".to_string()),
             ..Default::default()
         }
@@ -504,7 +521,13 @@ mod tests {
         assert_eq!(profiles[0].id, id);
         assert_eq!(profiles[0].host, "example.org");
         assert_eq!(profiles[0].username.as_deref(), Some("user"));
-        assert_eq!(profiles[0].password.as_deref(), Some("secret"));
+        assert_eq!(
+            profiles[0]
+                .password
+                .as_ref()
+                .map(|p| p.expose_secret()),
+            Some("secret")
+        );
         assert_eq!(
             profiles[0].mac_address.as_deref(),
             Some("AA:BB:CC:DD:EE:FF")
@@ -531,6 +554,28 @@ mod tests {
     fn wrong_master_password_is_rejected() {
         let (db, _key) = opened();
         assert!(db.unlock("wrong").is_err(), "неверный мастер-пароль должен отклоняться");
+    }
+
+    #[test]
+    fn history_sanitizes_secrets() {
+        let (db, key) = opened();
+        let id = db.add_profile(&key, &sample()).expect("сохранение профиля");
+        db.add_history(
+            id,
+            100,
+            Some(200),
+            "error",
+            Some((
+                "E_CONNECT".to_string(),
+                "login failed: password=hunter2".to_string(),
+            )),
+        )
+        .expect("запись в журнал");
+
+        let rows = db.history(None, None).expect("чтение журнала");
+        let message = rows[0].error_message.as_deref().unwrap_or_default();
+        assert!(!message.contains("hunter2"));
+        assert!(message.contains("[REDACTED]"));
     }
 
     /// Профиль с историей подключений должен удаляться без ошибки

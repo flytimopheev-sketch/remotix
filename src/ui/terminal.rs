@@ -14,6 +14,7 @@ use std::time::Duration;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::{Box as GtkBox, CssProvider, EventControllerKey, Label, ScrolledWindow, TextView};
+use secrecy::ExposeSecret;
 
 use crate::protocols::ssh::{HostKeyConfig, HostKeyPrompt, SshConnection};
 
@@ -637,7 +638,11 @@ impl TerminalTab {
                     wait_password(
                         &mut ch,
                         &mut session,
-                        conn.profile.root_password.as_deref().unwrap_or_default(),
+                        conn.profile
+                            .root_password
+                            .as_ref()
+                            .map(|p| p.expose_secret())
+                            .unwrap_or_default(),
                     )?;
                 } else {
                     ch.shell().map_err(|e| e.to_string())?;

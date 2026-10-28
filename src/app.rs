@@ -101,7 +101,7 @@ pub fn open(app: &Application, files: &[gio::File], _hint: &str) {
             .path()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| file.uri().to_string());
-        eprintln!("Remotix: получено имя файла для открытия: {target}");
+        crate::logging::warn(&format!("получено имя файла для открытия: {target}"));
     }
 }
 
