@@ -51,7 +51,11 @@ enum ToUi {
 /// (и построенные на них сборки РЕД ОС) не поставляют VTE для GTK4, и
 /// приложение падало бы ещё до `main()` с «error while loading shared
 /// libraries: libvte-2.91-gtk4.so.0».
+// Единственная зона unsafe в проекте (см. #![deny(unsafe_code)] в main.rs):
+// динамическая загрузка VTE для GTK4. Жёсткая линковка недопустима — в EL9/
+// РЕД ОС пакета libvte-2.91-gtk4 нет, поэтому сырой C API через libloading.
 mod vte_dynamic {
+    #![allow(unsafe_code)]
     use gtk4::glib;
     use std::os::raw::{c_char, c_double, c_int, c_long};
     use std::sync::OnceLock;

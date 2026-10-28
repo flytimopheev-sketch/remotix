@@ -16,6 +16,10 @@
 // не полностью, поэтому предупреждения о «мёртвом» коде отключаем.
 #![allow(dead_code)]
 
+// Небезопасный код разрешён только в одной зоне: динамическая загрузка VTE
+// (src/ui/terminal.rs, mod vte_dynamic). Всё остальное приложение — safe Rust.
+#![deny(unsafe_code)]
+
 mod app;
 mod config;
 mod db;
