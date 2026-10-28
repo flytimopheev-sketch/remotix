@@ -2547,6 +2547,7 @@ dependencies = [
  "ironrdp-pdu",
  "ironrdp-session",
  "libloading",
+ "libssh2-sys",
  "rand 0.8.8",
  "rusqlite",
  "rustls",
