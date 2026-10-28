@@ -1,5 +1,5 @@
 /// Схема базы данных Remotix (см. ТЗ, раздел «Схема базы данных»).
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 3;
 
 
 pub const CREATE_META: &str = "CREATE TABLE IF NOT EXISTS meta (
@@ -29,6 +29,7 @@ pub const CREATE_PROFILES: &str = "CREATE TABLE IF NOT EXISTS profiles (
     tags               TEXT,
     icon               TEXT,
     notes              TEXT,
+    mac_address        TEXT,          -- MAC для Wake-on-LAN
     rdp_options        TEXT,          -- JSON
     vnc_options        TEXT,          -- JSON
     ssh_options        TEXT,          -- JSON
@@ -80,6 +81,45 @@ fn migrate(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     if !has_root_password {
         conn.execute_batch("ALTER TABLE profiles ADD COLUMN root_password BLOB;")?;
     }
+
+    // v2 -> v3: MAC-адрес для Wake-on-LAN.
+    let has_mac_address: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('profiles') WHERE name = 'mac_address'")?
+        .query_row([], |r| r.get::<_, i64>(0))
+        .map(|n| n > 0)?;
+    if !has_mac_address {
+        conn.execute_batch("ALTER TABLE profiles ADD COLUMN mac_address TEXT;")?;
+    }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn migration_adds_mac_address_to_v2_database() {
+        let conn = rusqlite::Connection::open_in_memory().expect("тестовая БД");
+        let old_profiles = CREATE_PROFILES
+            .lines()
+            .filter(|line| !line.contains("mac_address"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            !old_profiles.contains("mac_address"),
+            "тестовая схема должна быть без MAC"
+        );
+        conn.execute_batch(&old_profiles).expect("схема v2");
+
+        initialize(&conn).expect("миграция схемы");
+
+        let has_mac_address: bool = conn
+            .prepare("SELECT COUNT(*) FROM pragma_table_info('profiles') WHERE name = 'mac_address'")
+            .expect("pragma_table_info")
+            .query_row([], |r| r.get::<_, i64>(0))
+            .map(|n| n > 0)
+            .expect("подсчёт колонок");
+        assert!(has_mac_address, "колонка mac_address должна появиться");
+    }
 }
 

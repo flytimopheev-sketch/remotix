@@ -83,6 +83,14 @@ impl ProfileEditor {
         let password = PasswordEntry::new();
         password.set_show_peek_icon(true);
 
+        // Wake-on-LAN
+        let mac = Entry::new();
+        mac.set_placeholder_text(Some("AA:BB:CC:DD:EE:FF (необязательно)"));
+        mac.set_tooltip_text(Some(
+            "MAC-адрес сетевого адаптера. Нужен, чтобы разбудить выключенный хост \
+             magic packet (Wake-on-LAN).",
+        ));
+
         // SSH
         let key_path = Entry::new();
         key_path.set_placeholder_text(Some("~/.ssh/id_ed25519"));
@@ -125,6 +133,9 @@ impl ProfileEditor {
             }
             if let Some(pw) = p.password.as_ref() {
                 password.set_text(pw);
+            }
+            if let Some(mac_address) = p.mac_address.as_ref() {
+                mac.set_text(mac_address);
             }
             if let Some(k) = p.ssh_key_path.as_ref() {
                 key_path.set_text(k);
@@ -174,6 +185,7 @@ impl ProfileEditor {
         add_field(&grid, 3, "Порт:", &port);
         add_field(&grid, 4, "Пользователь:", &user);
         add_field(&grid, 5, "Пароль:", &password);
+        add_field(&grid, 6, "MAC для Wake-on-LAN:", &mac);
 
         // Дополнительные параметры — отдельным блоком, чтобы их было видно.
         let extra_title = Label::new(Some("Дополнительно"));
@@ -199,6 +211,7 @@ impl ProfileEditor {
         host.set_hexpand(true);
         user.set_hexpand(true);
         password.set_hexpand(true);
+        mac.set_hexpand(true);
         key_path.set_hexpand(true);
         root_password.set_hexpand(true);
         domain.set_hexpand(true);
@@ -310,6 +323,7 @@ impl ProfileEditor {
             let port = port.clone();
             let user = user.clone();
             let password = password.clone();
+            let mac = mac.clone();
             let key_path = key_path.clone();
             let su_to_root = su_to_root.clone();
             let root_password = root_password.clone();
@@ -339,6 +353,19 @@ impl ProfileEditor {
                     _ => (1024, 768),
                 };
 
+                let mac_text = mac.text().trim().to_string();
+                let mac_address = if mac_text.is_empty() {
+                    None
+                } else {
+                    match crate::wol::normalize_mac(&mac_text) {
+                        Ok(value) => Some(value),
+                        Err(e) => {
+                            status.set_text(&format!("MAC-адрес: {e}"));
+                            return;
+                        }
+                    }
+                };
+
                 let mut profile = NewProfile {
                     name: name.text().trim().to_string(),
                     protocol: Some(protocol),
@@ -350,6 +377,7 @@ impl ProfileEditor {
                         .filter(|s| !s.is_empty()),
                     root_password: Some(root_password.text().to_string())
                         .filter(|s| !s.is_empty()),
+                    mac_address,
                     ..Default::default()
                 };
                 if profile.name.is_empty() {
@@ -387,20 +415,26 @@ impl ProfileEditor {
             cancel.connect_clicked(move |_| window.close());
         }
 
-        // Проверка доступности узла: обычный TCP-коннект.
+        // Проверка доступности узла: TCP-проба с тайм-аутом 3 с.
         {
             let check = check.clone();
             let host = host.clone();
             let port = port.clone();
             let status = status.clone();
             check.connect_clicked(move |_| {
-                let addr = format!("{}:{}", host.text().trim(), port.value() as u16);
-                status.set_text(&format!("Проверяем {addr}…"));
+                let host_text = host.text().trim().to_string();
+                if host_text.is_empty() {
+                    status.set_text("Укажите адрес узла");
+                    return;
+                }
+                let port_num = port.value() as u16;
+                let addr = crate::host_check::endpoint(&host_text, port_num);
+                status.set_text(&format!("Проверяем {addr} (тайм-аут 3 с)…"));
 
                 let (tx, rx) = std::sync::mpsc::channel::<String>();
                 std::thread::spawn(move || {
-                    let result = match std::net::TcpStream::connect(&addr) {
-                        Ok(_) => format!("Узел {addr} доступен"),
+                    let result = match crate::host_check::probe(&host_text, port_num) {
+                        Ok(()) => format!("Узел {addr} доступен"),
                         Err(e) => format!("Не удалось подключиться к {addr}: {e}"),
                     };
                     let _ = tx.send(result);

@@ -44,6 +44,7 @@ pub fn scan_file(path: &Path) -> Result<ImportPreview, String> {
             username: item.username,
             ssh_key_path: item.ssh_key_path,
             notes: item.notes,
+            mac_address: item.mac_address,
             tags: item.tags,
             rdp_options: item.rdp_options,
             vnc_options: item.vnc_options,

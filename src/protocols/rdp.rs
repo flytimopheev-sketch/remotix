@@ -872,6 +872,7 @@ mod tests {
             tags: vec![],
             icon: None,
             notes: None,
+            mac_address: None,
             rdp_options: RdpOptions {
                 width: 1024,
                 height: 768,

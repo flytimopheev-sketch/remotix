@@ -140,6 +140,9 @@ pub struct Profile {
     pub tags: Vec<String>,
     pub icon: Option<String>,
     pub notes: Option<String>,
+    /// MAC-адрес для Wake-on-LAN (не секрет).
+    #[serde(default)]
+    pub mac_address: Option<String>,
     #[serde(default)]
     pub rdp_options: RdpOptions,
     #[serde(default)]
@@ -174,6 +177,7 @@ impl fmt::Debug for Profile {
             .field("tags", &self.tags)
             .field("icon", &self.icon)
             .field("notes", &self.notes)
+            .field("mac_address", &self.mac_address)
             .field("rdp_options", &self.rdp_options)
             .field("vnc_options", &self.vnc_options)
             .field("ssh_options", &self.ssh_options)
@@ -200,6 +204,8 @@ pub struct NewProfile {
     pub tags: Vec<String>,
     pub icon: Option<String>,
     pub notes: Option<String>,
+    /// MAC-адрес для Wake-on-LAN (не секрет).
+    pub mac_address: Option<String>,
     /// Дополнительные параметры протоколов (сохраняются в JSON-колонках).
     pub rdp_options: RdpOptions,
     pub vnc_options: VncOptions,
@@ -228,6 +234,7 @@ impl fmt::Debug for NewProfile {
             .field("tags", &self.tags)
             .field("icon", &self.icon)
             .field("notes", &self.notes)
+            .field("mac_address", &self.mac_address)
             .field("rdp_options", &self.rdp_options)
             .field("vnc_options", &self.vnc_options)
             .field("ssh_options", &self.ssh_options)
@@ -290,6 +297,7 @@ mod tests {
             tags: vec![],
             icon: None,
             notes: None,
+            mac_address: Some("AA:BB:CC:DD:EE:FF".to_string()),
             rdp_options: RdpOptions::default(),
             vnc_options: VncOptions::default(),
             ssh_options: SshOptions::default(),

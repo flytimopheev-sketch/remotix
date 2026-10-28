@@ -5,15 +5,20 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
+use std::time::{Duration, Instant};
 
 use gtk4::prelude::*;
 use gtk4::{
-    gio, Box as GtkBox, Button, Entry, HeaderBar, Image, Label, ListBox, ListBoxRow, MenuButton,
-    Notebook, Orientation, Overlay, Paned, Popover, ScrolledWindow, SearchEntry,
+    gio, glib, Box as GtkBox, Button, Entry, HeaderBar, Image, Label, ListBox, ListBoxRow,
+    MenuButton, Notebook, Orientation, Overlay, Paned, Popover, ScrolledWindow, SearchEntry,
 };
 
 use crate::app::AppState;
+use crate::host_check;
 use crate::models::{Profile, Protocol};
+use crate::wol;
 use crate::protocols::ssh::SshConnection;
 use crate::ui::history_tab::HistoryTab;
 use crate::ui::profile_editor::ProfileEditor;
@@ -21,6 +26,15 @@ use crate::ui::rdp_viewer::RdpViewer;
 use crate::ui::sftp_tab::SftpTab;
 use crate::ui::terminal::TerminalTab;
 use crate::ui::SessionState;
+
+/// Что открыть после успешной проверки доступности узла.
+#[derive(Clone, Copy, Debug)]
+enum ConnectAction {
+    /// Обычная сессия: SSH-терминал или RDP-просмотрщик.
+    Session,
+    /// Двухпанельный SFTP-клиент.
+    Sftp,
+}
 
 /// Главное окно: список подключений, вкладки сессий, строка состояния.
 #[derive(Clone)]
@@ -247,12 +261,7 @@ impl MainWindow {
                 after_delete.refresh_profiles();
             },
         );
-        editor.present_transient_for(
-            self.root
-                .root()
-                .and_then(|w| w.downcast::<gtk4::Window>().ok())
-                .as_ref(),
-        );
+        editor.present_transient_for(self.window().as_ref());
     }
 
     /// Дублирует профиль: копия создаётся сразу, без диалогов.
@@ -272,6 +281,7 @@ impl MainWindow {
             tags: profile.tags.clone(),
             icon: profile.icon.clone(),
             notes: profile.notes.clone(),
+            mac_address: profile.mac_address.clone(),
             rdp_options: profile.rdp_options.clone(),
             vnc_options: profile.vnc_options.clone(),
             ssh_options: profile.ssh_options.clone(),
@@ -512,12 +522,344 @@ impl MainWindow {
     }
 
     /// Открывает подключение к выбранному профилю.
+    ///
+    /// Сначала выполняется быстрая TCP-проба. Если узел выключен, Remotix
+    /// предлагает отправить Wake-on-LAN, а не ждёт тайм-аута SSH/RDP.
     pub fn connect_profile(&self, profile: Profile) {
-        match profile.protocol {
-            Protocol::Ssh => self.open_ssh_terminal(profile),
-            Protocol::Rdp => self.open_rdp_session(profile),
-            Protocol::Vnc => self.set_status("VNC: поддержка протокола в разработке"),
+        if profile.protocol == Protocol::Vnc {
+            self.set_status("VNC: поддержка протокола в разработке");
+            return;
         }
+        self.check_host_then(profile, ConnectAction::Session);
+    }
+
+    /// Проверяет доступность узла и вызывает действие только после успеха.
+    fn check_host_then(&self, profile: Profile, action: ConnectAction) {
+        if profile.host.trim().is_empty() || profile.port == 0 {
+            self.open_connection(profile, action);
+            return;
+        }
+
+        let host = profile.host.trim().to_string();
+        let port = profile.port;
+        let addr = host_check::endpoint(&host, port);
+        self.set_status(&format!("Проверяем доступность {addr}…"));
+
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(host_check::probe(&host, port));
+        });
+
+        let win = self.clone();
+        let profile = Rc::new(profile);
+        let _ = glib::timeout_add_local(Duration::from_millis(100), move || {
+            match rx.try_recv() {
+                Ok(Ok(())) => {
+                    win.open_connection((*profile).clone(), action);
+                    glib::ControlFlow::Break
+                }
+                Ok(Err(error)) => {
+                    win.show_host_offline((*profile).clone(), error, action);
+                    glib::ControlFlow::Break
+                }
+                Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    win.show_host_offline(
+                        (*profile).clone(),
+                        "проверка доступности прервана".to_string(),
+                        action,
+                    );
+                    glib::ControlFlow::Break
+                }
+            }
+        });
+    }
+
+    /// Открывает сессию или SFTP после успешной проверки.
+    fn open_connection(&self, profile: Profile, action: ConnectAction) {
+        match action {
+            ConnectAction::Session => match profile.protocol {
+                Protocol::Ssh => self.open_ssh_terminal(profile),
+                Protocol::Rdp => self.open_rdp_session(profile),
+                Protocol::Vnc => self.set_status("VNC: поддержка протокола в разработке"),
+            },
+            ConnectAction::Sftp => self.open_sftp_for_profile(profile),
+        }
+    }
+
+    /// Диалог для выключенного/недоступного узла.
+    fn show_host_offline(&self, profile: Profile, error: String, action: ConnectAction) {
+        let mac = profile
+            .mac_address
+            .as_deref()
+            .and_then(|value| wol::normalize_mac(value).ok());
+        let can_wake = mac.is_some();
+
+        let title = format!("Хост {} не отвечает", profile.host);
+        let secondary = match mac.as_deref() {
+            Some(mac) => format!(
+                "{error}\n\nВозможно, хост выключен. Разбудить его по Wake-on-LAN \
+                 (MAC {mac})?"
+            ),
+            None => format!(
+                "{error}\n\nВозможно, хост выключен. MAC-адрес не задан — укажите его \
+                 в свойствах профиля, чтобы использовать Wake-on-LAN."
+            ),
+        };
+
+        let dialog = gtk4::MessageDialog::builder()
+            .modal(true)
+            .message_type(gtk4::MessageType::Warning)
+            .buttons(gtk4::ButtonsType::None)
+            .text(title.as_str())
+            .secondary_text(secondary.as_str())
+            .build();
+        dialog.set_transient_for(self.window().as_ref());
+
+        if can_wake {
+            dialog.add_button("Разбудить", gtk4::ResponseType::Yes);
+            dialog.add_button("Подключиться всё равно", gtk4::ResponseType::No);
+        } else {
+            dialog.add_button("Подключиться всё равно", gtk4::ResponseType::Yes);
+        }
+        dialog.add_button("Отмена", gtk4::ResponseType::Cancel);
+
+        let win = self.clone();
+        let profile = profile.clone();
+        dialog.connect_response(move |dialog, response| {
+            dialog.destroy();
+            let wake = can_wake && response == gtk4::ResponseType::Yes;
+            let connect_anyway = response == gtk4::ResponseType::No
+                || (!can_wake && response == gtk4::ResponseType::Yes);
+
+            if wake {
+                win.wake_and_connect(profile.clone(), action);
+            } else if connect_anyway {
+                win.open_connection(profile.clone(), action);
+            } else {
+                win.set_status(&format!("{}: подключение отменено", profile.host));
+            }
+        });
+        dialog.present();
+    }
+
+    /// Отправляет magic packet и ждёт, пока узел снова станет доступен.
+    fn wake_and_connect(&self, profile: Profile, action: ConnectAction) {
+        let raw_mac = profile.mac_address.clone();
+        let Some(raw_mac) = raw_mac else {
+            self.show_wake_failed(profile, "в профиле не задан MAC-адрес", action);
+            return;
+        };
+        let mac = match wol::normalize_mac(&raw_mac) {
+            Ok(mac) => mac,
+            Err(error) => {
+                self.show_wake_failed(profile, &error, action);
+                return;
+            }
+        };
+
+        let (progress, status, cancelled) = self.wake_progress_dialog(&profile, &mac);
+        let (tx, rx) = mpsc::channel::<Result<(), String>>();
+        let host = profile.host.clone();
+        let port = profile.port;
+        let cancel_flag = cancelled.clone();
+        let mac_for_thread = mac.clone();
+
+        std::thread::spawn(move || {
+            let mut sent = false;
+            let mut last_error = None;
+            for attempt in 0..3 {
+                if cancel_flag.load(Ordering::Relaxed) {
+                    break;
+                }
+                match wol::send_magic_packet(&mac_for_thread) {
+                    Ok(()) => sent = true,
+                    Err(error) => last_error = Some(error),
+                }
+                if attempt < 2 {
+                    std::thread::sleep(Duration::from_millis(300));
+                }
+            }
+
+            if cancel_flag.load(Ordering::Relaxed) {
+                let _ = tx.send(Err("отменено".to_string()));
+                return;
+            }
+            if !sent {
+                let error = last_error
+                    .unwrap_or_else(|| "не удалось отправить magic packet".to_string());
+                let _ = tx.send(Err(error));
+                return;
+            }
+
+            let outcome = host_check::wait_until_online(
+                &host,
+                port,
+                host_check::WAKE_WAIT,
+                host_check::RETRY_INTERVAL,
+                || cancel_flag.load(Ordering::Relaxed),
+            );
+            let result = match outcome {
+                host_check::WaitOutcome::Online => Ok(()),
+                host_check::WaitOutcome::TimedOut { last_error } => {
+                    Err(format!("хост не стал доступен: {last_error}"))
+                }
+                host_check::WaitOutcome::Cancelled => Err("отменено".to_string()),
+            };
+            let _ = tx.send(result);
+        });
+
+        let win = self.clone();
+        let profile = Rc::new(profile);
+        let started = Instant::now();
+        let _ = glib::timeout_add_local(Duration::from_millis(250), move || {
+            match rx.try_recv() {
+                Ok(Ok(())) => {
+                    progress.close();
+                    win.set_status(&format!(
+                        "{}: хост проснулся, подключаемся…",
+                        profile.host
+                    ));
+                    win.open_connection((*profile).clone(), action);
+                    glib::ControlFlow::Break
+                }
+                Ok(Err(error)) => {
+                    let was_cancelled = cancelled.load(Ordering::Relaxed);
+                    progress.close();
+                    if was_cancelled {
+                        win.set_status(&format!("{}: ожидание отменено", profile.host));
+                    } else {
+                        win.set_status(&format!("{}: {error}", profile.host));
+                        win.show_wake_failed((*profile).clone(), &error, action);
+                    }
+                    glib::ControlFlow::Break
+                }
+                Err(mpsc::TryRecvError::Empty) => {
+                    let left = host_check::WAKE_WAIT
+                        .saturating_sub(started.elapsed())
+                        .as_secs();
+                    status.set_text(&format!(
+                        "Magic packet отправлен. Ждём, пока откроется порт {}… \
+                         Осталось {} с.",
+                        profile.port, left
+                    ));
+                    glib::ControlFlow::Continue
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    progress.close();
+                    win.set_status(&format!("{}: ожидание прервано", profile.host));
+                    glib::ControlFlow::Break
+                }
+            }
+        });
+    }
+
+    /// Окно ожидания пробуждения с кнопкой отмены.
+    fn wake_progress_dialog(
+        &self,
+        profile: &Profile,
+        mac: &str,
+    ) -> (Rc<gtk4::Window>, Label, Arc<AtomicBool>) {
+        let window = gtk4::Window::builder()
+            .title("Wake-on-LAN")
+            .modal(true)
+            .resizable(false)
+            .default_width(480)
+            .build();
+        window.set_transient_for(self.window().as_ref());
+
+        let heading = Label::new(Some(&format!("Хост {} не отвечает", profile.host)));
+        heading.add_css_class("remotix-dialog-header");
+        heading.set_xalign(0.0);
+
+        let detail = Label::new(Some(&format!(
+            "Отправляем magic packet на {mac}.\n\
+             Ожидаем, пока откроется порт {} (до 10 минут).",
+            profile.port
+        )));
+        detail.set_wrap(true);
+        detail.set_xalign(0.0);
+        detail.set_max_width_chars(56);
+
+        let status = Label::new(Some("Отправляем magic packet…"));
+        status.set_wrap(true);
+        status.set_xalign(0.0);
+
+        let spinner = gtk4::Spinner::new();
+        spinner.start();
+        let progress_row = GtkBox::new(Orientation::Horizontal, 8);
+        progress_row.append(&spinner);
+        progress_row.append(&status);
+
+        let cancel = Button::with_label("Отмена");
+        cancel.set_halign(gtk4::Align::End);
+
+        let content = GtkBox::new(Orientation::Vertical, 12);
+        for margin in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
+            content.set_property(margin, 16);
+        }
+        content.append(&heading);
+        content.append(&detail);
+        content.append(&progress_row);
+        content.append(&cancel);
+        window.set_child(Some(&content));
+
+        let cancelled = Arc::new(AtomicBool::new(false));
+        {
+            let cancelled = cancelled.clone();
+            window.connect_close_request(move |_| {
+                cancelled.store(true, Ordering::Relaxed);
+                glib::Propagation::Proceed
+            });
+        }
+        {
+            let cancelled = cancelled.clone();
+            let window = window.clone();
+            cancel.connect_clicked(move |_| {
+                cancelled.store(true, Ordering::Relaxed);
+                window.close();
+            });
+        }
+
+        window.present();
+        (Rc::new(window), status, cancelled)
+    }
+
+    /// Сообщение после неудачного ожидания или ошибки magic packet.
+    fn show_wake_failed(&self, profile: Profile, error: &str, action: ConnectAction) {
+        let secondary = format!(
+            "{error}\n\nМожно попробовать подключиться всё равно — например, если \
+             Wake-on-LAN на этом хосте не настроен."
+        );
+        let dialog = gtk4::MessageDialog::builder()
+            .modal(true)
+            .message_type(gtk4::MessageType::Warning)
+            .buttons(gtk4::ButtonsType::None)
+            .text("Не удалось разбудить хост")
+            .secondary_text(secondary.as_str())
+            .build();
+        dialog.set_transient_for(self.window().as_ref());
+        dialog.add_button("Подключиться всё равно", gtk4::ResponseType::Yes);
+        dialog.add_button("Отмена", gtk4::ResponseType::Cancel);
+
+        let win = self.clone();
+        let profile = profile.clone();
+        dialog.connect_response(move |dialog, response| {
+            dialog.destroy();
+            if response == gtk4::ResponseType::Yes {
+                win.open_connection(profile.clone(), action);
+            } else {
+                win.set_status(&format!("{}: подключение отменено", profile.host));
+            }
+        });
+        dialog.present();
+    }
+
+    /// Окно приложения — родитель для диалогов.
+    fn window(&self) -> Option<gtk4::Window> {
+        self.root
+            .root()
+            .and_then(|w| w.downcast::<gtk4::Window>().ok())
     }
 
     /// Открывает SSH-сессию во встроенном терминале.
@@ -619,7 +961,11 @@ impl MainWindow {
                 return;
             }
         };
+        self.check_host_then(profile, ConnectAction::Sftp);
+    }
 
+    /// Создаёт вкладку SFTP после проверки доступности узла.
+    fn open_sftp_for_profile(&self, profile: Profile) {
         let title = format!("SFTP {}", profile.host);
         let on_state = {
             let win = self.clone();
@@ -806,6 +1152,7 @@ fn quick_profile(text: &str) -> Option<Profile> {
         tags: vec![],
         icon: None,
         notes: None,
+        mac_address: None,
         rdp_options: Default::default(),
         vnc_options: Default::default(),
         ssh_options: Default::default(),

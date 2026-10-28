@@ -30,6 +30,9 @@ pub struct ProfileExport {
     pub ssh_key_path: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
+    /// MAC-адрес для Wake-on-LAN (не секрет).
+    #[serde(default)]
+    pub mac_address: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default)]
@@ -66,6 +69,7 @@ pub fn export_profiles(db: &Database, key: &[u8; 32], path: &Path) -> Result<usi
                 username: p.username.clone(),
                 ssh_key_path: p.ssh_key_path.clone(),
                 notes: p.notes.clone(),
+                mac_address: p.mac_address.clone(),
                 tags: p.tags.clone(),
                 rdp_options: p.rdp_options.clone(),
                 vnc_options: p.vnc_options.clone(),
@@ -118,6 +122,7 @@ pub fn import_profiles(db: &Database, key: &[u8; 32], path: &Path) -> Result<usi
             username: item.username,
             ssh_key_path: item.ssh_key_path,
             notes: item.notes,
+            mac_address: item.mac_address,
             tags: item.tags,
             rdp_options: item.rdp_options,
             vnc_options: item.vnc_options,
@@ -151,6 +156,7 @@ mod tests {
             password: Some("password-secret".to_string()),
             ssh_key_passphrase: Some("passphrase-secret".to_string()),
             root_password: Some("root-secret".to_string()),
+            mac_address: Some("AA:BB:CC:DD:EE:FF".to_string()),
             ..Default::default()
         };
         db.add_profile(&key, &profile).expect("добавление профиля");
@@ -174,5 +180,6 @@ mod tests {
         assert!(!text.contains("passphrase"));
         assert!(text.contains("secret-profile"));
         assert!(text.contains("alice"));
+        assert!(text.contains("AA:BB:CC:DD:EE:FF"));
     }
 }

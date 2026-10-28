@@ -383,6 +383,7 @@ mod tests {
             tags: vec![],
             icon: None,
             notes: None,
+            mac_address: None,
             rdp_options: RdpOptions::default(),
             vnc_options: VncOptions::default(),
             ssh_options: SshOptions::default(),

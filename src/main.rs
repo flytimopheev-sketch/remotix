@@ -19,12 +19,14 @@
 mod app;
 mod config;
 mod db;
+mod host_check;
 mod import;
 mod models;
 mod profiles_io;
 mod protocols;
 mod settings;
 mod ui;
+mod wol;
 
 use gtk4::gio::ApplicationFlags;
 use gtk4::prelude::*;

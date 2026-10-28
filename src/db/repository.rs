@@ -171,8 +171,8 @@ impl Database {
         self.conn().execute(
             "INSERT INTO profiles(name, protocol, host, port, username, password,
                 ssh_key_path, ssh_key_passphrase, root_password, group_id, tags, icon, notes,
-                rdp_options, vnc_options, ssh_options, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?17)",
+                mac_address, rdp_options, vnc_options, ssh_options, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?18)",
             params![
                 p.name,
                 p.protocol.unwrap_or(Protocol::Ssh).as_str(),
@@ -187,6 +187,7 @@ impl Database {
                 p.tags.join(","),
                 p.icon,
                 p.notes,
+                p.mac_address,
                 serde_json::to_string(&p.rdp_options).unwrap_or_default(),
                 serde_json::to_string(&p.vnc_options).unwrap_or_default(),
                 serde_json::to_string(&p.ssh_options).unwrap_or_default(),
@@ -212,8 +213,9 @@ impl Database {
                 "UPDATE profiles SET name = ?1, protocol = ?2, host = ?3, port = ?4,
                     username = ?5, password = ?6, ssh_key_path = ?7, ssh_key_passphrase = ?8,
                     root_password = ?9, group_id = ?10, tags = ?11, icon = ?12, notes = ?13,
-                    rdp_options = ?14, vnc_options = ?15, ssh_options = ?16, updated_at = ?17
-                 WHERE id = ?18",
+                    mac_address = ?14, rdp_options = ?15, vnc_options = ?16, ssh_options = ?17,
+                    updated_at = ?18
+                 WHERE id = ?19",
                 params![
                     p.name,
                     p.protocol.unwrap_or(Protocol::Ssh).as_str(),
@@ -228,6 +230,7 @@ impl Database {
                     p.tags.join(","),
                     p.icon,
                     p.notes,
+                    p.mac_address,
                     serde_json::to_string(&p.rdp_options).unwrap_or_default(),
                     serde_json::to_string(&p.vnc_options).unwrap_or_default(),
                     serde_json::to_string(&p.ssh_options).unwrap_or_default(),
@@ -251,8 +254,8 @@ impl Database {
         };
         let mut stmt = self.conn().prepare(
             "SELECT id, name, protocol, host, port, username, password, ssh_key_path,
-                    ssh_key_passphrase, root_password, group_id, tags, icon, notes, rdp_options,
-                    vnc_options, ssh_options, created_at, updated_at, last_connected_at
+                    ssh_key_passphrase, root_password, group_id, tags, icon, notes, mac_address,
+                    rdp_options, vnc_options, ssh_options, created_at, updated_at, last_connected_at
              FROM profiles ORDER BY name",
         )
         .map_err(|e| e.to_string())?;
@@ -265,7 +268,8 @@ impl Database {
                 r.get::<_, Option<String>>(11)?, r.get::<_, Option<String>>(12)?,
                 r.get::<_, Option<String>>(13)?, r.get::<_, Option<String>>(14)?,
                 r.get::<_, Option<String>>(15)?, r.get::<_, Option<String>>(16)?,
-                r.get::<_, i64>(17)?, r.get::<_, i64>(18)?, r.get::<_, Option<i64>>(19)?,
+                r.get::<_, Option<String>>(17)?, r.get::<_, i64>(18)?, r.get::<_, i64>(19)?,
+                r.get::<_, Option<i64>>(20)?,
             ))
         })
         .map_err(|e| e.to_string())?;
@@ -273,8 +277,8 @@ impl Database {
         let mut out = Vec::new();
         for row in rows {
             let (id, name, protocol, host, port, username, password, ssh_key_path,
-                 ssh_key_passphrase, root_password, group_id, tags, icon, notes, rdp, vnc, ssh,
-                 created_at, updated_at, last_connected_at) = row.map_err(|e| e.to_string())?;
+                 ssh_key_passphrase, root_password, group_id, tags, icon, notes, mac_address, rdp,
+                 vnc, ssh, created_at, updated_at, last_connected_at) = row.map_err(|e| e.to_string())?;
             let protocol = match protocol.as_str() {
                 "RDP" => Protocol::Rdp,
                 "VNC" => Protocol::Vnc,
@@ -299,6 +303,7 @@ impl Database {
                     .collect(),
                 icon,
                 notes,
+                mac_address,
                 rdp_options: rdp.and_then(|v| serde_json::from_str::<RdpOptions>(&v).ok()).unwrap_or_default(),
                 vnc_options: vnc.and_then(|v| serde_json::from_str::<VncOptions>(&v).ok()).unwrap_or_default(),
                 ssh_options: ssh.and_then(|v| serde_json::from_str::<SshOptions>(&v).ok()).unwrap_or_default(),
@@ -484,6 +489,7 @@ mod tests {
             port: 22,
             username: Some("user".to_string()),
             password: Some("secret".to_string()),
+            mac_address: Some("AA:BB:CC:DD:EE:FF".to_string()),
             ..Default::default()
         }
     }
@@ -499,6 +505,10 @@ mod tests {
         assert_eq!(profiles[0].host, "example.org");
         assert_eq!(profiles[0].username.as_deref(), Some("user"));
         assert_eq!(profiles[0].password.as_deref(), Some("secret"));
+        assert_eq!(
+            profiles[0].mac_address.as_deref(),
+            Some("AA:BB:CC:DD:EE:FF")
+        );
     }
 
     #[test]
