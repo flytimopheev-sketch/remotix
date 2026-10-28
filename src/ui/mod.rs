@@ -24,7 +24,8 @@ pub fn clear_list(list: &gtk4::ListBox) {
 
 /// Состояние сессии — отображается в строке состояния и заголовке вкладки.
 #[derive(Clone, Debug, PartialEq)]
-pub enum SessionState {    /// Идёт подключение.
+pub enum SessionState {
+    /// Идёт подключение.
     Connecting,
     /// Сессия установлена.
     Connected,

@@ -117,10 +117,7 @@ impl ImportPreview {
     ///
     /// `existing` — тройка «протокол, хост, порт, логин» из базы. Пароли для
     /// сравнения не нужны и не расшифровываются.
-    pub fn dedupe_against(
-        &mut self,
-        existing: &[(Protocol, String, u16, Option<String>)],
-    ) {
+    pub fn dedupe_against(&mut self, existing: &[(Protocol, String, u16, Option<String>)]) {
         let mut existing_keys: HashSet<Identity> = HashSet::new();
         for (protocol, host, port, username) in existing {
             existing_keys.insert(identity(*protocol, host, *port, username.as_deref()));
@@ -182,12 +179,7 @@ impl ImportPreview {
 
 type Identity = (String, String, u16, String);
 
-fn identity(
-    protocol: Protocol,
-    host: &str,
-    port: u16,
-    username: Option<&str>,
-) -> Identity {
+fn identity(protocol: Protocol, host: &str, port: u16, username: Option<&str>) -> Identity {
     (
         protocol.as_str().to_string(),
         host.trim().to_ascii_lowercase(),
@@ -205,7 +197,11 @@ fn identity(
 fn normalize_profile(mut profile: NewProfile) -> Result<NewProfile, (String, String)> {
     let name = profile.name.trim().to_string();
     let host = profile.host.trim().to_string();
-    let display_name = if name.is_empty() { host.clone() } else { name.clone() };
+    let display_name = if name.is_empty() {
+        host.clone()
+    } else {
+        name.clone()
+    };
 
     if host.is_empty() {
         return Err((display_name, "пустой адрес сервера".to_string()));
@@ -321,12 +317,7 @@ mod tests {
         let mut preview = ImportPreview::default();
         preview.push(Source::SshConfig, "a", draft("one", "example.org"));
         preview.push(Source::Remmina, "b", draft("two", "EXAMPLE.ORG"));
-        preview.dedupe_against(&[(
-            Protocol::Ssh,
-            "example.org".to_string(),
-            22,
-            None,
-        )]);
+        preview.dedupe_against(&[(Protocol::Ssh, "example.org".to_string(), 22, None)]);
         assert!(preview.candidates.is_empty());
         assert_eq!(preview.skipped_count(), 2);
         assert!(preview

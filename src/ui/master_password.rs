@@ -100,7 +100,11 @@ impl MasterPasswordDialog {
         note.add_css_class("remotix-field-caption");
         ui.append(&note);
 
-        let btn = Button::with_label(if first_run { "Создать" } else { "Разблокировать" });
+        let btn = Button::with_label(if first_run {
+            "Создать"
+        } else {
+            "Разблокировать"
+        });
         btn.add_css_class("suggested-action");
         btn.set_halign(gtk4::Align::End);
         ui.append(&btn);

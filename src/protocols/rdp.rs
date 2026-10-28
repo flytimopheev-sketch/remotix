@@ -33,8 +33,11 @@ impl ClipboardConfig {
         let o = &p.rdp_options;
         Self {
             enabled: o.clipboard,
-            to_remote: o.clipboard && (o.clipboard_to_remote || (!o.clipboard_to_remote && !o.clipboard_from_remote)),
-            from_remote: o.clipboard && (o.clipboard_from_remote || (!o.clipboard_to_remote && !o.clipboard_from_remote)),
+            to_remote: o.clipboard
+                && (o.clipboard_to_remote || (!o.clipboard_to_remote && !o.clipboard_from_remote)),
+            from_remote: o.clipboard
+                && (o.clipboard_from_remote
+                    || (!o.clipboard_to_remote && !o.clipboard_from_remote)),
         }
     }
 }
@@ -149,18 +152,23 @@ impl ironrdp_connector::sspi::network_client::NetworkClient for RdpNetworkClient
         let port = request.url.port().unwrap_or(3389);
 
         // 1. Поднимаем отдельное TLS-соединение к серверу RDP для NLA.
-        let tcp = TcpStream::connect(format!("{host}:{port}"))
-            .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+        let tcp = TcpStream::connect(format!("{host}:{port}")).map_err(|e| {
+            Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}"))
+        })?;
 
         let mut tls_config = rustls::client::ClientConfig::builder()
             .dangerous()
             .with_custom_certificate_verifier(Arc::new(NoCertificateVerification))
             .with_no_client_auth();
         tls_config.resumption = rustls::client::Resumption::disabled();
-        let server_name = rustls::pki_types::ServerName::try_from(host.to_owned())
-            .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
-        let client = rustls::ClientConnection::new(Arc::new(tls_config), server_name)
-            .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+        let server_name =
+            rustls::pki_types::ServerName::try_from(host.to_owned()).map_err(|e| {
+                Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}"))
+            })?;
+        let client =
+            rustls::ClientConnection::new(Arc::new(tls_config), server_name).map_err(|e| {
+                Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}"))
+            })?;
         let mut stream = rustls::StreamOwned::new(client, tcp);
 
         // 2. HTTP/1.1 POST. Токен CredSSP (SPNEGO) передаётся в заголовке
@@ -182,11 +190,13 @@ impl ironrdp_connector::sspi::network_client::NetworkClient for RdpNetworkClient
         );
         {
             use std::io::Write as _;
-            stream.write_all(header.as_bytes())
-                .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+            stream.write_all(header.as_bytes()).map_err(|e| {
+                Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}"))
+            })?;
             // Тело запроса оставляем пустым: токен уже ушёл в заголовке.
-            stream.flush()
-                .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
+            stream.flush().map_err(|e| {
+                Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}"))
+            })?;
         }
 
         // 3. Читаем весь ответ: ответный токен CredSSP находится в заголовке
@@ -210,12 +220,21 @@ impl ironrdp_connector::sspi::network_client::NetworkClient for RdpNetworkClient
         // Ищем конец заголовков ("\r\n\r\n") и возвращаем оставшееся тело.
         let mut split = raw.len();
         for i in 0..raw.len() {
-            if raw[i] == b'\r' && i + 3 < raw.len() && raw[i + 1] == b'\n' && raw[i + 2] == b'\r' && raw[i + 3] == b'\n' {
+            if raw[i] == b'\r'
+                && i + 3 < raw.len()
+                && raw[i + 1] == b'\n'
+                && raw[i + 2] == b'\r'
+                && raw[i + 3] == b'\n'
+            {
                 split = i + 4;
                 break;
             }
         }
-        Ok(if split < raw.len() { raw[split..].to_vec() } else { Vec::<u8>::new() })
+        Ok(if split < raw.len() {
+            raw[split..].to_vec()
+        } else {
+            Vec::<u8>::new()
+        })
     }
 }
 
@@ -340,7 +359,7 @@ pub struct RdpConnection {
     /// Активная стадия: обработка рамок, быстрый путь (fast-path), каналы.
     stage: Option<RdpStage>,
     /// Декодированное изображение рабочего стола для отрисовки.
-    image: Option<RdpImage>,
+    image: Option<RdpImage>,
 }
 
 impl RdpConnection {
@@ -352,7 +371,7 @@ impl RdpConnection {
             connected: false,
             framed: None,
             stage: None,
-            image: None,
+            image: None,
         }
     }
 
@@ -384,20 +403,23 @@ impl RdpConnection {
             desktop_size.height,
         ));
 
-        self.stage = Some(ironrdp_session::ActiveStageBuilder {
-            static_channels: connection_result.static_channels,
-            user_channel_id: connection_result.user_channel_id,
-            io_channel_id: connection_result.io_channel_id,
-            message_channel_id: connection_result.message_channel_id,
-            share_id: connection_result.share_id,
-            compression_type: connection_result.compression_type,
-            enable_server_pointer: connection_result.enable_server_pointer,
-            pointer_software_rendering: connection_result.pointer_software_rendering,
-            // Криптор Standard RDP Security (RC4): коннектор уже зашифровал
-            // им Client Info и лицензирование, сессия продолжает шифровать
-            // fast-path/slow-path тем же потоком ключей.
-            security: connection_result.security,
-        }.build());
+        self.stage = Some(
+            ironrdp_session::ActiveStageBuilder {
+                static_channels: connection_result.static_channels,
+                user_channel_id: connection_result.user_channel_id,
+                io_channel_id: connection_result.io_channel_id,
+                message_channel_id: connection_result.message_channel_id,
+                share_id: connection_result.share_id,
+                compression_type: connection_result.compression_type,
+                enable_server_pointer: connection_result.enable_server_pointer,
+                pointer_software_rendering: connection_result.pointer_software_rendering,
+                // Криптор Standard RDP Security (RC4): коннектор уже зашифровал
+                // им Client Info и лицензирование, сессия продолжает шифровать
+                // fast-path/slow-path тем же потоком ключей.
+                security: connection_result.security,
+            }
+            .build(),
+        );
     }
 
     /// Обрабатывает один шаг активной стадии (просмотр): читает одну рамку
@@ -420,7 +442,7 @@ impl RdpConnection {
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 // Данных пока нет — возвращаем состояние в сессию и даём GUI
                 // продолжить (вызывать run() снова по таймеру / активности).
-                return Ok(false)
+                return Ok(false);
             }
             Err(e) => return Err(format!("ошибка чтения рамки: {e}")),
         };
@@ -584,9 +606,8 @@ fn tcp_connect(host: &str, port: u16, timeout: Duration) -> io::Result<TcpStream
         }
     }
 
-    Err(last_error.unwrap_or_else(|| {
-        io::Error::new(io::ErrorKind::TimedOut, "истёк тайм-аут подключения")
-    }))
+    Err(last_error
+        .unwrap_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "истёк тайм-аут подключения")))
 }
 
 /// Разворачивает цепочку ошибок IronRDP в читаемый текст: помимо контекста
@@ -726,8 +747,9 @@ impl RdpConnection {
 
                 let config = Arc::new(config);
 
-                let server_name = rustls::pki_types::ServerName::try_from(self.profile.host.clone())
-                    .map_err(|e| format!("некорректное имя сервера: {e}"))?;
+                let server_name =
+                    rustls::pki_types::ServerName::try_from(self.profile.host.clone())
+                        .map_err(|e| format!("некорректное имя сервера: {e}"))?;
 
                 let client = rustls::ClientConnection::new(config, server_name)
                     .map_err(|e| format!("ошибка создания TLS-соединения: {e}"))?;
@@ -768,7 +790,6 @@ impl RdpConnection {
 }
 
 impl RdpConnection {
-
     /// Переводит сокет в неблокирующий режим.
     ///
     /// Нужен циклу просмотра: пока сервер не прислал кадр, приложение должно
@@ -835,9 +856,7 @@ impl RdpConnection {
                 }
                 FastPathInputEvent::KeyboardEvent(flags, code)
             }
-            RdpKey::Char(c) => {
-                FastPathInputEvent::UnicodeKeyboardEvent(flags, c as u16)
-            }
+            RdpKey::Char(c) => FastPathInputEvent::UnicodeKeyboardEvent(flags, c as u16),
         };
         let pdu = FastPathInput::single(event);
         self.write_input_frame(ironrdp_pdu::encode_vec(&pdu).unwrap_or_default());
@@ -849,9 +868,18 @@ impl RdpConnection {
     /// клавиатуры, поэтому достаточно послать нажатие Ctrl, Alt и Delete
     /// (с флагом «расширенная клавиша»).
     pub fn send_ctrl_alt_del(&mut self) {
-        const CTRL: RdpKey = RdpKey::Scancode { code: 0x1d, extended: false };
-        const ALT: RdpKey = RdpKey::Scancode { code: 0x38, extended: false };
-        const DEL: RdpKey = RdpKey::Scancode { code: 0x53, extended: true };
+        const CTRL: RdpKey = RdpKey::Scancode {
+            code: 0x1d,
+            extended: false,
+        };
+        const ALT: RdpKey = RdpKey::Scancode {
+            code: 0x38,
+            extended: false,
+        };
+        const DEL: RdpKey = RdpKey::Scancode {
+            code: 0x53,
+            extended: true,
+        };
 
         self.send_key(CTRL, true);
         self.send_key(ALT, true);
@@ -990,7 +1018,8 @@ mod tests {
             panic!("подключение к RDP-серверу не удалось: {e}");
         }
         // Неблокирующий режим: иначе ожидание кадра блокировало бы тест.
-        conn.set_nonblocking(true).expect("неблокирующий режим сокета");
+        conn.set_nonblocking(true)
+            .expect("неблокирующий режим сокета");
 
         // Ждём первый кадр рабочего стола.
         let mut got_frame = false;
@@ -1005,8 +1034,13 @@ mod tests {
             }
         }
 
-        let size = conn.image_size().expect("размер кадра должен быть известен");
-        assert!(size.0 > 0 && size.1 > 0, "некорректный размер кадра: {size:?}");
+        let size = conn
+            .image_size()
+            .expect("размер кадра должен быть известен");
+        assert!(
+            size.0 > 0 && size.1 > 0,
+            "некорректный размер кадра: {size:?}"
+        );
         assert!(!conn.image_pixels().is_empty(), "кадр пустой");
         assert!(got_frame, "кадр не получен");
 
@@ -1022,4 +1056,3 @@ mod tests {
         }
     }
 }
-

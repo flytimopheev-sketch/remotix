@@ -11,15 +11,14 @@ use std::time::{Duration, Instant};
 
 use gtk4::prelude::*;
 use gtk4::{
-    gio, glib, Box as GtkBox, Button, DropDown, Entry, HeaderBar, Image, Label, ListBox, ListBoxRow,
-    MenuButton, Notebook, Orientation, Overlay, Paned, Popover, ScrolledWindow, SearchEntry,
-    StringList,
+    gio, glib, Box as GtkBox, Button, DropDown, Entry, HeaderBar, Image, Label, ListBox,
+    ListBoxRow, MenuButton, Notebook, Orientation, Overlay, Paned, Popover, ScrolledWindow,
+    SearchEntry, StringList,
 };
 
 use crate::app::AppState;
 use crate::host_check;
 use crate::models::{Profile, Protocol};
-use crate::wol;
 use crate::protocols::ssh::SshConnection;
 use crate::ui::history_tab::HistoryTab;
 use crate::ui::profile_editor::ProfileEditor;
@@ -27,6 +26,7 @@ use crate::ui::rdp_viewer::RdpViewer;
 use crate::ui::sftp_tab::SftpTab;
 use crate::ui::terminal::TerminalTab;
 use crate::ui::SessionState;
+use crate::wol;
 
 /// Что открыть после успешной проверки доступности узла.
 #[derive(Clone, Copy, Debug)]
@@ -40,11 +40,7 @@ enum ConnectAction {
 /// Строка боковой панели: заголовок группы или подключение.
 #[derive(Clone, Debug)]
 enum SideRow {
-    Group {
-        id: i64,
-        name: String,
-        depth: usize,
-    },
+    Group { id: i64, name: String, depth: usize },
     // В коробке: Profile заметно крупнее Group, Box держит enum компактным.
     Profile(Box<Profile>),
 }
@@ -132,10 +128,7 @@ impl MainWindow {
 
         // Фильтр по тегу + кнопка создания группы.
         let tags_list = StringList::new(&["Все теги"]);
-        let tags_combo = DropDown::builder()
-            .model(&tags_list)
-            .selected(0)
-            .build();
+        let tags_combo = DropDown::builder().model(&tags_list).selected(0).build();
         tags_combo.set_hexpand(true);
         tags_combo.set_tooltip_text(Some("Показать подключения только с этим тегом"));
         let new_group_btn = Button::from_icon_name("folder-new-symbolic");
@@ -437,9 +430,9 @@ impl MainWindow {
                         .as_ref()
                         .map(|u| u.to_lowercase().contains(&filter))
                         .unwrap_or(false);
-                let tag_match = tag.as_ref().is_none_or(|want| {
-                    p.tags.iter().any(|have| have == want)
-                });
+                let tag_match = tag
+                    .as_ref()
+                    .is_none_or(|want| p.tags.iter().any(|have| have == want));
                 text_match && tag_match
             })
             .cloned()
@@ -454,8 +447,12 @@ impl MainWindow {
 
         // Восстанавливаем выделение прежнего профиля.
         if let Some(id) = selected_id {
-            if let Some(index) = self.rows.borrow().iter().position(|row| {
-                matches!(row, SideRow::Profile(p) if p.id == id)            }) {
+            if let Some(index) = self
+                .rows
+                .borrow()
+                .iter()
+                .position(|row| matches!(row, SideRow::Profile(p) if p.id == id))
+            {
                 if let Some(r) = self.sidebar.row_at_index(index as i32) {
                     self.sidebar.select_row(Some(&r));
                 }
@@ -500,14 +497,20 @@ impl MainWindow {
             .collect();
         let additions: Vec<&str> = items.iter().map(String::as_str).collect();
         self.tag_updating.set(true);
-        self.tags_list.splice(0, self.tags_list.n_items(), &additions);
+        self.tags_list
+            .splice(0, self.tags_list.n_items(), &additions);
         self.tags_combo.set_selected(selected_index as u32);
         self.tag_updating.set(false);
     }
 
     /// Строит строки боковой панели: дерево групп + плоский список профилей
     /// без группы. Если групп нет вовсе — прежний плоский список.
-    fn rebuild_sidebar(&self, groups: &[(i64, String, Option<i64>)], visible: &[Profile], flat: bool) {
+    fn rebuild_sidebar(
+        &self,
+        groups: &[(i64, String, Option<i64>)],
+        visible: &[Profile],
+        flat: bool,
+    ) {
         self.clear_sidebar();
 
         let mut rows = self.rows.borrow_mut();
@@ -547,17 +550,18 @@ impl MainWindow {
         }
 
         let collapsed = self.collapsed.borrow();
-        let mut emit_group = |rows: &mut Vec<SideRow>, id: i64, name: &str, depth: usize, direct: usize| {
-            let is_collapsed = collapsed.contains(&id);
-            let row = self.build_group_row(id, name, depth, direct, is_collapsed);
-            self.sidebar.append(&row);
-            rows.push(SideRow::Group {
-                id,
-                name: name.to_string(),
-                depth,
-            });
-            is_collapsed
-        };
+        let mut emit_group =
+            |rows: &mut Vec<SideRow>, id: i64, name: &str, depth: usize, direct: usize| {
+                let is_collapsed = collapsed.contains(&id);
+                let row = self.build_group_row(id, name, depth, direct, is_collapsed);
+                self.sidebar.append(&row);
+                rows.push(SideRow::Group {
+                    id,
+                    name: name.to_string(),
+                    depth,
+                });
+                is_collapsed
+            };
         let emit_group = &mut emit_group;
 
         // Рекурсивный обход сверху вниз (children выбираются из полного
@@ -580,10 +584,8 @@ impl MainWindow {
             depth: usize,
         ) {
             // Сначала подгруппы (по алфавиту), затем подключения.
-            let mut children: Vec<&(i64, String, Option<i64>)> = groups
-                .iter()
-                .filter(|(_, _, p)| *p == parent)
-                .collect();
+            let mut children: Vec<&(i64, String, Option<i64>)> =
+                groups.iter().filter(|(_, _, p)| *p == parent).collect();
             children.sort_by_key(|g| g.1.to_lowercase());
 
             for (id, name, _) in children.iter() {
@@ -598,7 +600,8 @@ impl MainWindow {
                 for profile in profiles {
                     let row = (ui.build_profile_row)(profile, depth + 1);
                     ui.sidebar.append(&row);
-                    ui.rows.push(SideRow::Profile(Box::new((**profile).clone())));
+                    ui.rows
+                        .push(SideRow::Profile(Box::new((**profile).clone())));
                 }
             }
         }
@@ -731,9 +734,7 @@ impl MainWindow {
                 let (px, py) = row_ref
                     .translate_coordinates(&toplevel, x, y)
                     .unwrap_or((x, y));
-                popup.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
-                    px as i32, py as i32, 1, 1,
-                )));
+                popup.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(px as i32, py as i32, 1, 1)));
                 popup.popup();
             });
             row.add_controller(controller);
@@ -769,29 +770,49 @@ impl MainWindow {
         };
 
         let win = self.clone();
-        add_item(&box_, "Подключиться", Box::new(move |p: &Profile| {
-            win.connect_profile(p.clone());
-        }));
+        add_item(
+            &box_,
+            "Подключиться",
+            Box::new(move |p: &Profile| {
+                win.connect_profile(p.clone());
+            }),
+        );
 
         let win = self.clone();
-        add_item(&box_, "Изменить…", Box::new(move |p: &Profile| {
-            win.open_profile_editor(Some(p.id));
-        }));
+        add_item(
+            &box_,
+            "Изменить…",
+            Box::new(move |p: &Profile| {
+                win.open_profile_editor(Some(p.id));
+            }),
+        );
 
         let win = self.clone();
-        add_item(&box_, "Дублировать", Box::new(move |p: &Profile| {
-            win.duplicate_profile(p);
-        }));
+        add_item(
+            &box_,
+            "Дублировать",
+            Box::new(move |p: &Profile| {
+                win.duplicate_profile(p);
+            }),
+        );
 
         let win = self.clone();
-        add_item(&box_, "Переместить в группу…", Box::new(move |p: &Profile| {
-            win.move_profile_to_group(p.clone());
-        }));
+        add_item(
+            &box_,
+            "Переместить в группу…",
+            Box::new(move |p: &Profile| {
+                win.move_profile_to_group(p.clone());
+            }),
+        );
 
         let win = self.clone();
-        add_item(&box_, "Удалить", Box::new(move |p: &Profile| {
-            win.delete_profile(p);
-        }));
+        add_item(
+            &box_,
+            "Удалить",
+            Box::new(move |p: &Profile| {
+                win.delete_profile(p);
+            }),
+        );
 
         popover.set_child(Some(&box_));
         popover
@@ -858,9 +879,7 @@ impl MainWindow {
                 let (px, py) = row_ref
                     .translate_coordinates(&toplevel, x, y)
                     .unwrap_or((x, y));
-                popup.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
-                    px as i32, py as i32, 1, 1,
-                )));
+                popup.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(px as i32, py as i32, 1, 1)));
                 popup.popup();
             });
             row.add_controller(controller);
@@ -893,30 +912,46 @@ impl MainWindow {
         };
 
         let win = self.clone();
-        add_item(&box_, "Добавить подгруппу…", Box::new(move || {
-            win.ask_create_group(Some(id));
-        }));
+        add_item(
+            &box_,
+            "Добавить подгруппу…",
+            Box::new(move || {
+                win.ask_create_group(Some(id));
+            }),
+        );
 
         let win = self.clone();
-        add_item(&box_, "Добавить подгруппу…", Box::new(move || {
-            win.ask_create_group(Some(id));
-        }));
+        add_item(
+            &box_,
+            "Добавить подгруппу…",
+            Box::new(move || {
+                win.ask_create_group(Some(id));
+            }),
+        );
 
         let win = self.clone();
-        add_item(&box_, "Переименовать…", Box::new({
-            let name = name.to_string();
-            move || {
-                win.ask_rename_group(id, &name);
-            }
-        }));
+        add_item(
+            &box_,
+            "Переименовать…",
+            Box::new({
+                let name = name.to_string();
+                move || {
+                    win.ask_rename_group(id, &name);
+                }
+            }),
+        );
 
         let win = self.clone();
-        add_item(&box_, "Удалить группу", Box::new({
-            let name = name.to_string();
-            move || {
-                win.confirm_delete_group(id, &name);
-            }
-        }));
+        add_item(
+            &box_,
+            "Удалить группу",
+            Box::new({
+                let name = name.to_string();
+                move || {
+                    win.confirm_delete_group(id, &name);
+                }
+            }),
+        );
 
         popover.set_child(Some(&box_));
         popover
@@ -938,28 +973,36 @@ impl MainWindow {
             Some(_) => "Новая подгруппа",
             None => "Новая группа",
         };
-        self.ask_text(caption, "Название группы:", "", move |win, name| {
-            let result = win.state.db.create_group(&name, parent_id);
-            match result {
-                Ok(_) => {
-                    win.set_status(&format!("Группа «{name}» создана"));
-                    win.refresh_profiles();
+        self.ask_text(
+            caption,
+            "Название группы:",
+            "",
+            move |win, name| {
+                let result = win.state.db.create_group(&name, parent_id);
+                match result {
+                    Ok(_) => {
+                        win.set_status(&format!("Группа «{name}» создана"));
+                        win.refresh_profiles();
+                    }
+                    Err(e) => win.set_status(&format!("Не удалось создать группу: {e}")),
                 }
-                Err(e) => win.set_status(&format!("Не удалось создать группу: {e}")),
-            }
-        });
+            },
+        );
     }
 
     fn ask_rename_group(&self, id: i64, current: &str) {
-        self.ask_text("Переименовать группу", "Название группы:", current, move |win, name| {
-            match win.state.db.rename_group(id, &name) {
+        self.ask_text(
+            "Переименовать группу",
+            "Название группы:",
+            current,
+            move |win, name| match win.state.db.rename_group(id, &name) {
                 Ok(()) => {
                     win.set_status(&format!("Группа переименована в «{name}»"));
                     win.refresh_profiles();
                 }
                 Err(e) => win.set_status(&format!("Не удалось переименовать: {e}")),
-            }
-        });
+            },
+        );
     }
 
     fn confirm_delete_group(&self, id: i64, name: &str) {
@@ -1015,9 +1058,7 @@ impl MainWindow {
             .build();
         dialog.set_transient_for(self.window().as_ref());
 
-        let model = StringList::new(
-            &items.iter().map(String::as_str).collect::<Vec<_>>(),
-        );
+        let model = StringList::new(&items.iter().map(String::as_str).collect::<Vec<_>>());
         let combo = DropDown::builder().model(&model).build();
         combo.set_hexpand(true);
 
@@ -1235,25 +1276,23 @@ impl MainWindow {
 
         let win = self.clone();
         let profile = Rc::new(profile);
-        let _ = glib::timeout_add_local(Duration::from_millis(100), move || {
-            match rx.try_recv() {
-                Ok(Ok(())) => {
-                    win.open_connection((*profile).clone(), action);
-                    glib::ControlFlow::Break
-                }
-                Ok(Err(error)) => {
-                    win.show_host_offline((*profile).clone(), error, action);
-                    glib::ControlFlow::Break
-                }
-                Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    win.show_host_offline(
-                        (*profile).clone(),
-                        "проверка доступности прервана".to_string(),
-                        action,
-                    );
-                    glib::ControlFlow::Break
-                }
+        let _ = glib::timeout_add_local(Duration::from_millis(100), move || match rx.try_recv() {
+            Ok(Ok(())) => {
+                win.open_connection((*profile).clone(), action);
+                glib::ControlFlow::Break
+            }
+            Ok(Err(error)) => {
+                win.show_host_offline((*profile).clone(), error, action);
+                glib::ControlFlow::Break
+            }
+            Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+            Err(mpsc::TryRecvError::Disconnected) => {
+                win.show_host_offline(
+                    (*profile).clone(),
+                    "проверка доступности прервана".to_string(),
+                    action,
+                );
+                glib::ControlFlow::Break
             }
         });
     }
@@ -1369,8 +1408,8 @@ impl MainWindow {
                 return;
             }
             if !sent {
-                let error = last_error
-                    .unwrap_or_else(|| "не удалось отправить magic packet".to_string());
+                let error =
+                    last_error.unwrap_or_else(|| "не удалось отправить magic packet".to_string());
                 let _ = tx.send(Err(error));
                 return;
             }
@@ -1395,44 +1434,39 @@ impl MainWindow {
         let win = self.clone();
         let profile = Rc::new(profile);
         let started = Instant::now();
-        let _ = glib::timeout_add_local(Duration::from_millis(250), move || {
-            match rx.try_recv() {
-                Ok(Ok(())) => {
-                    progress.close();
-                    win.set_status(&format!(
-                        "{}: хост проснулся, подключаемся…",
-                        profile.host
-                    ));
-                    win.open_connection((*profile).clone(), action);
-                    glib::ControlFlow::Break
+        let _ = glib::timeout_add_local(Duration::from_millis(250), move || match rx.try_recv() {
+            Ok(Ok(())) => {
+                progress.close();
+                win.set_status(&format!("{}: хост проснулся, подключаемся…", profile.host));
+                win.open_connection((*profile).clone(), action);
+                glib::ControlFlow::Break
+            }
+            Ok(Err(error)) => {
+                let was_cancelled = cancelled.load(Ordering::Relaxed);
+                progress.close();
+                if was_cancelled {
+                    win.set_status(&format!("{}: ожидание отменено", profile.host));
+                } else {
+                    win.set_status(&format!("{}: {error}", profile.host));
+                    win.show_wake_failed((*profile).clone(), &error, action);
                 }
-                Ok(Err(error)) => {
-                    let was_cancelled = cancelled.load(Ordering::Relaxed);
-                    progress.close();
-                    if was_cancelled {
-                        win.set_status(&format!("{}: ожидание отменено", profile.host));
-                    } else {
-                        win.set_status(&format!("{}: {error}", profile.host));
-                        win.show_wake_failed((*profile).clone(), &error, action);
-                    }
-                    glib::ControlFlow::Break
-                }
-                Err(mpsc::TryRecvError::Empty) => {
-                    let left = host_check::WAKE_WAIT
-                        .saturating_sub(started.elapsed())
-                        .as_secs();
-                    status.set_text(&format!(
-                        "Magic packet отправлен. Ждём, пока откроется порт {}… \
+                glib::ControlFlow::Break
+            }
+            Err(mpsc::TryRecvError::Empty) => {
+                let left = host_check::WAKE_WAIT
+                    .saturating_sub(started.elapsed())
+                    .as_secs();
+                status.set_text(&format!(
+                    "Magic packet отправлен. Ждём, пока откроется порт {}… \
                          Осталось {} с.",
-                        profile.port, left
-                    ));
-                    glib::ControlFlow::Continue
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    progress.close();
-                    win.set_status(&format!("{}: ожидание прервано", profile.host));
-                    glib::ControlFlow::Break
-                }
+                    profile.port, left
+                ));
+                glib::ControlFlow::Continue
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                progress.close();
+                win.set_status(&format!("{}: ожидание прервано", profile.host));
+                glib::ControlFlow::Break
             }
         });
     }
@@ -1854,10 +1888,8 @@ fn order_groups(groups: &[(i64, String, Option<i64>)]) -> Vec<(i64, String, Opti
         groups: &[(i64, String, Option<i64>)],
         result: &mut Vec<(i64, String, Option<i64>)>,
     ) {
-        let mut children: Vec<&(i64, String, Option<i64>)> = groups
-            .iter()
-            .filter(|(_, _, p)| *p == parent)
-            .collect();
+        let mut children: Vec<&(i64, String, Option<i64>)> =
+            groups.iter().filter(|(_, _, p)| *p == parent).collect();
         children.sort_by_key(|g| g.1.to_lowercase());
         for child in children {
             result.push(child.clone());

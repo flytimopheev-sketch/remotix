@@ -39,8 +39,7 @@ impl SftpPanel {
     ) -> Result<Self, String> {
         // Способы входа (пароль, ключ, ssh-agent) те же, что у терминала.
         let username = profile.username.as_deref().unwrap_or("root");
-        let session =
-            crate::protocols::ssh::connect_session_with(profile, username, host_key)?;
+        let session = crate::protocols::ssh::connect_session_with(profile, username, host_key)?;
 
         // Начальный каталог — абсолютный путь домашнего каталога пользователя.
         // Относительные пути сервер SFTP разрешает от своего рабочего
@@ -83,7 +82,8 @@ impl SftpPanel {
 
     /// Признак каталога по битам режима (S_IFDIR).
     fn is_dir_mode(perm: Option<u32>) -> bool {
-        perm.map(|mode| (mode & 0o170000) == 0o040000).unwrap_or(false)
+        perm.map(|mode| (mode & 0o170000) == 0o040000)
+            .unwrap_or(false)
     }
 
     /// Тип объекта в атрибутах неизвестен: сервер прислал только права
@@ -134,7 +134,12 @@ impl SftpPanel {
     /// режиму ошибочно объявляла каталог файлом.
     pub fn cd(&mut self, path: &str) -> Result<(), String> {
         let full = self.resolve(path);
-        let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
+        let sftp = self
+            .session
+            .as_mut()
+            .unwrap()
+            .sftp()
+            .map_err(|e| e.to_string())?;
 
         let mut target = full.clone();
         let mut opened = sftp.opendir(Path::new(&target)).is_ok();
@@ -197,7 +202,12 @@ impl SftpPanel {
         let mut unknown: Vec<(usize, String)> = Vec::new();
 
         {
-            let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
+            let sftp = self
+                .session
+                .as_mut()
+                .unwrap()
+                .sftp()
+                .map_err(|e| e.to_string())?;
             for entry in sftp
                 .readdir(Path::new(&self.remote_dir))
                 .map_err(|e| e.to_string())?
@@ -230,7 +240,12 @@ impl SftpPanel {
         // возможности его открыть. Результат кэшируем, чтобы не делать
         // лишних запросов при каждом обновлении списка.
         if !unknown.is_empty() {
-            let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
+            let sftp = self
+                .session
+                .as_mut()
+                .unwrap()
+                .sftp()
+                .map_err(|e| e.to_string())?;
             for (idx, full) in unknown {
                 let is_dir = match self.dir_cache.get(&full) {
                     Some(cached) => *cached,
@@ -258,7 +273,12 @@ impl SftpPanel {
     /// Загрузка файла на сервер.
     pub fn upload(&mut self, local: &Path, remote_name: &str) -> Result<(), String> {
         let data = std::fs::read(local).map_err(|e| e.to_string())?;
-        let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
+        let sftp = self
+            .session
+            .as_mut()
+            .unwrap()
+            .sftp()
+            .map_err(|e| e.to_string())?;
         let remote = Path::new(&self.remote_dir).join(remote_name);
         let mut file = sftp.create(&remote).map_err(|e| e.to_string())?;
         use std::io::Write;
@@ -268,7 +288,12 @@ impl SftpPanel {
 
     /// Скачивание файла с сервера.
     pub fn download(&mut self, remote_name: &str, local: &Path) -> Result<(), String> {
-        let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
+        let sftp = self
+            .session
+            .as_mut()
+            .unwrap()
+            .sftp()
+            .map_err(|e| e.to_string())?;
         let remote = Path::new(&self.remote_dir).join(remote_name);
         let mut file = sftp.open(&remote).map_err(|e| e.to_string())?;
         use std::io::Read;
@@ -280,13 +305,24 @@ impl SftpPanel {
 
     /// Создание папки на сервере.
     pub fn mkdir(&mut self, name: &str) -> Result<(), String> {
-        let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
-        sftp.mkdir(&Path::new(&self.remote_dir).join(name), 0o755).map_err(|e| e.to_string())
+        let sftp = self
+            .session
+            .as_mut()
+            .unwrap()
+            .sftp()
+            .map_err(|e| e.to_string())?;
+        sftp.mkdir(&Path::new(&self.remote_dir).join(name), 0o755)
+            .map_err(|e| e.to_string())
     }
 
     /// Переименование объекта на сервере.
     pub fn rename(&mut self, from: &str, to: &str) -> Result<(), String> {
-        let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
+        let sftp = self
+            .session
+            .as_mut()
+            .unwrap()
+            .sftp()
+            .map_err(|e| e.to_string())?;
         sftp.rename(
             &Path::new(&self.remote_dir).join(from),
             &Path::new(&self.remote_dir).join(to),
@@ -297,15 +333,26 @@ impl SftpPanel {
 
     /// Удаление объекта на сервере.
     pub fn remove(&mut self, name: &str) -> Result<(), String> {
-        let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
-        sftp.unlink(&Path::new(&self.remote_dir).join(name)).map_err(|e| e.to_string())
+        let sftp = self
+            .session
+            .as_mut()
+            .unwrap()
+            .sftp()
+            .map_err(|e| e.to_string())?;
+        sftp.unlink(&Path::new(&self.remote_dir).join(name))
+            .map_err(|e| e.to_string())
     }
 
     /// Копирование файла на сервере (в пределах текущего каталога).
     pub fn copy(&mut self, from: &str, to: &str) -> Result<(), String> {
         use std::io::{Read, Write};
 
-        let sftp = self.session.as_mut().unwrap().sftp().map_err(|e| e.to_string())?;
+        let sftp = self
+            .session
+            .as_mut()
+            .unwrap()
+            .sftp()
+            .map_err(|e| e.to_string())?;
         let src = Path::new(&self.remote_dir).join(from);
         let dst = Path::new(&self.remote_dir).join(to);
         let mut data = Vec::new();
@@ -419,12 +466,15 @@ mod tests {
             verifier: None,
         };
         let profile = test_profile();
-        let mut panel = SftpPanel::new_with_host_key(&profile, &host_key)
-            .expect("подключение к SFTP-серверу");
+        let mut panel =
+            SftpPanel::new_with_host_key(&profile, &host_key).expect("подключение к SFTP-серверу");
 
         // Начальный каталог — абсолютный путь.
         let start = panel.remote_path();
-        assert!(start.starts_with('/'), "начальный путь должен быть абсолютным: {start}");
+        assert!(
+            start.starts_with('/'),
+            "начальный путь должен быть абсолютным: {start}"
+        );
 
         // Ищем каталог, в который можно войти.
         let listing = panel.remote_list().expect("список удалённого каталога");

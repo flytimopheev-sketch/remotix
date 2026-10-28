@@ -122,7 +122,10 @@ mod vte_dynamic {
         let feed = sym!(b"vte_terminal_feed\0", TerminalFeed);
         let set_font_scale = sym!(b"vte_terminal_set_font_scale\0", TerminalSetFontScale);
         let get_font_scale = sym!(b"vte_terminal_get_font_scale\0", TerminalGetFontScale);
-        let copy_clipboard = sym!(b"vte_terminal_copy_clipboard_format\0", TerminalCopyClipboard);
+        let copy_clipboard = sym!(
+            b"vte_terminal_copy_clipboard_format\0",
+            TerminalCopyClipboard
+        );
         let char_width = sym!(b"vte_terminal_get_char_width\0", TerminalGetCharWidth);
         let char_height = sym!(b"vte_terminal_get_char_height\0", TerminalGetCharHeight);
 
@@ -176,7 +179,11 @@ mod vte_dynamic {
         pub fn feed(&self, data: &[u8]) {
             // SAFETY: терминал жив (держим ссылку), данные — валидный срез.
             unsafe {
-                (self.api.feed)(self.raw(), data.as_ptr() as *const c_char, data.len() as isize);
+                (self.api.feed)(
+                    self.raw(),
+                    data.as_ptr() as *const c_char,
+                    data.len() as isize,
+                );
             }
         }
 
@@ -246,18 +253,18 @@ const ANSI_BASE: [(u8, u8, u8); 8] = [
 
 /// Переводит 8-битный цвет в 16-битный.
 fn rgb16(r: u8, g: u8, b: u8) -> (u16, u16, u16) {
-    (
-        u16::from(r) * 257,
-        u16::from(g) * 257,
-        u16::from(b) * 257,
-    )
+    (u16::from(r) * 257, u16::from(g) * 257, u16::from(b) * 257)
 }
 
 /// Базовый цвет ANSI (0..7) или светлый вариант (8..15).
 fn ansi_color(index: u32, bright: bool) -> (u16, u16, u16) {
     let (r, g, b) = ANSI_BASE[(index as usize) % 8];
     let boost = if bright { 0x30 } else { 0 };
-    rgb16(r.saturating_add(boost), g.saturating_add(boost), b.saturating_add(boost))
+    rgb16(
+        r.saturating_add(boost),
+        g.saturating_add(boost),
+        b.saturating_add(boost),
+    )
 }
 
 /// Цвет из палитры xterm-256.
@@ -273,11 +280,7 @@ fn xterm256(index: u8) -> (u16, u16, u16) {
     if index < 232 {
         const STEPS: [u8; 6] = [0, 95, 135, 175, 215, 255];
         let i = (index - 16) as usize;
-        return rgb16(
-            STEPS[i / 36],
-            STEPS[(i % 36) / 6],
-            STEPS[i % 6],
-        );
+        return rgb16(STEPS[i / 36], STEPS[(i % 36) / 6], STEPS[i % 6]);
     }
     let gray = (8 + (index as u16 - 232) * 10) as u8;
     rgb16(gray, gray, gray)
@@ -303,9 +306,18 @@ fn apply_sgr(mut state: AnsiState, params: &str) -> AnsiState {
                     }
                     i += 2;
                 } else if parts.get(i + 1) == Some(&"2") {
-                    let r = parts.get(i + 2).and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
-                    let g = parts.get(i + 3).and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
-                    let b = parts.get(i + 4).and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
+                    let r = parts
+                        .get(i + 2)
+                        .and_then(|v| v.parse::<u8>().ok())
+                        .unwrap_or(0);
+                    let g = parts
+                        .get(i + 3)
+                        .and_then(|v| v.parse::<u8>().ok())
+                        .unwrap_or(0);
+                    let b = parts
+                        .get(i + 4)
+                        .and_then(|v| v.parse::<u8>().ok())
+                        .unwrap_or(0);
                     state.color = Some(rgb16(r, g, b));
                     i += 4;
                 }
@@ -448,7 +460,9 @@ fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>) {
             Some((r, g, b)) => {
                 let bold = if segment.bold { "<b>" } else { "" };
                 let bold_end = if segment.bold { "</b>" } else { "" };
-                format!("<span foreground=\"#{r:04x}{g:04x}{b:04x}\">{bold}{escaped}{bold_end}</span>")
+                format!(
+                    "<span foreground=\"#{r:04x}{g:04x}{b:04x}\">{bold}{escaped}{bold_end}</span>"
+                )
             }
             None => {
                 if segment.bold {
@@ -466,14 +480,17 @@ fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>) {
 
 enum Kind {
     Vte(vte_dynamic::Terminal),
-    Text { view: TextView, provider: CssProvider },
+    Text {
+        view: TextView,
+        provider: CssProvider,
+    },
 }
 
 impl TerminalView {
     /// Создаёт терминал внутри `scroll`: VTE, если библиотека доступна.
-    fn new(scroll: &ScrolledWindow, font_size: i64) -> Self {
-        let base_font_px = (font_size.clamp(8, 32) as f64).max(8.0);
-        // Масштаб VTE приводим к базовому размеру шрифта.
+    fn new(scroll: &ScrolledWindow, font_size: i64) -> Self {
+        let base_font_px = (font_size.clamp(8, 32) as f64).max(8.0);
+        // Масштаб VTE приводим к базовому размеру шрифта.
         let scale = (base_font_px / BASE_FONT_PX).clamp(0.5, 3.0);
         if let Some(vte) = vte_dynamic::Terminal::new() {
             let widget = vte.widget().clone();
@@ -534,7 +551,10 @@ impl TerminalView {
         self.scale.set(next);
         match &self.kind {
             Kind::Vte(term) => term.set_font_scale(next),
-            Kind::Text { view, provider } => { let base = self.base_font_px; apply_text_style(view, provider, next, base) },
+            Kind::Text { view, provider } => {
+                let base = self.base_font_px;
+                apply_text_style(view, provider, next, base)
+            }
         }
     }
 
@@ -748,7 +768,8 @@ impl TerminalTab {
             use std::io::Read;
             let open = (|| -> Result<ssh2::Channel, String> {
                 let mut ch = session.channel_session().map_err(|e| e.to_string())?;
-                ch.request_pty("xterm", None, None).map_err(|e| e.to_string())?;
+                ch.request_pty("xterm", None, None)
+                    .map_err(|e| e.to_string())?;
                 if su {
                     ch.exec("su -").map_err(|e| e.to_string())?;
                     wait_password(
@@ -802,9 +823,8 @@ impl TerminalTab {
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
                     Err(e) => {
-                        let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Failed(
-                            e.to_string(),
-                        )));
+                        let _ = tx_out
+                            .send(ToUi::State(crate::ui::SessionState::Failed(e.to_string())));
                         break;
                     }
                 }
@@ -882,8 +902,7 @@ impl TerminalTab {
                     Ok(ToUi::State(state)) => {
                         if matches!(
                             state,
-                            crate::ui::SessionState::Closed
-                                | crate::ui::SessionState::Failed(_)
+                            crate::ui::SessionState::Closed | crate::ui::SessionState::Failed(_)
                         ) {
                             alive_out.set(false);
                         }

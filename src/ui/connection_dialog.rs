@@ -25,7 +25,12 @@ impl ConnectionDialog {
         port_entry.set_text("22");
         let status = Label::new(None);
 
-        Self { window, host_entry, port_entry, status }
+        Self {
+            window,
+            host_entry,
+            port_entry,
+            status,
+        }
     }
 
     pub fn present_transient_for(&self, parent: Option<&Window>) {

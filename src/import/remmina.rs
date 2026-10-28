@@ -71,10 +71,7 @@ pub fn scan_dir(dir: &Path) -> Result<ImportPreview, String> {
     }
 
     if files == 0 {
-        preview.note(format!(
-            "В {} не найдено файлов *.remmina",
-            dir.display()
-        ));
+        preview.note(format!("В {} не найдено файлов *.remmina", dir.display()));
     }
     Ok(preview)
 }
@@ -176,10 +173,7 @@ pub fn parse_text(text: &str, origin: &str) -> ImportPreview {
                 rdp_options.color_depth = depth;
             }
         }
-        if let Some((width, height)) = values
-            .get("resolution")
-            .and_then(|v| parse_resolution(v))
-        {
+        if let Some((width, height)) = values.get("resolution").and_then(|v| parse_resolution(v)) {
             rdp_options.width = width;
             rdp_options.height = height;
         }
@@ -246,11 +240,7 @@ fn parse_ini(text: &str) -> HashMap<String, String> {
 
 fn display_name(values: &HashMap<String, String>, origin: &str) -> String {
     clean(values.get("name"))
-        .or_else(|| {
-            values
-                .get("server")
-                .and_then(|server| clean(Some(server)))
-        })
+        .or_else(|| values.get("server").and_then(|server| clean(Some(server))))
         .unwrap_or_else(|| {
             Path::new(origin)
                 .file_stem()

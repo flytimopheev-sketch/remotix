@@ -84,9 +84,9 @@ fn run_sftp_command(
         }
         ToSftp::Mkdir(name) => panel.mkdir(&name).map(|_| format!("Каталог {name} создан")),
         ToSftp::Remove(name) => panel.remove(&name).map(|_| format!("Объект {name} удалён")),
-        ToSftp::Rename(from, to) => {
-            panel.rename(&from, &to).map(|_| format!("Переименовано в {to}"))
-        }
+        ToSftp::Rename(from, to) => panel
+            .rename(&from, &to)
+            .map(|_| format!("Переименовано в {to}")),
         ToSftp::CopyRemote(from, to) => panel
             .copy(&from, &to)
             .map(|_| format!("Файл {to} создан на сервере")),
@@ -285,11 +285,9 @@ impl SftpTab {
                         Ok(files) => {
                             let path = panel.remote_path();
                             let listing_changed = changed
-                                || last_listing
-                                    .as_ref()
-                                    .is_none_or(|(last_path, last_files)| {
-                                        last_path != &path || last_files != &files
-                                    });
+                                || last_listing.as_ref().is_none_or(|(last_path, last_files)| {
+                                    last_path != &path || last_files != &files
+                                });
                             if listing_changed {
                                 last_listing = Some((path.clone(), files.clone()));
                                 let _ = tx_ui.send(ToUi::Remote(files, path));
@@ -637,10 +635,8 @@ impl SftpTab {
                         Some("F6") => {
                             // Переименовать на сервере.
                             if let Some(name) = selected {
-                                let _ = tx.send(ToSftp::Rename(
-                                    name.clone(),
-                                    format!("{name}.renamed"),
-                                ));
+                                let _ = tx
+                                    .send(ToSftp::Rename(name.clone(), format!("{name}.renamed")));
                             }
                             return glib::Propagation::Stop;
                         }
@@ -672,10 +668,7 @@ impl SftpTab {
                                     ClipItem::Remote(name) => {
                                         let _ = tx.send(ToSftp::CopyRemote(
                                             name.clone(),
-                                            unique_copy_name(
-                                                &std::path::PathBuf::from("."),
-                                                &name,
-                                            ),
+                                            unique_copy_name(&std::path::PathBuf::from("."), &name),
                                         ));
                                     }
                                 }
@@ -801,7 +794,9 @@ fn unique_copy_name(dir: &std::path::Path, name: &str) -> String {
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| name.to_string());
-    let ext = path.extension().map(|s| format!(".{}", s.to_string_lossy()));
+    let ext = path
+        .extension()
+        .map(|s| format!(".{}", s.to_string_lossy()));
     match ext {
         Some(e) => format!("{stem} (копия){e}"),
         None => format!("{stem} (копия)"),

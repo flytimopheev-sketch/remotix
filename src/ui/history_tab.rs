@@ -46,54 +46,50 @@ impl HistoryTab {
             let state = state.clone();
             let list = list.clone();
             let status = status.clone();
-            move || {
-                match state.db.history(None, None) {
-                    Ok(entries) if entries.is_empty() => {
-                        crate::ui::clear_list(&list);
-                        let empty = Label::new(Some("Подключений пока не было"));
-                        empty.set_margin_top(18);
-                        empty.add_css_class("remotix-empty");
-                        list.append(&empty);
-                        status.set_text("");
-                    }
-                    Ok(entries) => {
-                        crate::ui::clear_list(&list);
-                        let total = entries.len();
-                        for entry in entries {
-                            let when = format_time(entry.started_at);
-                            let title = Label::new(Some(&format!(
-                                "{} · {}",
-                                entry.profile_name, entry.status
-                            )));
-                            title.set_xalign(0.0);
-                            title.add_css_class("remotix-profile-name");
-
-                            let details = Label::new(Some(&format!(
-                                "{when}{}",
-                                entry
-                                    .error_message
-                                    .as_ref()
-                                    .map(|m| format!(" · {m}"))
-                                    .unwrap_or_default()
-                            )));
-                            details.set_xalign(0.0);
-                            details.add_css_class("remotix-profile-details");
-
-                            let row = ListBoxRow::new();
-                            let box_ = GtkBox::new(gtk4::Orientation::Vertical, 2);
-                            box_.set_margin_start(8);
-                            box_.set_margin_end(8);
-                            box_.set_margin_top(4);
-                            box_.set_margin_bottom(4);
-                            box_.append(&title);
-                            box_.append(&details);
-                            row.set_child(Some(&box_));
-                            list.append(&row);
-                        }
-                        status.set_text(&format!("Записей: {total}"));
-                    }
-                    Err(e) => status.set_text(&format!("Ошибка чтения журнала: {e}")),
+            move || match state.db.history(None, None) {
+                Ok(entries) if entries.is_empty() => {
+                    crate::ui::clear_list(&list);
+                    let empty = Label::new(Some("Подключений пока не было"));
+                    empty.set_margin_top(18);
+                    empty.add_css_class("remotix-empty");
+                    list.append(&empty);
+                    status.set_text("");
                 }
+                Ok(entries) => {
+                    crate::ui::clear_list(&list);
+                    let total = entries.len();
+                    for entry in entries {
+                        let when = format_time(entry.started_at);
+                        let title =
+                            Label::new(Some(&format!("{} · {}", entry.profile_name, entry.status)));
+                        title.set_xalign(0.0);
+                        title.add_css_class("remotix-profile-name");
+
+                        let details = Label::new(Some(&format!(
+                            "{when}{}",
+                            entry
+                                .error_message
+                                .as_ref()
+                                .map(|m| format!(" · {m}"))
+                                .unwrap_or_default()
+                        )));
+                        details.set_xalign(0.0);
+                        details.add_css_class("remotix-profile-details");
+
+                        let row = ListBoxRow::new();
+                        let box_ = GtkBox::new(gtk4::Orientation::Vertical, 2);
+                        box_.set_margin_start(8);
+                        box_.set_margin_end(8);
+                        box_.set_margin_top(4);
+                        box_.set_margin_bottom(4);
+                        box_.append(&title);
+                        box_.append(&details);
+                        row.set_child(Some(&box_));
+                        list.append(&row);
+                    }
+                    status.set_text(&format!("Записей: {total}"));
+                }
+                Err(e) => status.set_text(&format!("Ошибка чтения журнала: {e}")),
             }
         };
 
@@ -108,7 +104,8 @@ impl HistoryTab {
             export.connect_clicked(move |_| {
                 let path = crate::config::home_dir().join("remotix-history.csv");
                 match state.db.export_history_csv(&path) {
-                    Ok(n) => status.set_text(&format!("Экспортировано записей: {n} → {}", path.display())),
+                    Ok(n) => status
+                        .set_text(&format!("Экспортировано записей: {n} → {}", path.display())),
                     Err(e) => status.set_text(&format!("Ошибка экспорта: {e}")),
                 }
             });
@@ -124,7 +121,10 @@ impl HistoryTab {
 fn format_time(ts: i64) -> String {
     use chrono::Local;
     match chrono::DateTime::from_timestamp(ts, 0) {
-        Some(dt) => dt.with_timezone(&Local).format("%d.%m.%Y %H:%M").to_string(),
+        Some(dt) => dt
+            .with_timezone(&Local)
+            .format("%d.%m.%Y %H:%M")
+            .to_string(),
         None => String::new(),
     }
 }

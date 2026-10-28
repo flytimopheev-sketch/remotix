@@ -4,8 +4,8 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use zeroize::Zeroizing;
 
-use super::schema;
 use super::crypto;
+use super::schema;
 use crate::models::{HistoryEntry, Protocol};
 
 pub fn now() -> i64 {
@@ -31,7 +31,13 @@ fn blob_column(row: &rusqlite::Row, index: usize) -> rusqlite::Result<Option<Vec
 }
 
 /// Зашифрованные колонки профиля: id, пароль, пароль ключа, root-пароль.
-type SecretRows = Vec<(i64, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>)>;
+type SecretRows = Vec<(
+    i64,
+    Option<Vec<u8>>,
+    Option<Vec<u8>>,
+    Option<Vec<u8>>,
+    Option<Vec<u8>>,
+)>;
 
 /// Идентичность профиля для проверки дублей: протокол, хост, порт, логин.
 type ProfileIdentity = (Protocol, String, u16, Option<String>);
@@ -80,10 +86,15 @@ impl Database {
         let params_ = crypto::Argon2Params::default();
         let key = Zeroizing::new(crypto::derive_key(master_password, &salt, &params_));
         let verifier = crypto::encrypt(&key, b"remotix-verifier");
-        self.meta_set("argon2_salt", &salt).map_err(|e| e.to_string())?;
-        self.meta_set("argon2_params", serde_json::to_vec(&params_).unwrap().as_slice())
+        self.meta_set("argon2_salt", &salt)
             .map_err(|e| e.to_string())?;
-        self.meta_set("verifier", &verifier).map_err(|e| e.to_string())?;
+        self.meta_set(
+            "argon2_params",
+            serde_json::to_vec(&params_).unwrap().as_slice(),
+        )
+        .map_err(|e| e.to_string())?;
+        self.meta_set("verifier", &verifier)
+            .map_err(|e| e.to_string())?;
         self.meta_set("schema_version", &schema::SCHEMA_VERSION.to_le_bytes())
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -121,7 +132,9 @@ impl Database {
 
         let mut stmt = self
             .conn()
-            .prepare("SELECT id, username, password, ssh_key_passphrase, root_password FROM profiles")
+            .prepare(
+                "SELECT id, username, password, ssh_key_passphrase, root_password FROM profiles",
+            )
             .map_err(|e| e.to_string())?;
         let rows: SecretRows = stmt
             .query_map([], |r| {
@@ -145,10 +158,15 @@ impl Database {
             .map_err(|e| e.to_string())?;
         }
 
-        self.meta_set("argon2_salt", &new_salt).map_err(|e| e.to_string())?;
-        self.meta_set("argon2_params", serde_json::to_vec(&new_params).unwrap().as_slice())
+        self.meta_set("argon2_salt", &new_salt)
             .map_err(|e| e.to_string())?;
-        self.meta_set("verifier", &verifier).map_err(|e| e.to_string())?;
+        self.meta_set(
+            "argon2_params",
+            serde_json::to_vec(&new_params).unwrap().as_slice(),
+        )
+        .map_err(|e| e.to_string())?;
+        self.meta_set("verifier", &verifier)
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -163,11 +181,7 @@ impl Database {
     }
 
     /// Создаёт группу с автогенерацией id. Возвращает id новой группы.
-    pub fn create_group(
-        &self,
-        name: &str,
-        parent_id: Option<i64>,
-    ) -> Result<i64, String> {
+    pub fn create_group(&self, name: &str, parent_id: Option<i64>) -> Result<i64, String> {
         self.conn()
             .execute(
                 "INSERT INTO groups(name, parent_id) VALUES (?1, ?2)",
@@ -185,10 +199,15 @@ impl Database {
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |r| {
-                Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<i64>>(2)?))
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, Option<i64>>(2)?,
+                ))
             })
             .map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
     }
 
     /// Находит группу по имени и родителю (или её отсутствие).
@@ -273,7 +292,11 @@ impl Database {
 
     // ---------- profiles ----------
 
-    pub fn add_profile(&self, key: &[u8; 32], p: &crate::models::NewProfile) -> Result<i64, String> {
+    pub fn add_profile(
+        &self,
+        key: &[u8; 32],
+        p: &crate::models::NewProfile,
+    ) -> Result<i64, String> {
         let enc_text = |s: &Option<String>| -> Option<Vec<u8>> {
             s.as_ref().map(|v| crypto::encrypt(key, v.as_bytes()))
         };
@@ -282,33 +305,34 @@ impl Database {
                 .map(|v| crypto::encrypt(key, v.expose_secret().as_bytes()))
         };
         let t = now();
-        self.conn().execute(
-            "INSERT INTO profiles(name, protocol, host, port, username, password,
+        self.conn()
+            .execute(
+                "INSERT INTO profiles(name, protocol, host, port, username, password,
                 ssh_key_path, ssh_key_passphrase, root_password, group_id, tags, icon, notes,
                 mac_address, rdp_options, vnc_options, ssh_options, created_at, updated_at)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?18)",
-            params![
-                p.name,
-                p.protocol.unwrap_or(Protocol::Ssh).as_str(),
-                p.host,
-                p.port,
-                enc_text(&p.username),
-                enc_secret(&p.password),
-                p.ssh_key_path,
-                enc_secret(&p.ssh_key_passphrase),
-                enc_secret(&p.root_password),
-                p.group_id,
-                p.tags.join(","),
-                p.icon,
-                p.notes,
-                p.mac_address,
-                serde_json::to_string(&p.rdp_options).unwrap_or_default(),
-                serde_json::to_string(&p.vnc_options).unwrap_or_default(),
-                serde_json::to_string(&p.ssh_options).unwrap_or_default(),
-                t
-            ],
-        )
-        .map_err(|e| e.to_string())?;
+                params![
+                    p.name,
+                    p.protocol.unwrap_or(Protocol::Ssh).as_str(),
+                    p.host,
+                    p.port,
+                    enc_text(&p.username),
+                    enc_secret(&p.password),
+                    p.ssh_key_path,
+                    enc_secret(&p.ssh_key_passphrase),
+                    enc_secret(&p.root_password),
+                    p.group_id,
+                    p.tags.join(","),
+                    p.icon,
+                    p.notes,
+                    p.mac_address,
+                    serde_json::to_string(&p.rdp_options).unwrap_or_default(),
+                    serde_json::to_string(&p.vnc_options).unwrap_or_default(),
+                    serde_json::to_string(&p.ssh_options).unwrap_or_default(),
+                    t
+                ],
+            )
+            .map_err(|e| e.to_string())?;
         Ok(self.conn().last_insert_rowid())
     }
 
@@ -365,7 +389,8 @@ impl Database {
         use crate::models::profile::{RdpOptions, SshOptions, VncOptions};
         let dec_text = |blob: &Option<Vec<u8>>| -> Option<String> {
             match blob {
-                Some(b) => crypto::decrypt(key, b.as_slice()).ok()
+                Some(b) => crypto::decrypt(key, b.as_slice())
+                    .ok()
                     .map(|v| String::from_utf8_lossy(&v).into_owned()),
                 None => None,
             }
@@ -373,33 +398,68 @@ impl Database {
         let dec_secret = |blob: &Option<Vec<u8>>| -> Option<SecretString> {
             dec_text(blob).map(SecretString::from)
         };
-        let mut stmt = self.conn().prepare(
-            "SELECT id, name, protocol, host, port, username, password, ssh_key_path,
+        let mut stmt = self
+            .conn()
+            .prepare(
+                "SELECT id, name, protocol, host, port, username, password, ssh_key_path,
                     ssh_key_passphrase, root_password, group_id, tags, icon, notes, mac_address,
                     rdp_options, vnc_options, ssh_options, created_at, updated_at, last_connected_at
              FROM profiles ORDER BY name",
-        )
-        .map_err(|e| e.to_string())?;
-        let rows = stmt.query_map([], |r| {
-            Ok((
-                r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?, r.get::<_, u16>(4)?, blob_column(r, 5)?,
-                blob_column(r, 6)?, r.get::<_, Option<String>>(7)?,
-                blob_column(r, 8)?, blob_column(r, 9)?, r.get::<_, Option<i64>>(10)?,
-                r.get::<_, Option<String>>(11)?, r.get::<_, Option<String>>(12)?,
-                r.get::<_, Option<String>>(13)?, r.get::<_, Option<String>>(14)?,
-                r.get::<_, Option<String>>(15)?, r.get::<_, Option<String>>(16)?,
-                r.get::<_, Option<String>>(17)?, r.get::<_, i64>(18)?, r.get::<_, i64>(19)?,
-                r.get::<_, Option<i64>>(20)?,
-            ))
-        })
-        .map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, u16>(4)?,
+                    blob_column(r, 5)?,
+                    blob_column(r, 6)?,
+                    r.get::<_, Option<String>>(7)?,
+                    blob_column(r, 8)?,
+                    blob_column(r, 9)?,
+                    r.get::<_, Option<i64>>(10)?,
+                    r.get::<_, Option<String>>(11)?,
+                    r.get::<_, Option<String>>(12)?,
+                    r.get::<_, Option<String>>(13)?,
+                    r.get::<_, Option<String>>(14)?,
+                    r.get::<_, Option<String>>(15)?,
+                    r.get::<_, Option<String>>(16)?,
+                    r.get::<_, Option<String>>(17)?,
+                    r.get::<_, i64>(18)?,
+                    r.get::<_, i64>(19)?,
+                    r.get::<_, Option<i64>>(20)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
 
         let mut out = Vec::new();
         for row in rows {
-            let (id, name, protocol, host, port, username, password, ssh_key_path,
-                 ssh_key_passphrase, root_password, group_id, tags, icon, notes, mac_address, rdp,
-                 vnc, ssh, created_at, updated_at, last_connected_at) = row.map_err(|e| e.to_string())?;
+            let (
+                id,
+                name,
+                protocol,
+                host,
+                port,
+                username,
+                password,
+                ssh_key_path,
+                ssh_key_passphrase,
+                root_password,
+                group_id,
+                tags,
+                icon,
+                notes,
+                mac_address,
+                rdp,
+                vnc,
+                ssh,
+                created_at,
+                updated_at,
+                last_connected_at,
+            ) = row.map_err(|e| e.to_string())?;
             let protocol = match protocol.as_str() {
                 "RDP" => Protocol::Rdp,
                 "VNC" => Protocol::Vnc,
@@ -417,7 +477,8 @@ impl Database {
                 ssh_key_passphrase: dec_secret(&ssh_key_passphrase),
                 root_password: dec_secret(&root_password),
                 group_id,
-                tags: tags.unwrap_or_default()
+                tags: tags
+                    .unwrap_or_default()
                     .split(',')
                     .filter(|s| !s.is_empty())
                     .map(str::to_string)
@@ -425,9 +486,15 @@ impl Database {
                 icon,
                 notes,
                 mac_address,
-                rdp_options: rdp.and_then(|v| serde_json::from_str::<RdpOptions>(&v).ok()).unwrap_or_default(),
-                vnc_options: vnc.and_then(|v| serde_json::from_str::<VncOptions>(&v).ok()).unwrap_or_default(),
-                ssh_options: ssh.and_then(|v| serde_json::from_str::<SshOptions>(&v).ok()).unwrap_or_default(),
+                rdp_options: rdp
+                    .and_then(|v| serde_json::from_str::<RdpOptions>(&v).ok())
+                    .unwrap_or_default(),
+                vnc_options: vnc
+                    .and_then(|v| serde_json::from_str::<VncOptions>(&v).ok())
+                    .unwrap_or_default(),
+                ssh_options: ssh
+                    .and_then(|v| serde_json::from_str::<SshOptions>(&v).ok())
+                    .unwrap_or_default(),
                 created_at,
                 updated_at,
                 last_connected_at,
@@ -438,10 +505,7 @@ impl Database {
 
     /// Возвращает только идентификаторы профилей для проверки дублей при
     /// импорте: протокол, хост, порт и логин. Пароли не расшифровываются.
-    pub fn profile_identities(
-        &self,
-        key: &[u8; 32],
-    ) -> Result<Vec<ProfileIdentity>, String> {
+    pub fn profile_identities(&self, key: &[u8; 32]) -> Result<Vec<ProfileIdentity>, String> {
         let mut stmt = self
             .conn()
             .prepare("SELECT protocol, host, port, username FROM profiles")
@@ -503,7 +567,10 @@ impl Database {
     /// Удаляет настройку (возвращает значение по умолчанию).
     pub fn reset_setting(&self, key: &str) -> Result<(), String> {
         self.conn()
-            .execute("DELETE FROM meta WHERE key = ?1", params![format!("settings.{key}")])
+            .execute(
+                "DELETE FROM meta WHERE key = ?1",
+                params![format!("settings.{key}")],
+            )
             .map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -516,8 +583,10 @@ impl Database {
     /// записи журнала удаляются первыми — иначе SQLite отвечает
     /// «FOREIGN KEY constraint failed».
     pub fn delete_profile(&self, id: i64) -> rusqlite::Result<usize> {
-        self.conn()
-            .execute("DELETE FROM connection_history WHERE profile_id = ?1", params![id])?;
+        self.conn().execute(
+            "DELETE FROM connection_history WHERE profile_id = ?1",
+            params![id],
+        )?;
         self.conn()
             .execute("DELETE FROM profiles WHERE id = ?1", params![id])
     }
@@ -545,38 +614,47 @@ impl Database {
     }
 
     /// Журнал подключений с фильтрами (профиль, статус).
-    pub fn history(&self, profile_id: Option<i64>, status: Option<&str>) -> Result<Vec<HistoryEntry>, String> {
-        let mut stmt = self.conn().prepare(
-            "SELECT h.id, h.profile_id, IFNULL(p.name, '?'), h.started_at, h.ended_at,
+    pub fn history(
+        &self,
+        profile_id: Option<i64>,
+        status: Option<&str>,
+    ) -> Result<Vec<HistoryEntry>, String> {
+        let mut stmt = self
+            .conn()
+            .prepare(
+                "SELECT h.id, h.profile_id, IFNULL(p.name, '?'), h.started_at, h.ended_at,
                     h.status, h.error_code, h.error_message
              FROM connection_history h LEFT JOIN profiles p ON p.id = h.profile_id
              WHERE (?1 IS NULL OR h.profile_id = ?1)
                AND (?2 IS NULL OR h.status = ?2)
              ORDER BY h.started_at DESC",
-        )
-        .map_err(|e| e.to_string())?;
-        let rows = stmt.query_map(params![profile_id, status], |r| {
-            Ok(HistoryEntry {
-                id: r.get(0)?,
-                profile_id: r.get(1)?,
-                profile_name: r.get(2)?,
-                started_at: r.get(3)?,
-                ended_at: r.get(4)?,
-                status: r.get(5)?,
-                error_code: r.get(6)?,
-                error_message: r
-                    .get::<_, Option<String>>(7)?
-                    .map(|message| crate::logging::sanitize(&message)),
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![profile_id, status], |r| {
+                Ok(HistoryEntry {
+                    id: r.get(0)?,
+                    profile_id: r.get(1)?,
+                    profile_name: r.get(2)?,
+                    started_at: r.get(3)?,
+                    ended_at: r.get(4)?,
+                    status: r.get(5)?,
+                    error_code: r.get(6)?,
+                    error_message: r
+                        .get::<_, Option<String>>(7)?
+                        .map(|message| crate::logging::sanitize(&message)),
+                })
             })
-        })
-        .map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
     }
 
     /// Экспорт журнала подключений в CSV.
     pub fn export_history_csv(&self, path: &Path) -> Result<usize, String> {
         let rows = self.history(None, None)?;
-        let mut csv = String::from("id;profile;started_at;ended_at;status;error_code;error_message\n");
+        let mut csv =
+            String::from("id;profile;started_at;ended_at;status;error_code;error_message\n");
         for h in &rows {
             csv.push_str(&format!(
                 "{};{};{};{};{};{};{}\n",
@@ -631,10 +709,7 @@ mod tests {
         assert_eq!(profiles[0].host, "example.org");
         assert_eq!(profiles[0].username.as_deref(), Some("user"));
         assert_eq!(
-            profiles[0]
-                .password
-                .as_ref()
-                .map(|p| p.expose_secret()),
+            profiles[0].password.as_ref().map(|p| p.expose_secret()),
             Some("secret")
         );
         assert_eq!(
@@ -651,7 +726,8 @@ mod tests {
         let mut updated = sample();
         updated.host = "other.example.org".to_string();
         updated.port = 2222;
-        db.update_profile(&key, id, &updated).expect("обновление профиля");
+        db.update_profile(&key, id, &updated)
+            .expect("обновление профиля");
 
         let profiles = db.list_profiles(&key).expect("чтение профилей");
         assert_eq!(profiles.len(), 1);
@@ -662,7 +738,10 @@ mod tests {
     #[test]
     fn wrong_master_password_is_rejected() {
         let (db, _key) = opened();
-        assert!(db.unlock("wrong").is_err(), "неверный мастер-пароль должен отклоняться");
+        assert!(
+            db.unlock("wrong").is_err(),
+            "неверный мастер-пароль должен отклоняться"
+        );
     }
 
     #[test]
@@ -764,8 +843,16 @@ mod tests {
         let profiles = db.list_profiles(&key).expect("чтение профилей");
         assert_eq!(profiles.len(), 2, "профили должны остаться в списке");
         let by_id = |id: i64| profiles.iter().find(|p| p.id == id).cloned().unwrap();
-        assert_eq!(by_id(in_root_id).group_id, None, "профиль из удалённой группы — без группы");
-        assert_eq!(by_id(in_child_id).group_id, Some(child), "профиль дочерней группы не трогаем");
+        assert_eq!(
+            by_id(in_root_id).group_id,
+            None,
+            "профиль из удалённой группы — без группы"
+        );
+        assert_eq!(
+            by_id(in_child_id).group_id,
+            Some(child),
+            "профиль дочерней группы не трогаем"
+        );
 
         // Дочерняя группа поднялась на верхний уровень.
         let groups = db.list_groups().expect("группы");
@@ -807,4 +894,3 @@ mod tests {
         assert_eq!(groups[0].1, "Новое");
     }
 }
-

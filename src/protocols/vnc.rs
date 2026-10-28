@@ -10,7 +10,10 @@ pub struct VncConnection {
 
 impl VncConnection {
     pub fn new(profile: Profile) -> Self {
-        Self { profile, connected: false }
+        Self {
+            profile,
+            connected: false,
+        }
     }
 }
 
@@ -28,7 +31,8 @@ impl Connection for VncConnection {
             ssh_profile.protocol = crate::models::Protocol::Ssh;
             ssh_profile.port = 22;
             let mut ssh = crate::protocols::ssh::SshConnection::new(ssh_profile);
-            ssh.connect().map_err(|e| format!("не удалось поднять SSH-туннель: {e}"))?;
+            ssh.connect()
+                .map_err(|e| format!("не удалось поднять SSH-туннель: {e}"))?;
         }
         // Далее: рукопожатие RFB, аутентификация VNC-паролем (DES-challenge),
         // view-only режим (без отправки событий ввода), масштабирование кадра.

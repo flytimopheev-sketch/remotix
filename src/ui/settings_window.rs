@@ -41,8 +41,14 @@ impl SettingsWindow {
         notebook.set_vexpand(true);
         notebook.set_show_border(false);
 
-        notebook.append_page(&appearance_page(&settings), Some(&Label::new(Some("Оформление"))));
-        notebook.append_page(&terminal_page(&settings), Some(&Label::new(Some("Терминал"))));
+        notebook.append_page(
+            &appearance_page(&settings),
+            Some(&Label::new(Some("Оформление"))),
+        );
+        notebook.append_page(
+            &terminal_page(&settings),
+            Some(&Label::new(Some("Терминал"))),
+        );
         notebook.append_page(&rdp_page(&settings), Some(&Label::new(Some("RDP"))));
         notebook.append_page(
             &security_page(&settings, &state),
@@ -234,13 +240,19 @@ fn terminal_page(settings: &Settings) -> gtk4::Box {
     {
         let settings = settings.clone();
         blink.connect_active_notify(move |s| {
-            let _ = settings.set("terminal.cursor_blink", &crate::settings::Value::Flag(s.is_active()));
+            let _ = settings.set(
+                "terminal.cursor_blink",
+                &crate::settings::Value::Flag(s.is_active()),
+            );
         });
     }
     {
         let settings = settings.clone();
         metrics.connect_active_notify(move |s| {
-            let _ = settings.set("terminal.metrics", &crate::settings::Value::Flag(s.is_active()));
+            let _ = settings.set(
+                "terminal.metrics",
+                &crate::settings::Value::Flag(s.is_active()),
+            );
         });
     }
     {
@@ -251,7 +263,10 @@ fn terminal_page(settings: &Settings) -> gtk4::Box {
                 2 => "system",
                 _ => "dark",
             };
-            let _ = settings.set("terminal.color_scheme", &crate::settings::Value::Text(value.into()));
+            let _ = settings.set(
+                "terminal.color_scheme",
+                &crate::settings::Value::Text(value.into()),
+            );
         });
     }
 
@@ -337,7 +352,10 @@ fn rdp_page(settings: &Settings) -> gtk4::Box {
                 5 => "1920x1080",
                 _ => "1024x768",
             };
-            let _ = settings.set("rdp.resolution", &crate::settings::Value::Text(value.into()));
+            let _ = settings.set(
+                "rdp.resolution",
+                &crate::settings::Value::Text(value.into()),
+            );
         });
     }
     {
@@ -351,14 +369,20 @@ fn rdp_page(settings: &Settings) -> gtk4::Box {
         let settings = settings.clone();
         let clipboard = clipboard.clone();
         clipboard.connect_active_notify(move |s| {
-            let _ = settings.set("rdp.clipboard", &crate::settings::Value::Flag(s.is_active()));
+            let _ = settings.set(
+                "rdp.clipboard",
+                &crate::settings::Value::Flag(s.is_active()),
+            );
         });
     }
     {
         let settings = settings.clone();
         let depth = depth.clone();
         depth.connect_value_changed(move |s| {
-            let _ = settings.set("rdp.color_depth", &crate::settings::Value::Number(s.value() as i64));
+            let _ = settings.set(
+                "rdp.color_depth",
+                &crate::settings::Value::Number(s.value() as i64),
+            );
         });
     }
     {

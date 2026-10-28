@@ -142,10 +142,14 @@ fn column_kind(raw: &str) -> Option<&'static str> {
         "host" | "hostname" | "server" | "address" | "ip" | "адрес" | "сервер" | "хост" => {
             Some("host")
         }
-        "name" | "profile" | "title" | "название" | "имя" | "профиль" => Some("name"),
+        "name" | "profile" | "title" | "название" | "имя" | "профиль" => {
+            Some("name")
+        }
         "protocol" | "протокол" | "тип" => Some("protocol"),
         "port" | "порт" => Some("port"),
-        "username" | "user" | "login" | "логин" | "пользователь" => Some("username"),
+        "username" | "user" | "login" | "логин" | "пользователь" => {
+            Some("username")
+        }
         "tags" | "tag" | "теги" | "тег" => Some("tags"),
         "notes" | "note" | "comment" | "description" | "заметки" | "комментарий" | "описание" => {
             Some("notes")
@@ -323,7 +327,11 @@ fn parse_url(url: &str) -> Option<(String, u16, Option<String>)> {
         Some((user, host)) => (Some(user.to_string()), host),
         None => (None, authority),
     };
-    let protocol = url.split("://").next().unwrap_or("ssh").to_ascii_lowercase();
+    let protocol = url
+        .split("://")
+        .next()
+        .unwrap_or("ssh")
+        .to_ascii_lowercase();
     let default_port = match protocol.as_str() {
         "rdp" => Protocol::Rdp.default_port(),
         "vnc" => Protocol::Vnc.default_port(),
@@ -450,7 +458,10 @@ mod tests {
         let text = "\u{feff}host,username\r\nb.org,u1\r\n";
         let preview = parse_text(text, "test.csv");
         assert_eq!(hosts(&preview), vec!["b.org".to_string()]);
-        assert_eq!(preview.candidates[0].profile.username.as_deref(), Some("u1"));
+        assert_eq!(
+            preview.candidates[0].profile.username.as_deref(),
+            Some("u1")
+        );
     }
 
     #[test]
@@ -510,7 +521,11 @@ mod tests {
         let preview = parse_text(text, "test.csv");
         assert_eq!(
             preview.candidates[0].profile.tags,
-            vec!["тег один".to_string(), "тег два".to_string(), "три".to_string()]
+            vec![
+                "тег один".to_string(),
+                "тег два".to_string(),
+                "три".to_string()
+            ]
         );
     }
 
@@ -537,7 +552,10 @@ mod tests {
     fn empty_lines_and_comments_are_skipped() {
         let text = "# ручной список\n\nhost,name\na.org,One\n\nb.org,Two\n";
         let preview = parse_text(text, "test.csv");
-        assert_eq!(hosts(&preview), vec!["a.org".to_string(), "b.org".to_string()]);
+        assert_eq!(
+            hosts(&preview),
+            vec!["a.org".to_string(), "b.org".to_string()]
+        );
     }
 
     #[test]

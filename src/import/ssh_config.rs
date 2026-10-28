@@ -68,7 +68,8 @@ struct Block {
 impl Context {
     fn parse_file(&mut self, path: &Path) -> std::io::Result<()> {
         if self.depth > 8 {
-            self.preview.note("Слишком глубокая вложенность Include — разбор остановлен");
+            self.preview
+                .note("Слишком глубокая вложенность Include — разбор остановлен");
             return Ok(());
         }
         let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
@@ -132,10 +133,8 @@ impl Context {
                 for include in expand_include(value, origin) {
                     if include.exists() {
                         if let Err(e) = self.parse_file(&include) {
-                            self.preview.note(format!(
-                                "Include {} не прочитан: {e}",
-                                include.display()
-                            ));
+                            self.preview
+                                .note(format!("Include {} не прочитан: {e}", include.display()));
                         }
                     } else {
                         self.preview
@@ -201,10 +200,7 @@ impl Context {
                 );
                 continue;
             }
-            if name.contains('*')
-                || name.contains('?')
-                || name.contains('!')
-                || name.contains('%')
+            if name.contains('*') || name.contains('?') || name.contains('!') || name.contains('%')
             {
                 self.preview.skip(
                     Source::SshConfig,
@@ -214,10 +210,7 @@ impl Context {
                 continue;
             }
 
-            let host = block
-                .host_name
-                .clone()
-                .unwrap_or_else(|| name.clone());
+            let host = block.host_name.clone().unwrap_or_else(|| name.clone());
             if host.contains('%') {
                 self.preview.skip(
                     Source::SshConfig,
@@ -447,10 +440,8 @@ Host *
 
     impl TempConfigDir {
         fn new(tag: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "remotix-ssh-config-{}-{tag}",
-                std::process::id()
-            ));
+            let dir = std::env::temp_dir()
+                .join(format!("remotix-ssh-config-{}-{tag}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(&dir).expect("temp dir");
             TempConfigDir(dir)
@@ -543,10 +534,7 @@ Host *
 
     #[test]
     fn ipv6_host_is_preserved() {
-        let preview = parse_text(
-            "Host v6\n  HostName 2001:db8::1\n  Port 2200\n",
-            "test",
-        );
+        let preview = parse_text("Host v6\n  HostName 2001:db8::1\n  Port 2200\n", "test");
         assert_eq!(preview.imported(), 1);
         let profile = &preview.candidates[0].profile;
         assert_eq!(profile.host, "2001:db8::1");
@@ -589,10 +577,7 @@ Host *
 
     #[test]
     fn invalid_port_is_noted_and_defaults() {
-        let preview = parse_text(
-            "Host bad\n  HostName 10.6.0.1\n  Port 99999\n",
-            "test",
-        );
+        let preview = parse_text("Host bad\n  HostName 10.6.0.1\n  Port 99999\n", "test");
         assert_eq!(preview.imported(), 1);
         assert!(preview.notes.iter().any(|n| n.contains("Port")));
         assert_eq!(preview.candidates[0].profile.port, 22);

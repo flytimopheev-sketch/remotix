@@ -43,8 +43,8 @@ pub fn scan_paths(paths: &[PathBuf]) -> Result<ImportPreview, String> {
 
 /// Разбирает один `.rdp`-файл.
 pub fn parse_file(path: &Path) -> Result<ImportPreview, String> {
-    let bytes = std::fs::read(path)
-        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
+    let bytes =
+        std::fs::read(path).map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
     let text = decode_text(&bytes)?;
     let name = path
         .file_stem()
@@ -123,9 +123,18 @@ pub fn parse_text(text: &str, name: &str, origin: &str) -> ImportPreview {
         options.clipboard_to_remote = options.clipboard;
         options.clipboard_from_remote = options.clipboard;
     }
-    options.redirect_drives = flag(values.get("redirectdrives").map(String::as_str).unwrap_or("0"));
-    options.redirect_printers =
-        flag(values.get("redirectprinters").map(String::as_str).unwrap_or("0"));
+    options.redirect_drives = flag(
+        values
+            .get("redirectdrives")
+            .map(String::as_str)
+            .unwrap_or("0"),
+    );
+    options.redirect_printers = flag(
+        values
+            .get("redirectprinters")
+            .map(String::as_str)
+            .unwrap_or("0"),
+    );
 
     if let Some(credssp) = values.get("enablecredsspsupport") {
         options.nla = flag(credssp);
@@ -189,9 +198,7 @@ fn clean(value: Option<&String>) -> Option<String> {
 }
 
 fn int_value(values: &HashMap<String, String>, key: &str) -> Option<u32> {
-    values
-        .get(key)
-        .and_then(|v| v.trim().parse::<u32>().ok())
+    values.get(key).and_then(|v| v.trim().parse::<u32>().ok())
 }
 
 fn flag(value: &str) -> bool {
@@ -223,8 +230,7 @@ fn decode_text(bytes: &[u8]) -> Result<String, String> {
             .collect();
         String::from_utf16(&units).map_err(|e| format!("неверная кодировка UTF-16BE: {e}"))
     } else if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        String::from_utf8(bytes[3..].to_vec())
-            .map_err(|e| format!("неверная кодировка UTF-8: {e}"))
+        String::from_utf8(bytes[3..].to_vec()).map_err(|e| format!("неверная кодировка UTF-8: {e}"))
     } else {
         String::from_utf8(bytes.to_vec()).map_err(|e| format!("неверная кодировка файла: {e}"))
     }
@@ -267,11 +273,7 @@ password 51:b:010203
 
     #[test]
     fn parses_ipv6_and_nonstandard_port() {
-        let preview = parse_text(
-            "full address:s:[2001:db8::5]:3390\n",
-            "ipv6",
-            "ipv6.rdp",
-        );
+        let preview = parse_text("full address:s:[2001:db8::5]:3390\n", "ipv6", "ipv6.rdp");
         let profile = &preview.candidates[0].profile;
         assert_eq!(profile.host, "2001:db8::5");
         assert_eq!(profile.port, 3390);

@@ -564,12 +564,7 @@ impl ProfileEditor {
 }
 
 /// Добавляет на сетку подпись и поле ввода.
-fn add_field(
-    grid: &Grid,
-    row: i32,
-    caption: &str,
-    widget: &impl IsA<gtk4::Widget>,
-) -> Label {
+fn add_field(grid: &Grid, row: i32, caption: &str, widget: &impl IsA<gtk4::Widget>) -> Label {
     let label = Label::new(Some(caption));
     label.set_xalign(0.0);
     label.add_css_class("remotix-field-caption");

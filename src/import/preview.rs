@@ -118,8 +118,7 @@ where
         let addr = window.as_ptr() as usize;
         window.connect_destroy(move |_| {
             OPEN.with(|open| {
-                open.borrow_mut()
-                    .retain(|w| w.as_ptr() as usize != addr);
+                open.borrow_mut().retain(|w| w.as_ptr() as usize != addr);
             });
         });
     }

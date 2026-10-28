@@ -91,7 +91,11 @@ pub struct MetricsSample {
 ///
 /// При первом опросе (`prev = None`) CPU/сеть недоступны — накопительные
 /// счётчики ещё не с чем сравнить; возвращаются только память, load и диск.
-pub fn sample(text: &str, prev: Option<&Counters>, elapsed: Duration) -> Result<MetricsSample, String> {
+pub fn sample(
+    text: &str,
+    prev: Option<&Counters>,
+    elapsed: Duration,
+) -> Result<MetricsSample, String> {
     if !text.contains("==END==") {
         return Err("сервер не вернул ожидаемый вывод (/proc или df недоступны)".to_string());
     }
@@ -108,11 +112,26 @@ pub fn sample(text: &str, prev: Option<&Counters>, elapsed: Duration) -> Result<
             continue;
         }
         match section {
-            "STAT" => { stat_text.push_str(line); stat_text.push('\n'); }
-            "MEM" => { mem_text.push_str(line); mem_text.push('\n'); }
-            "NET" => { net_text.push_str(line); net_text.push('\n'); }
-            "LOAD" => { load_text.push_str(line); load_text.push('\n'); }
-            "DISK" => { disk_text.push_str(line); disk_text.push('\n'); }
+            "STAT" => {
+                stat_text.push_str(line);
+                stat_text.push('\n');
+            }
+            "MEM" => {
+                mem_text.push_str(line);
+                mem_text.push('\n');
+            }
+            "NET" => {
+                net_text.push_str(line);
+                net_text.push('\n');
+            }
+            "LOAD" => {
+                load_text.push_str(line);
+                load_text.push('\n');
+            }
+            "DISK" => {
+                disk_text.push_str(line);
+                disk_text.push('\n');
+            }
             _ => {}
         }
     }
@@ -129,7 +148,11 @@ pub fn sample(text: &str, prev: Option<&Counters>, elapsed: Duration) -> Result<
         at: Some(std::time::Instant::now()),
     };
 
-    let elapsed = if elapsed.is_zero() { Duration::from_secs(1) } else { elapsed };
+    let elapsed = if elapsed.is_zero() {
+        Duration::from_secs(1)
+    } else {
+        elapsed
+    };
 
     let cpu_percent = match prev {
         Some(prev) => {
@@ -186,7 +209,10 @@ fn section_marker(line: &str) -> Option<&'static str> {
 /// Строка `cpu  …` из /proc/stat: (total, idle+iowait).
 pub fn parse_proc_stat_cpu(line: &str) -> Option<(u64, u64)> {
     let line = line.strip_prefix("cpu ")?.trim();
-    let values: Vec<u64> = line.split_whitespace().filter_map(|v| v.parse().ok()).collect();
+    let values: Vec<u64> = line
+        .split_whitespace()
+        .filter_map(|v| v.parse().ok())
+        .collect();
     if values.is_empty() {
         return None;
     }
@@ -356,10 +382,16 @@ Filesystem 1024-blocks     Used Available Capacity Mounted on
         let first = sample(SAMPLE, None, Duration::from_secs(0)).expect("first");
         // Между опросами: +1000 total, +500 idle, +10КБ rx, +5КБ tx за 5 с.
         let second_text = SAMPLE
-            .replace("cpu  100 0 50 800 50 0 0 0 0 0", "cpu  600 0 50 1300 50 0 0 0 0 0")
-            .replace("  eth0: 2000 20 0 0 0 0 0 0 1000 15 0 0 0 0 0 0", "  eth0: 12000 20 0 0 0 0 0 0 6000 15 0 0 0 0 0 0");
-        let result = sample(&second_text, Some(&first.counters), Duration::from_secs(5))
-            .expect("second");
+            .replace(
+                "cpu  100 0 50 800 50 0 0 0 0 0",
+                "cpu  600 0 50 1300 50 0 0 0 0 0",
+            )
+            .replace(
+                "  eth0: 2000 20 0 0 0 0 0 0 1000 15 0 0 0 0 0 0",
+                "  eth0: 12000 20 0 0 0 0 0 0 6000 15 0 0 0 0 0 0",
+            );
+        let result =
+            sample(&second_text, Some(&first.counters), Duration::from_secs(5)).expect("second");
         let m = result.metrics;
         // 500 занятых из 1000 → 50%.
         assert_eq!(m.cpu_percent, Some(50.0));

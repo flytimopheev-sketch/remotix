@@ -1,7 +1,6 @@
 /// Схема базы данных Remotix (см. ТЗ, раздел «Схема базы данных»).
 pub const SCHEMA_VERSION: i64 = 3;
 
-
 pub const CREATE_META: &str = "CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value BLOB NOT NULL
@@ -114,7 +113,9 @@ mod tests {
         initialize(&conn).expect("миграция схемы");
 
         let has_mac_address: bool = conn
-            .prepare("SELECT COUNT(*) FROM pragma_table_info('profiles') WHERE name = 'mac_address'")
+            .prepare(
+                "SELECT COUNT(*) FROM pragma_table_info('profiles') WHERE name = 'mac_address'",
+            )
             .expect("pragma_table_info")
             .query_row([], |r| r.get::<_, i64>(0))
             .map(|n| n > 0)
@@ -122,4 +123,3 @@ mod tests {
         assert!(has_mac_address, "колонка mac_address должна появиться");
     }
 }
-

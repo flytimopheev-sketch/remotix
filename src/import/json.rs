@@ -79,10 +79,8 @@ mod tests {
         let file = profiles_io::parse_export_text(text).unwrap();
         assert_eq!(file.profiles.len(), 2);
         // Проверяем через временный файл, чтобы не дублировать разбор.
-        let path = std::env::temp_dir().join(format!(
-            "remotix-import-json-{}.json",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("remotix-import-json-{}.json", std::process::id()));
         std::fs::write(&path, text).unwrap();
         let preview = scan_file(&path).unwrap();
         let _ = std::fs::remove_file(&path);

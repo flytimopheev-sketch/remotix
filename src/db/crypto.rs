@@ -19,7 +19,11 @@ pub struct Argon2Params {
 
 impl Default for Argon2Params {
     fn default() -> Self {
-        Self { memory_kib: 64 * 1024, iterations: 3, parallelism: 4 }
+        Self {
+            memory_kib: 64 * 1024,
+            iterations: 3,
+            parallelism: 4,
+        }
     }
 }
 
@@ -28,8 +32,13 @@ pub fn derive_key(master_password: &str, salt: &[u8], params: &Argon2Params) -> 
     let argon = Argon2::new(
         argon2::Algorithm::Argon2id,
         argon2::Version::V0x13,
-        argon2::Params::new(params.memory_kib, params.iterations, params.parallelism, Some(32))
-            .expect("параметры Argon2id"),
+        argon2::Params::new(
+            params.memory_kib,
+            params.iterations,
+            params.parallelism,
+            Some(32),
+        )
+        .expect("параметры Argon2id"),
     );
     let mut key = [0u8; 32];
     argon
@@ -82,7 +91,11 @@ mod tests {
 
     /// Лёгкие параметры Argon2id — тесты должны идти быстро.
     fn test_params() -> Argon2Params {
-        Argon2Params { memory_kib: 1024, iterations: 1, parallelism: 1 }
+        Argon2Params {
+            memory_kib: 1024,
+            iterations: 1,
+            parallelism: 1,
+        }
     }
 
     #[test]
@@ -91,7 +104,10 @@ mod tests {
         let a = derive_key("master", &salt, &test_params());
         let b = derive_key("master", &salt, &test_params());
         let c = derive_key("another", &salt, &test_params());
-        assert_eq!(a, b, "один и тот же пароль должен давать один и тот же ключ");
+        assert_eq!(
+            a, b,
+            "один и тот же пароль должен давать один и тот же ключ"
+        );
         assert_ne!(a, c, "разные пароли должны давать разные ключи");
     }
 
@@ -114,7 +130,10 @@ mod tests {
         let key = derive_key("master", &new_salt(), &test_params());
         let other = derive_key("another", &new_salt(), &test_params());
         let blob = encrypt(&key, b"secret");
-        assert!(decrypt(&other, &blob).is_err(), "неверный ключ не должен расшифровывать");
+        assert!(
+            decrypt(&other, &blob).is_err(),
+            "неверный ключ не должен расшифровывать"
+        );
     }
 
     #[test]
@@ -123,6 +142,9 @@ mod tests {
         let mut blob = encrypt(&key, b"secret");
         let last = blob.len() - 1;
         blob[last] ^= 0xff;
-        assert!(decrypt(&key, &blob).is_err(), "повреждённый шифротекст не должен расшифровываться");
+        assert!(
+            decrypt(&key, &blob).is_err(),
+            "повреждённый шифротекст не должен расшифровываться"
+        );
     }
 }

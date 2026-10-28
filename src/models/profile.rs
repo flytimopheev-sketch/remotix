@@ -321,8 +321,7 @@ mod tests {
 
     #[test]
     fn legacy_rdp_security_is_off_by_default() {
-        let options: RdpOptions =
-            serde_json::from_str("{}").expect("старый JSON без новых полей");
+        let options: RdpOptions = serde_json::from_str("{}").expect("старый JSON без новых полей");
         assert!(options.nla);
         assert!(!options.allow_legacy_security);
     }

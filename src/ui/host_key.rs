@@ -24,10 +24,7 @@ pub fn ask_unknown<F>(parent: Option<&Window>, prompt: HostKeyPrompt, on_decisio
 where
     F: Fn(bool) + 'static,
 {
-    let text = format!(
-        "Неизвестный ключ SSH-хоста {}:{}",
-        prompt.host, prompt.port
-    );
+    let text = format!("Неизвестный ключ SSH-хоста {}:{}", prompt.host, prompt.port);
     let details = format!(
         "Отпечаток: {}\nТип ключа: {}\n\n\
          Ключ будет добавлен в:\n{}\n\n\
@@ -81,8 +78,7 @@ where
         let addr = dialog.as_ptr() as usize;
         dialog.connect_destroy(move |_| {
             OPEN.with(|open| {
-                open.borrow_mut()
-                    .retain(|w| w.as_ptr() as usize != addr);
+                open.borrow_mut().retain(|w| w.as_ptr() as usize != addr);
             });
         });
     }

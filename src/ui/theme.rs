@@ -21,11 +21,31 @@ pub struct Theme {
 
 /// Доступные темы.
 pub const THEMES: &[Theme] = &[
-    Theme { id: "light", name: "Светлая", dark: false },
-    Theme { id: "dark", name: "Тёмная", dark: true },
-    Theme { id: "cosmic", name: "Cosmic", dark: true },
-    Theme { id: "ocean", name: "Океан", dark: true },
-    Theme { id: "carbon", name: "Уголь", dark: true },
+    Theme {
+        id: "light",
+        name: "Светлая",
+        dark: false,
+    },
+    Theme {
+        id: "dark",
+        name: "Тёмная",
+        dark: true,
+    },
+    Theme {
+        id: "cosmic",
+        name: "Cosmic",
+        dark: true,
+    },
+    Theme {
+        id: "ocean",
+        name: "Океан",
+        dark: true,
+    },
+    Theme {
+        id: "carbon",
+        name: "Уголь",
+        dark: true,
+    },
 ];
 
 /// Тема по умолчанию.

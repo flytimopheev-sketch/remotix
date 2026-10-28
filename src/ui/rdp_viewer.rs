@@ -20,16 +20,32 @@ use crate::ui::SessionState;
 /// События от потока RDP в интерфейс.
 enum ToUi {
     /// Готовый кадр удалённого рабочего стола (RGBA32, построчно).
-    Frame { width: u32, height: u32, pixels: Vec<u8> },
+    Frame {
+        width: u32,
+        height: u32,
+        pixels: Vec<u8>,
+    },
     /// Изменилось состояние сессии.
     State(SessionState),
 }
 
 /// События от интерфейса в поток RDP.
 enum ToRdp {
-    Key { key: RdpKey, pressed: bool },
-    Mouse { x: u32, y: u32, buttons: u8, is_move: bool },
-    Wheel { x: u32, y: u32, delta: i32 },
+    Key {
+        key: RdpKey,
+        pressed: bool,
+    },
+    Mouse {
+        x: u32,
+        y: u32,
+        buttons: u8,
+        is_move: bool,
+    },
+    Wheel {
+        x: u32,
+        y: u32,
+        delta: i32,
+    },
     /// Синтетическая последовательность `Ctrl+Alt+Del`.
     CtrlAltDel,
 }
@@ -154,9 +170,12 @@ impl RdpViewer {
                     while let Ok(ev) = rx_rdp.try_recv() {
                         match ev {
                             ToRdp::Key { key, pressed } => conn.send_key(key, pressed),
-                            ToRdp::Mouse { x, y, buttons, is_move } => {
-                                conn.send_mouse(x, y, buttons, is_move)
-                            }
+                            ToRdp::Mouse {
+                                x,
+                                y,
+                                buttons,
+                                is_move,
+                            } => conn.send_mouse(x, y, buttons, is_move),
                             ToRdp::Wheel { x, y, delta } => conn.send_wheel(x, y, delta),
                             ToRdp::CtrlAltDel => conn.send_ctrl_alt_del(),
                         }
@@ -201,7 +220,11 @@ impl RdpViewer {
             glib::timeout_add_local(Duration::from_millis(25), move || {
                 loop {
                     match rx_ui.try_recv() {
-                        Ok(ToUi::Frame { width, height, pixels }) => {
+                        Ok(ToUi::Frame {
+                            width,
+                            height,
+                            pixels,
+                        }) => {
                             remote_size.set((width, height));
                             // Кадр приходит в формате RGBA32; для cairo это
                             // ARGB32 (альфа непрозрачная, так что разницы нет).
@@ -253,12 +276,18 @@ impl RdpViewer {
             controller.connect_key_pressed({
                 let tx = tx.clone();
                 move |_, key, keycode, _state| {
-                    let _ = tx.send(ToRdp::Key { key: rdp_key(key, keycode), pressed: true });
+                    let _ = tx.send(ToRdp::Key {
+                        key: rdp_key(key, keycode),
+                        pressed: true,
+                    });
                     glib::Propagation::Stop
                 }
             });
             controller.connect_key_released(move |_, key, keycode, _state| {
-                let _ = tx.send(ToRdp::Key { key: rdp_key(key, keycode), pressed: false });
+                let _ = tx.send(ToRdp::Key {
+                    key: rdp_key(key, keycode),
+                    pressed: false,
+                });
             });
             area.add_controller(controller);
         }
@@ -275,7 +304,12 @@ impl RdpViewer {
                     return;
                 }
                 let (rx, ry) = map_coordinates(&area_ref, x, y, rw, rh);
-                let _ = tx.send(ToRdp::Mouse { x: rx, y: ry, buttons: 0, is_move: true });
+                let _ = tx.send(ToRdp::Mouse {
+                    x: rx,
+                    y: ry,
+                    buttons: 0,
+                    is_move: true,
+                });
             });
             area.add_controller(controller);
         }
@@ -298,7 +332,12 @@ impl RdpViewer {
                     3 => 3,
                     _ => 0,
                 };
-                let _ = tx.send(ToRdp::Mouse { x: rx, y: ry, buttons, is_move: false });
+                let _ = tx.send(ToRdp::Mouse {
+                    x: rx,
+                    y: ry,
+                    buttons,
+                    is_move: false,
+                });
             });
             area.add_controller(controller);
         }
@@ -308,7 +347,8 @@ impl RdpViewer {
             let area_ref = area.clone();
             let remote_size = remote_size.clone();
             let controller = gtk4::EventControllerScroll::new(
-                gtk4::EventControllerScrollFlags::VERTICAL | gtk4::EventControllerScrollFlags::DISCRETE,
+                gtk4::EventControllerScrollFlags::VERTICAL
+                    | gtk4::EventControllerScrollFlags::DISCRETE,
             );
             controller.connect_scroll(move |_, _dx, dy| {
                 let (rw, rh) = remote_size.get();
@@ -316,7 +356,11 @@ impl RdpViewer {
                     return glib::Propagation::Proceed;
                 }
                 let (rx, ry) = map_coordinates(&area_ref, 0.0, 0.0, rw, rh);
-                let _ = tx.send(ToRdp::Wheel { x: rx, y: ry, delta: -(dy as i32) });
+                let _ = tx.send(ToRdp::Wheel {
+                    x: rx,
+                    y: ry,
+                    delta: -(dy as i32),
+                });
                 glib::Propagation::Stop
             });
             area.add_controller(controller);
@@ -365,11 +409,17 @@ fn rdp_key(key: gdk::Key, keycode: u32) -> RdpKey {
     // Аппаратный код GDK на X11 — это X11-номер клавиши минус 8.
     let code = keycode.saturating_sub(8);
     if code > 0 && code < 0x80 {
-        RdpKey::Scancode { code: code as u8, extended: false }
+        RdpKey::Scancode {
+            code: code as u8,
+            extended: false,
+        }
     } else {
         match key.to_unicode() {
             Some(c) => RdpKey::Char(c),
-            None => RdpKey::Scancode { code: 0, extended: false },
+            None => RdpKey::Scancode {
+                code: 0,
+                extended: false,
+            },
         }
     }
 }

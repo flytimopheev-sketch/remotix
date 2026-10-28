@@ -87,7 +87,10 @@ pub struct SshConnection {
 
 impl SshConnection {
     pub fn new(profile: Profile) -> Self {
-        Self { profile, session: None }
+        Self {
+            profile,
+            session: None,
+        }
     }
 
     /// Возвращает инициализированную сессию (для терминала и SFTP).
@@ -116,7 +119,9 @@ impl Connection for SshConnection {
 
     fn disconnect(&mut self) {
         if let Some(session) = self.session.take() {
-            session.disconnect(None, "Пользователь закрыл сессию", None).ok();
+            session
+                .disconnect(None, "Пользователь закрыл сессию", None)
+                .ok();
         }
     }
 }
@@ -140,14 +145,19 @@ pub fn connect_session_with(
     let mut session = ssh2::Session::new().map_err(|e| format!("ошибка libssh2: {e}"))?;
     session.set_tcp_stream(tcp);
     session.set_timeout(HANDSHAKE_TIMEOUT_MS);
-    session
-        .handshake()
-        .map_err(|e| format!("ошибка SSH-рукопожатия с {}:{}: {e}", profile.host, profile.port))?;
+    session.handshake().map_err(|e| {
+        format!(
+            "ошибка SSH-рукопожатия с {}:{}: {e}",
+            profile.host, profile.port
+        )
+    })?;
 
     // Проверяем ключ до отправки пароля/подписи: при подмене сервера
     // учётные данные не должны попасть к злоумышленнику.
     if let Err(e) = verify_host_key(&session, profile.host.as_str(), profile.port, config) {
-        session.disconnect(None, "ключ хоста не подтверждён", None).ok();
+        session
+            .disconnect(None, "ключ хоста не подтверждён", None)
+            .ok();
         return Err(e);
     }
 
@@ -259,8 +269,8 @@ fn verify_host_key(
     let (key, _) = session
         .host_key()
         .ok_or("сервер не предоставил ключ хоста")?;
-    let fingerprint = fingerprint_sha256(session)
-        .ok_or("не удалось вычислить отпечаток ключа хоста")?;
+    let fingerprint =
+        fingerprint_sha256(session).ok_or("не удалось вычислить отпечаток ключа хоста")?;
     let key_type = key_type_name(key);
 
     let mut known = session
@@ -321,10 +331,7 @@ fn verify_host_key(
 
 /// Читает known_hosts построчно, чтобы одна неподдерживаемая строка
 /// (например, `@cert-authority`) не отменяла проверку всего файла.
-fn read_known_hosts(
-    known: &mut ssh2::KnownHosts,
-    path: &Path,
-) -> Result<(), String> {
+fn read_known_hosts(known: &mut ssh2::KnownHosts, path: &Path) -> Result<(), String> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
     for line in text.lines() {
@@ -418,9 +425,7 @@ fn fingerprint_sha256(session: &ssh2::Session) -> Option<String> {
 /// Тип ключа берём из самого SSH-блока ключа: это надёжнее, чем
 /// перечисление `HostKeyType` (оно не различает ECDSA-кривые и будущие типы).
 fn key_type_name(key: &[u8]) -> String {
-    first_ssh_string(key)
-        .unwrap_or("unknown")
-        .to_string()
+    first_ssh_string(key).unwrap_or("unknown").to_string()
 }
 
 /// Читает первый SSH string (`uint32 length || bytes`) из блоба ключа.
@@ -628,7 +633,9 @@ mod tests {
 
         let session = conn.take_session().expect("сессия должна быть активной");
         let mut channel = session.channel_session().expect("канал сессии");
-        channel.exec("echo hello-remotix").expect("выполнение команды");
+        channel
+            .exec("echo hello-remotix")
+            .expect("выполнение команды");
 
         let mut out = String::new();
         channel.read_to_string(&mut out).expect("чтение вывода");
@@ -672,10 +679,14 @@ mod tests {
 
         let session = conn.take_session().expect("сессия");
         let mut channel = session.channel_session().expect("канал");
-        channel.request_pty("xterm", None, None).expect("запрос PTY");
+        channel
+            .request_pty("xterm", None, None)
+            .expect("запрос PTY");
         channel.shell().expect("интерактивная оболочка");
 
-        channel.write_all(b"echo shell-works\n").expect("ввод команды");
+        channel
+            .write_all(b"echo shell-works\n")
+            .expect("ввод команды");
 
         let mut out = String::new();
         let mut buf = [0u8; 1024];
@@ -721,10 +732,7 @@ mod tests {
         key.extend_from_slice(&(32u32).to_be_bytes());
         key.extend_from_slice(&[7u8; 32]);
 
-        let line = format!(
-            "[2001:db8::1]:22 ssh-ed25519 {}\n",
-            BASE64.encode(&key)
-        );
+        let line = format!("[2001:db8::1]:22 ssh-ed25519 {}\n", BASE64.encode(&key));
         let session = ssh2::Session::new().expect("libssh2");
         let mut known = session.known_hosts().expect("known_hosts");
         known
@@ -744,7 +752,9 @@ mod tests {
         assert!(is_host_key_mismatch(
             "ключ хоста example.org:22 изменился!\nПодключение заблокировано"
         ));
-        assert!(!is_host_key_mismatch("не удалось подключиться к example.org"));
+        assert!(!is_host_key_mismatch(
+            "не удалось подключиться к example.org"
+        ));
         assert!(!is_host_key_mismatch("ключ хоста не предоставлен"));
     }
 

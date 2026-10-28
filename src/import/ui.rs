@@ -7,7 +7,9 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use gtk4::prelude::*;
-use gtk4::{gio, Box as GtkBox, Button, FileChooserAction, FileChooserNative, FileFilter, Label, Window};
+use gtk4::{
+    gio, Box as GtkBox, Button, FileChooserAction, FileChooserNative, FileFilter, Label, Window,
+};
 
 use crate::app::AppState;
 use crate::import::normalize::ImportPreview;
@@ -230,10 +232,9 @@ fn show_preview(
             if !candidate.group_path.is_empty() {
                 match state.db.ensure_group_path(&candidate.group_path) {
                     Ok(group_id) => profile.group_id = group_id,
-                    Err(e) => errors.push(format!(
-                        "{}: не удалось создать группу: {e}",
-                        profile.name
-                    )),
+                    Err(e) => {
+                        errors.push(format!("{}: не удалось создать группу: {e}", profile.name))
+                    }
                 }
             }
             match state.db.add_profile(&key, &profile) {
