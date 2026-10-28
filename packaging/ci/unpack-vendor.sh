@@ -15,7 +15,8 @@
 #     tar --zstd -cf vendor.tar.zst vendor
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+# Корень репозитория — на два уровня выше каталога скрипта (packaging/ci/).
+cd "$(dirname "$0")/../.."
 
 if [ -d vendor ] && [ -f vendor/.cargo-checksum.json ]; then
     echo "vendor/ уже распакован — ничего не делаю"

@@ -18,6 +18,44 @@ env:
   EL9_ROOT: /opt/el9
 
 jobs:
+  quality:
+    name: Quality gate (clippy, fmt, deny)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Распаковка vendor (offline-зависимости)
+        run: bash packaging/ci/unpack-vendor.sh
+
+      - name: Системные зависимости
+        # gtk4-sys находит GTK4 через pkg-config; libssl-dev нужен
+        # openssl-sys — libssh2 по умолчанию шифрует через OpenSSL.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libgtk-4-dev libssl-dev
+
+      - name: Компоненты Rust
+        run: rustup component add clippy rustfmt
+
+      - name: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo fmt --check
+        # Блокирует: один раз переформатировали (коммит «Переформатирование:
+        # rustfmt по проекту») — теперь любое расхождение с rustfmt краснит CI.
+        run: cargo fmt --check
+
+      - name: cargo deny check (лицензии/уязвимости)
+        # Готовый бинарник вместо компиляции из исходников.
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: cargo deny check
+        run: cargo deny check
+
   build-rpm:
     runs-on: ubuntu-24.04
     # Docker не используется: окружение сборки — AlmaLinux 9 (EL9), полученный
@@ -34,21 +72,18 @@ jobs:
       - name: Исходники внутрь окружения
         run: bash packaging/ci/el9-chroot.sh copy-in "$GITHUB_WORKSPACE" /root/remotix
 
-      - name: Vendor crates (offline-зависимости)
+      - name: SSH-сервер для интеграционных тестов
+        # Тесты src/protocols/ssh.rs подключаются к 127.0.0.1:2222
+        # (tester / secret). Раньше при отсутствии сервера они молча
+        # пропускались — в CI они фактически ничего не проверяли.
+        run: bash packaging/ci/el9-chroot.sh sshd start
+
+      - name: Распаковка vendor внутри окружения (offline-зависимости)
+        # vendor.tar.zst копируется вместе с исходниками (исключена только
+        # пофайловая копия vendor/); распаковка — уже в chroot, сети не нужно.
         run: |
-          bash packaging/ci/el9-chroot.sh sh <<'EOS'
-          cd /root/remotix
-          # vendor/ пересоздаём через cargo vendor — контрольные суммы
-          # гарантированно совпадают с Cargo.lock. Штатный .cargo/config.toml
-          # (source replacement + offline) на время вендоринга убираем, иначе
-          # cargo не пойдёт в crates.io.
-          mv .cargo/config.toml /tmp/cargo-config.toml
-          rm -rf vendor
-          CARGO_NET_OFFLINE=false cargo vendor vendor > /dev/null
-          mkdir -p .cargo
-          mv /tmp/cargo-config.toml .cargo/config.toml
-          echo "vendor: $(ls vendor | wc -l) крейтов"
-          EOS
+          bash packaging/ci/el9-chroot.sh run \
+            'cd /root/remotix && tar --zstd -xf vendor.tar.zst && echo "vendor: $(ls vendor | wc -l) крейтов"'
 
       - name: Сборка релизного бинарника (EL9)
         run: bash packaging/ci/el9-chroot.sh run 'cd /root/remotix && cargo build --release --offline'
@@ -57,8 +92,9 @@ jobs:
         run: |
           bash packaging/ci/el9-chroot.sh sh <<'EOS'
           cd /root/remotix
-          # Тесты криптографии и репозитория выполняются всегда; тесты SSH и RDP
-          # требуют живых серверов и в CI пропускаются.
+          # SSH-тесты выполняются против sshd, поднятого шагом выше
+          # (127.0.0.1:2222). Тесты RDP по-прежнему требуют живого
+          # RDP-сервера и пропускаются, если его нет.
           cargo test --offline 2>&1 | tail -25
           EOS
 

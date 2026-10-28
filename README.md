@@ -37,8 +37,10 @@ Remotix — это «одно окно» для всех удалённых по
 | Мастер-пароль (Argon2id) + шифрование учётных данных (AES-256-GCM) | ✅ готово |
 | SSH-подключение со встроенным терминалом (VTE / упрощённый) | ✅ готово |
 | Проверка ключа SSH-хоста по `known_hosts`, SHA256-отпечаток | ✅ готово |
-| Импорт из `~/.ssh/config`, Remmina, `.rdp` и JSON с предпросмотром | ✅ готово |
+| Импорт из `~/.ssh/config`, Remmina, `.rdp`, JSON и CSV с предпросмотром | ✅ готово |
+| Группы профилей (дерево) и фильтр по тегам | ✅ готово |
 | Проверка доступности узла и Wake-on-LAN | ✅ готово |
+| Метрики SSH-хоста (CPU, RAM, сеть, load, диск) | ✅ готово |
 | **RDP: просмотрщик удалённого рабочего стола (IronRDP, NLA/CredSSP)** | ✅ готово |
 | SFTP: две панели, загрузка/скачивание, создание и удаление | ✅ готово |
 | Журнал подключений с экспортом в CSV | ✅ готово |
@@ -49,7 +51,6 @@ Remotix — это «одно окно» для всех удалённых по
 | **Пять тем оформления**: светлая, тёмная, Cosmic, Океан, Уголь | ✅ готово |
 | Закрываемые вкладки сессий | ✅ готово |
 | VNC | 🚧 в разработке |
-| Группы профилей | 🚧 в разработке |
 
 ---
 
@@ -376,16 +377,23 @@ remotix/
 │   ├── profiles_io.rs       # импорт и экспорт профилей (JSON)
 │   ├── db/                  # mod, schema, crypto, repository
 │   ├── models/              # mod, profile
-│   ├── protocols/           # mod, rdp, vnc, ssh
+│   ├── protocols/           # mod, rdp, vnc, ssh, metrics
+│   ├── import/              # ssh_config, remmina, rdp, csv, json,
+│   │                        # normalize (предпросмотр), preview, ui
 │   └── ui/                  # main_window, profile_editor, master_password,
 │                            # terminal, rdp_viewer, sftp_tab, history_tab,
 │                            # settings_window, theme
 ├── resources/icons/remotix.svg
 ├── packaging/               # remotix.spec, .desktop, .metainfo.xml, ci/
 ├── examples/keyprobe.rs     # отладка клавиатурного ввода (RDP)
-├── .github/workflows/       # сборка RPM
+├── .github/workflows/       # сборка RPM + quality gate
+├── deny.toml                # политики cargo-deny (лицензии/уязвимости)
+├── vendor.tar.zst           # offline-зависимости (распаковка — см. ниже)
 └── mockup.html              # макет интерфейса
 ```
+
+Руководство пользователя — [`docs/user-guide.md`](docs/user-guide.md),
+описание архитектуры — [`docs/architecture.md`](docs/architecture.md).
 
 ### Схема базы данных
 
@@ -407,30 +415,43 @@ remotix/
 ```bash
 git clone https://github.com/flytimopheev-sketch/remotix.git
 cd remotix
+bash packaging/ci/unpack-vendor.sh   # распаковать offline-зависимости
 
-cargo fmt
-cargo clippy --all-targets
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-Зависимости crates.io лежат в каталоге `vendor/` — сборка идёт полностью
-офлайн (`.cargo/config.toml` подменяет crates.io на локальный каталог).
-Чтобы обновить зависимости:
+Зависимости crates.io поставляются одним архивом `vendor.tar.zst` — сборка
+идёт полностью офлайн (`.cargo/config.toml` подменяет crates.io на локальный
+каталог). Пофайловый `vendor/` (~586 МБ, 22 тыс. файлов) из git убран.
+Обновление зависимостей:
 
 ```bash
 mv .cargo/config.toml /tmp/ && rm -rf vendor
-cargo vendor vendor && mv /tmp/cargo-config.toml .cargo/
+cargo vendor vendor
+mv /tmp/cargo-config.toml .cargo/
+docker run --rm -v "$PWD:/work" -w /work remotix-base:latest \
+  tar --zstd -cf vendor.tar.zst vendor
 ```
+
+Качество контролируется в CI: `cargo clippy -D warnings`, `cargo fmt --check`,
+`cargo test`, `cargo deny check` (лицензии/уязвимости, политики в
+[`deny.toml`](deny.toml)). Небезопасный код запрещён на уровне крейта —
+`#![deny(unsafe_code)]`; единственная зона — динамическая загрузка VTE.
 
 ### CI
 
 `.github/workflows/build-rpm.yml` на каждом пуше в `main` и на тегах `v*`:
 
-1. разворачивает окружение EL9 (`chroot`, без Docker);
-2. пересобирает `vendor/` и собирает бинарник в release;
-3. выполняет **smoke-тест** в виртуальном X-сервере (`xvfb-run`): приложение
+1. **quality gate**: clippy `-D warnings`, fmt-check, cargo-deny;
+2. разворачивает окружение EL9 (`chroot`, без Docker);
+3. поднимает `openssh-server` внутри окружения на `127.0.0.1:2222` —
+   SSH-тесты выполняются по-настоящему;
+4. собирает бинарник в release и гоняет тесты;
+5. выполняет **smoke-тест** в виртуальном X-сервере (`xvfb-run`): приложение
    должно запуститься, показать окно и остаться живым;
-4. собирает бинарный RPM и SRPM и выкладывает их в артефакты и релиз.
+6. собирает бинарный RPM и SRPM и выкладывает их в артефакты и релиз.
 
 ### Как отлаживать запуск на РЕД ОС
 
@@ -470,11 +491,12 @@ strace -f -o /tmp/remotix.strace remotix  # если окно не появля�
 - [x] Просмотрщик RDP с поддержкой NLA (CredSSP)
 - [x] SFTP-клиент с двумя панелями
 - [x] Проверка доступности узла и Wake-on-LAN
-- [x] Современный интерфейс в стиле GTK4
+- [x] Группы профилей и фильтр по тегам
+- [x] Импорт из CSV с предпросмотром
+- [x] Метрики хоста в SSH-вкладке
+- [x] Quality gate в CI (clippy/fmt/deny) и живой SSH-сервер в тестах
 - [ ] Поддержка VNC
-- [ ] Группы профилей
 - [ ] Двухсторонний буфер обмена RDP (CLIPRDR)
-- [ ] `Ctrl+Alt+Del` в RDP-сессии
 
 ---
 

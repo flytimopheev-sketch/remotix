@@ -12,6 +12,7 @@
 #   setup                        — скачать rootfs, примонтировать псевдо-ФС, поставить зависимости
 #   run '<команда>'              — выполнить bash-команду внутри окружения
 #   sh                           — выполнить bash-скрипт внутри окружения (читается со stdin)
+#   sshd start|stop              — SSH-сервер для интеграционных тестов (127.0.0.1:2222)
 #   copy-in  <хост> <в окружении> — скопировать каталог внутрь (.git/target/vendor/dist исключаются)
 #   copy-out <в окружении> <хост> — скопировать каталог наружу
 #   teardown                     — размонтировать псевдо-ФС
@@ -26,7 +27,7 @@ FALLBACK_DATES="${EL9_FALLBACK_DATES:-20260922_23:08 20260921_23:08 20260920_23:
 ROOTFS_ARCHIVE=/tmp/el9-rootfs.tar.xz
 ROOTFS_WORK=/tmp/el9-rootfs.tar.xz.part
 
-PKGS=(dnf-plugins-core epel-release rsync tar gzip xz which findutils)
+PKGS=(dnf-plugins-core epel-release rsync tar gzip xz zstd which findutils)
 BUILD_PKGS=(gcc make perl pkg-config
             gtk4-devel pango-devel cairo-devel cairo-gobject-devel
             gdk-pixbuf2-devel graphene-devel libepoxy-devel
@@ -134,12 +135,60 @@ cmd_teardown() {
   done
 }
 
+# SSH-сервер внутри chroot для интеграционных тестов src/protocols/ssh.rs:
+# 127.0.0.1:2222, пользователь tester с паролем secret (см. test_profile()).
+# chroot не изолирует сеть, поэтому sshd слушает тот же loopback, что и тесты.
+# Конфиг пишем в /tmp/sshd-test — системный sshd_config окружения не трогаем.
+cmd_sshd() {
+  case "${2:-start}" in
+    start)
+      log 'SSH-сервер для тестов: 127.0.0.1:2222 (tester / secret)'
+      inside 'command -v sshd >/dev/null 2>&1 || dnf -y install openssh-server'
+      inside 'ssh-keygen -A >/dev/null; id tester >/dev/null 2>&1 || useradd -m tester; echo "tester:secret" | chpasswd'
+      inside 'mkdir -p /tmp/sshd-test
+cat > /tmp/sshd-test/sshd_config <<EOF
+Port 2222
+ListenAddress 127.0.0.1
+PidFile /tmp/sshd-test/sshd.pid
+PasswordAuthentication yes
+KbdInteractiveAuthentication no
+PermitRootLogin no
+UsePAM no
+StrictModes no
+AllowTcpForwarding yes
+X11Forwarding no
+LogLevel VERBOSE
+Subsystem sftp internal-sftp
+EOF
+chmod 644 /tmp/sshd-test/sshd_config
+/usr/sbin/sshd -t -f /tmp/sshd-test/sshd_config
+if (exec 3<>/dev/tcp/127.0.0.1/2222) 2>/dev/null; then
+  echo "уже запущен — пропускаю"
+  exit 0
+fi
+/usr/sbin/sshd -f /tmp/sshd-test/sshd_config -E /tmp/sshd-test/log
+sleep 1
+if ! (exec 3<>/dev/tcp/127.0.0.1/2222) 2>/dev/null; then
+  echo "::error::sshd не поднялся на 127.0.0.1:2222"
+  cat /tmp/sshd-test/log || true
+  exit 1
+fi
+echo "sshd работает"'
+      ;;
+    stop)
+      inside 'pkill -f "sshd.*/tmp/sshd-test" 2>/dev/null || true'
+      ;;
+    *) echo "usage: el9-chroot.sh sshd {start|stop}" >&2; exit 2 ;;
+  esac
+}
+
 case "${1:-}" in
   setup)    cmd_setup ;;
   run)      cmd_run "$@" ;;
   sh)       cmd_sh ;;
+  sshd)     cmd_sshd "$@" ;;
   copy-in)  cmd_copy_in "$2" "$3" ;;
   copy-out) cmd_copy_out "$2" "$3" ;;
   teardown) cmd_teardown ;;
-  *) echo "usage: el9-chroot.sh {setup|run|sh|copy-in|copy-out|teardown}" >&2; exit 2 ;;
+  *) echo "usage: el9-chroot.sh {setup|run|sh|sshd|copy-in|copy-out|teardown}" >&2; exit 2 ;;
 esac

@@ -1,0 +1,76 @@
+# cargo-deny: лицензии, уязвимости и sanity-check дерева зависимостей.
+#
+# Запускается в CI (workflow Build RPM, шаг quality gate): `cargo deny check`.
+# Продукт работает с root-паролями, поэтому контроль зависимостей — минимум.
+#
+# Пояснения к списку лицензий:
+# - MIT/Apache-2.0 — стандарт для Rust-экосистемы (98% крейтов vendor/);
+# - BSD-*, ISC, Zlib, Unlicense, 0BSD, CC0-1.0 — совместимые свободные;
+# - Unicode-3.0 (unicode-ident и др.);
+# - «Apache-2.0 WITH LLVM-exception» (compiler-builtins и др.);
+# - MPL-2.0 — слабое копилефт, совместимо с MIT-продуктом;
+# - LGPL-2.1-or-later как отдельная лицензия НЕ разрешена: в дереве она
+#   встречается только в конструкции «OR MIT OR Apache-2.0» (r-efi), которую
+#   cargo-deny считает удовлетворённой разрешёнными альтернативами.
+
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+]
+
+# В vendor/ есть крейты, не влияющие на сборку под целевую платформу
+# (windows-sys и т.п.) — граф cargo-deny всё равно проверяет весь lock.
+
+[licenses]
+version = 2
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "MIT-0",
+    "BSD-1-Clause",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unlicense",
+    "0BSD",
+    "CC0-1.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "MPL-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+]
+# Пример исключения с обоснованием — держим, чтобы заёмщикам было понятно
+# как добавлять новые лицензии:
+# [[licenses.exceptions]]
+# allow = ["..."]
+# crate = "..."
+
+[advisories]
+version = 2
+# Падаем только на реальных уязвимостях; unmaintained для этого проекта
+# считается предупреждением (в дереве есть зрелые, но брошенные крейты,
+# например foreign-types у openssl-sys — замена зависит от апстрима).
+unmaintained = "none"
+yanked = "deny"
+ignore = [
+    # RUSTSEC-2023-0071 (Marvin): timing side-channel при расшифровке RSA/PKCS#1 v1.5.
+    # Патча нет — `patched = []` у апстрима намеренно: rsa 0.9.10 и
+    # 0.10.0-rc.18 затронуты и не исправлены (на 2026-09-12). В дерево
+    # попадает через picky → sspi/ironrdp-connector (NLA-аутентификация
+    # RDP); эксплуатация требует тысяч замеров времени аутентификации в
+    # одной сети. Вернуться, когда sspi выйдет из RC и rsa выпустит патч.
+    { id = "RUSTSEC-2023-0071", reason = "rsa: Marvin-атака; патча нет (patched = [] намеренно), путь — NLA RDP, см. комментарий выше" },
+]
+
+[bans]
+# Дубликаты версий предупреждаем, но не запрещаем: GTK-стек и IronRDP тянут
+# параллельные версии нескольких крейтов, устранение зависит от апстрима.
+multiple-versions = "warn"
+wildcards = "deny"
+skip = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
