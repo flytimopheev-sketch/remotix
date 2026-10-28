@@ -441,4 +441,160 @@ Host *
         assert!(glob_match("*.conf", "a.conf"));
         assert!(!glob_match("*.conf", "a.txt"));
     }
+
+    /// Каталог с временными конфигами для тестов Include; удаляется на выходе.
+    struct TempConfigDir(PathBuf);
+
+    impl TempConfigDir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "remotix-ssh-config-{}-{tag}",
+                std::process::id()
+            ));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("temp dir");
+            TempConfigDir(dir)
+        }
+
+        fn write(&self, name: &str, text: &str) -> PathBuf {
+            let path = self.0.join(name);
+            std::fs::write(&path, text).expect("write config");
+            path
+        }
+    }
+
+    impl Drop for TempConfigDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn include_pulls_in_hosts_and_reports_missing() {
+        let dir = TempConfigDir::new("include");
+        dir.write("inc.conf", "Host inc1\n  HostName 10.1.0.1\n");
+        let main = dir.write(
+            "config",
+            &format!(
+                "Include {}\nInclude {}/missing.conf\nHost main1\n  HostName 10.1.0.2\n",
+                dir.0.join("inc.conf").display(),
+                dir.0.display()
+            ),
+        );
+
+        let preview = parse_file(&main).expect("parse");
+        assert_eq!(preview.imported(), 2);
+        assert!(preview
+            .candidates
+            .iter()
+            .any(|c| c.profile.name == "inc1" && c.profile.host == "10.1.0.1"));
+        assert!(preview
+            .candidates
+            .iter()
+            .any(|c| c.profile.name == "main1" && c.profile.host == "10.1.0.2"));
+        assert!(preview.notes.iter().any(|n| n.contains("не найден")));
+    }
+
+    #[test]
+    fn include_cycle_is_detected() {
+        let dir = TempConfigDir::new("cycle");
+        let a = dir.write(
+            "a.conf",
+            &format!(
+                "Include {}\nHost from-a\n  HostName 10.2.0.1\n",
+                dir.0.join("b.conf").display()
+            ),
+        );
+        dir.write(
+            "b.conf",
+            &format!(
+                "Include {}\nHost from-b\n  HostName 10.2.0.2\n",
+                dir.0.join("a.conf").display()
+            ),
+        );
+
+        let preview = parse_file(&a).expect("parse");
+        assert_eq!(preview.imported(), 2);
+        assert!(preview.notes.iter().any(|n| n.contains("Циклический")));
+    }
+
+    #[test]
+    fn include_inside_host_keeps_block_context() {
+        // Include внутри блока Host не сбрасывает его: HostName после
+        // Include по-прежнему относится к Host main. Параметры включённого
+        // файла без собственного Host (User inc-user) не переносятся.
+        let dir = TempConfigDir::new("inner");
+        dir.write("inc2.conf", "User inc-user\n");
+        let main = dir.write(
+            "config",
+            &format!(
+                "Host main\n  Include {}\n  HostName 10.5.0.1\n",
+                dir.0.join("inc2.conf").display()
+            ),
+        );
+
+        let preview = parse_file(&main).expect("parse");
+        assert_eq!(preview.imported(), 1);
+        let profile = &preview.candidates[0].profile;
+        assert_eq!(profile.name, "main");
+        assert_eq!(profile.host, "10.5.0.1");
+        assert_eq!(profile.username, None);
+    }
+
+    #[test]
+    fn ipv6_host_is_preserved() {
+        let preview = parse_text(
+            "Host v6\n  HostName 2001:db8::1\n  Port 2200\n",
+            "test",
+        );
+        assert_eq!(preview.imported(), 1);
+        let profile = &preview.candidates[0].profile;
+        assert_eq!(profile.host, "2001:db8::1");
+        assert_eq!(profile.port, 2200);
+    }
+
+    #[test]
+    fn non_ascii_host_is_preserved() {
+        let preview = parse_text(
+            "Host сервер-тест\n  HostName сервер.example.рф\n  User админ\n",
+            "test",
+        );
+        assert_eq!(preview.imported(), 1);
+        let profile = &preview.candidates[0].profile;
+        assert_eq!(profile.name, "сервер-тест");
+        assert_eq!(profile.host, "сервер.example.рф");
+        assert_eq!(profile.username.as_deref(), Some("админ"));
+    }
+
+    #[test]
+    fn match_before_any_host_is_harmless() {
+        let preview = parse_text(
+            "Match host *.corp\n  User root\nHost real\n  HostName 10.3.0.1\n",
+            "test",
+        );
+        assert_eq!(preview.imported(), 1);
+        assert!(preview.notes.iter().any(|n| n.contains("Match")));
+        // User root из блока Match не применился к реальному хосту.
+        assert_eq!(preview.candidates[0].profile.username, None);
+    }
+
+    #[test]
+    fn multiple_patterns_make_multiple_profiles() {
+        let preview = parse_text("Host web db\n  HostName 10.4.0.1\n", "test");
+        assert_eq!(preview.imported(), 2);
+        assert_eq!(preview.candidates[0].profile.name, "web");
+        assert_eq!(preview.candidates[1].profile.name, "db");
+        assert_eq!(preview.candidates[1].profile.host, "10.4.0.1");
+    }
+
+    #[test]
+    fn invalid_port_is_noted_and_defaults() {
+        let preview = parse_text(
+            "Host bad\n  HostName 10.6.0.1\n  Port 99999\n",
+            "test",
+        );
+        assert_eq!(preview.imported(), 1);
+        assert!(preview.notes.iter().any(|n| n.contains("Port")));
+        assert_eq!(preview.candidates[0].profile.port, 22);
+    }
 }
