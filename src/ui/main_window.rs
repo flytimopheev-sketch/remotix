@@ -45,7 +45,8 @@ enum SideRow {
         name: String,
         depth: usize,
     },
-    Profile(Profile),
+    // В коробке: Profile заметно крупнее Group, Box держит enum компактным.
+    Profile(Box<Profile>),
 }
 
 /// Главное окно: список подключений, вкладки сессий, строка состояния.
@@ -289,14 +290,11 @@ impl MainWindow {
                 if index < 0 {
                     return;
                 }
-                match win.rows.borrow().get(index as usize) {
-                    Some(SideRow::Group { id, .. }) => {
-                        win.toggle_group(*id);
-                    }
-                    _ => {}
+                if let Some(SideRow::Group { id, .. }) = win.rows.borrow().get(index as usize) {
+                    win.toggle_group(*id);
                 }
                 let profile = match win.rows.borrow().get(index as usize) {
-                    Some(SideRow::Profile(p)) => Some(p.clone()),
+                    Some(SideRow::Profile(p)) => Some((**p).clone()),
                     _ => None,
                 };
                 if let Some(profile) = profile {
@@ -457,8 +455,7 @@ impl MainWindow {
         // Восстанавливаем выделение прежнего профиля.
         if let Some(id) = selected_id {
             if let Some(index) = self.rows.borrow().iter().position(|row| {
-                matches!(row, SideRow::Profile(p) if p.id == id)
-            }) {
+                matches!(row, SideRow::Profile(p) if p.id == id)            }) {
                 if let Some(r) = self.sidebar.row_at_index(index as i32) {
                     self.sidebar.select_row(Some(&r));
                 }
@@ -521,7 +518,7 @@ impl MainWindow {
             for profile in visible {
                 let row = self.build_profile_row(profile, 0);
                 self.sidebar.append(&row);
-                rows.push(SideRow::Profile(profile.clone()));
+                rows.push(SideRow::Profile(Box::new(profile.clone())));
             }
             return;
         }
@@ -564,15 +561,22 @@ impl MainWindow {
         let emit_group = &mut emit_group;
 
         // Рекурсивный обход сверху вниз (children выбираются из полного
-        // списка групп по parent_id).
+        // списка групп по parent_id). Виджеты и строки передаются одним
+        // комплектом, чтобы не тянуть через walk длинный хвост аргументов.
+        struct SideSink<'a> {
+            sidebar: &'a ListBox,
+            rows: &'a mut Vec<SideRow>,
+            emit_group: EmitGroup<'a>,
+            build_profile_row: &'a dyn Fn(&Profile, usize) -> ListBoxRow,
+        }
+
+        type EmitGroup<'a> = &'a mut dyn FnMut(&mut Vec<SideRow>, i64, &str, usize, usize) -> bool;
+
         fn walk(
             parent: Option<i64>,
             groups: &[(i64, String, Option<i64>)],
             by_group: &std::collections::HashMap<i64, Vec<&Profile>>,
-            sidebar: &ListBox,
-            rows: &mut Vec<SideRow>,
-            emit_group: &mut dyn FnMut(&mut Vec<SideRow>, i64, &str, usize, usize) -> bool,
-            build_profile_row: &dyn Fn(&Profile, usize) -> ListBoxRow,
+            ui: &mut SideSink<'_>,
             depth: usize,
         ) {
             // Сначала подгруппы (по алфавиту), затем подключения.
@@ -580,46 +584,46 @@ impl MainWindow {
                 .iter()
                 .filter(|(_, _, p)| *p == parent)
                 .collect();
-            children.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+            children.sort_by_key(|g| g.1.to_lowercase());
 
             for (id, name, _) in children.iter() {
                 let direct = by_group.get(id).map(|v| v.len()).unwrap_or(0);
-                let is_collapsed = emit_group(rows, *id, name, depth, direct);
+                let is_collapsed = (ui.emit_group)(ui.rows, *id, name, depth, direct);
                 if !is_collapsed {
-                    walk(
-                        Some(*id),
-                        groups,
-                        by_group,
-                        sidebar,
-                        rows,
-                        emit_group,
-                        build_profile_row,
-                        depth + 1,
-                    );
+                    walk(Some(*id), groups, by_group, ui, depth + 1);
                 }
             }
 
             if let Some(profiles) = parent.and_then(|id| by_group.get(&id)) {
                 for profile in profiles {
-                    let row = build_profile_row(profile, depth + 1);
-                    sidebar.append(&row);
-                    rows.push(SideRow::Profile((*profile).clone()));
+                    let row = (ui.build_profile_row)(profile, depth + 1);
+                    ui.sidebar.append(&row);
+                    ui.rows.push(SideRow::Profile(Box::new((**profile).clone())));
                 }
             }
         }
         let _ = &mut rows;
-        walk(None, groups, &by_group, &self.sidebar, &mut rows, emit_group, &|p, d| {
-            self.build_profile_row(p, d)
-        }, 0);
+        walk(
+            None,
+            groups,
+            &by_group,
+            &mut SideSink {
+                sidebar: &self.sidebar,
+                rows: &mut rows,
+                emit_group,
+                build_profile_row: &|p, d| self.build_profile_row(p, d),
+            },
+            0,
+        );
 
         // Подключения без группы — после всех групп.
         if !orphans.is_empty() {
             let mut sorted: Vec<&&Profile> = orphans.iter().collect();
-            sorted.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+            sorted.sort_by_key(|p| p.name.to_lowercase());
             for profile in sorted {
                 let row = self.build_profile_row(profile, 0);
                 self.sidebar.append(&row);
-                rows.push(SideRow::Profile((*profile).clone()));
+                rows.push(SideRow::Profile(Box::new((**profile).clone())));
             }
         }
     }
@@ -725,8 +729,8 @@ impl MainWindow {
 
                 // Координаты клика переводим в систему координат окна.
                 let (px, py) = row_ref
-                    .translate_coordinates(&toplevel, x as f64, y as f64)
-                    .unwrap_or((x as f64, y as f64));
+                    .translate_coordinates(&toplevel, x, y)
+                    .unwrap_or((x, y));
                 popup.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
                     px as i32, py as i32, 1, 1,
                 )));
@@ -852,8 +856,8 @@ impl MainWindow {
                     popup.set_parent(&toplevel);
                 }
                 let (px, py) = row_ref
-                    .translate_coordinates(&toplevel, x as f64, y as f64)
-                    .unwrap_or((x as f64, y as f64));
+                    .translate_coordinates(&toplevel, x, y)
+                    .unwrap_or((x, y));
                 popup.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
                     px as i32, py as i32, 1, 1,
                 )));
@@ -1690,7 +1694,7 @@ impl MainWindow {
             return None;
         }
         match self.rows.borrow().get(index as usize) {
-            Some(SideRow::Profile(profile)) => Some(profile.clone()),
+            Some(SideRow::Profile(profile)) => Some((**profile).clone()),
             _ => None,
         }
     }
@@ -1854,7 +1858,7 @@ fn order_groups(groups: &[(i64, String, Option<i64>)]) -> Vec<(i64, String, Opti
             .iter()
             .filter(|(_, _, p)| *p == parent)
             .collect();
-        children.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+        children.sort_by_key(|g| g.1.to_lowercase());
         for child in children {
             result.push(child.clone());
             walk(Some(child.0), groups, result);

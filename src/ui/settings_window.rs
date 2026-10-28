@@ -535,7 +535,7 @@ fn profiles_page(state: &Rc<AppState>, parent: &Window) -> gtk4::Box {
         state,
         parent,
         &status,
-        Rc::new(|| crate::app::refresh_main_profiles()),
+        Rc::new(crate::app::refresh_main_profiles),
     ));
 
     page

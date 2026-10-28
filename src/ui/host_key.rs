@@ -50,9 +50,10 @@ where
     dialog.add_button("Отклонить", ResponseType::Cancel);
     dialog.add_button("Доверять и продолжить", ResponseType::Accept);
 
-    let callback: Rc<RefCell<Option<Box<dyn FnOnce(bool)>>>> = Rc::new(RefCell::new(Some(Box::new(
-        move |accepted| on_decision(accepted),
-    ))));
+    type Decision = Box<dyn FnOnce(bool)>;
+
+    let callback: Rc<RefCell<Option<Decision>>> =
+        Rc::new(RefCell::new(Some(Box::new(on_decision))));
     {
         let callback = callback.clone();
         dialog.connect_response(move |dialog, response| {

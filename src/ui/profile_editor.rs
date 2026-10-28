@@ -408,16 +408,20 @@ impl ProfileEditor {
                     profile.name = profile.host.clone();
                 }
 
-                let mut options = crate::models::profile::SshOptions::default();
-                options.su_to_root = su_to_root.is_active();
+                let options = crate::models::profile::SshOptions {
+                    su_to_root: su_to_root.is_active(),
+                    ..crate::models::profile::SshOptions::default()
+                };
                 profile.ssh_options = options;
 
-                let mut rdp = crate::models::profile::RdpOptions::default();
-                rdp.width = width;
-                rdp.height = height;
-                rdp.domain = domain.text().trim().to_string();
-                rdp.nla = nla_default;
-                rdp.allow_legacy_security = legacy_rdp.is_active();
+                let rdp = crate::models::profile::RdpOptions {
+                    width,
+                    height,
+                    domain: domain.text().trim().to_string(),
+                    nla: nla_default,
+                    allow_legacy_security: legacy_rdp.is_active(),
+                    ..crate::models::profile::RdpOptions::default()
+                };
                 profile.rdp_options = rdp;
 
                 let result = match profile_id {

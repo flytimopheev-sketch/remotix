@@ -92,7 +92,9 @@ impl<S: Write> Write for PrefixedStream<S> {
 /// неблокирующий режим) не зависела от выбранного режима безопасности.
 enum SessionStream {
     Plain(TcpStream),
-    Tls(PrefixedStream<rustls::StreamOwned<rustls::ClientConnection, TcpStream>>),
+    // В коробке — только большой TLS-поток; Box держит перечисление компактным
+    // (Read/Write работают через авто-разыменование).
+    Tls(Box<PrefixedStream<rustls::StreamOwned<rustls::ClientConnection, TcpStream>>>),
 }
 
 impl SessionStream {
@@ -147,7 +149,7 @@ impl ironrdp_connector::sspi::network_client::NetworkClient for RdpNetworkClient
         let port = request.url.port().unwrap_or(3389);
 
         // 1. Поднимаем отдельное TLS-соединение к серверу RDP для NLA.
-        let tcp = TcpStream::connect(&format!("{host}:{port}"))
+        let tcp = TcpStream::connect(format!("{host}:{port}"))
             .map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}")))?;
 
         let mut tls_config = rustls::client::ClientConfig::builder()
@@ -736,7 +738,7 @@ impl RdpConnection {
                 PrefixedStream::new(leftover_bytes.to_vec(), stream)
             };
 
-            let framed = ironrdp_blocking::Framed::new(SessionStream::Tls(tls_stream));
+            let framed = ironrdp_blocking::Framed::new(SessionStream::Tls(Box::new(tls_stream)));
             let upgraded = ironrdp_blocking::mark_as_upgraded(should_upgrade, &mut connector);
             (framed, upgraded)
         };

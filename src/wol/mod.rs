@@ -46,7 +46,7 @@ pub fn normalize_mac(text: &str) -> Result<String, String> {
 /// Формирует magic packet для уже разобранного MAC-адреса.
 pub fn magic_packet(mac: [u8; 6]) -> [u8; 102] {
     let mut packet = [0xFFu8; 102];
-    for chunk in packet[6..].chunks_exact_mut(6) {
+    for chunk in packet[6..].as_chunks_mut::<6>().0 {
         chunk.copy_from_slice(&mac);
     }
     packet
@@ -139,8 +139,8 @@ mod tests {
         let packet = packet_for(MAC).expect("magic packet");
         assert_eq!(packet.len(), 102);
         assert_eq!(&packet[..6], &[0xFF; 6]);
-        for chunk in packet[6..].chunks_exact(6) {
-            assert_eq!(chunk, &[0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]);
+        for chunk in packet[6..].as_chunks::<6>().0 {
+            assert_eq!(*chunk, [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]);
         }
     }
 

@@ -112,7 +112,7 @@ impl MasterPasswordDialog {
         };
 
         // Общая логика разблокировки: используется и кнопкой, и Enter.
-        let do_unlock: Rc<dyn Fn() -> ()> = {
+        let do_unlock: Rc<dyn Fn()> = {
             let callback = callback.clone();
             let db = db.clone();
             let window = window.clone();
@@ -124,7 +124,7 @@ impl MasterPasswordDialog {
                 let mut entered = password.text().to_string();
 
                 if db.meta_get("argon2_salt").is_none()
-                    && entered != confirm.text().to_string()
+                    && entered.as_str() != confirm.text().as_str()
                 {
                     entered.zeroize();
                     status.set_text("Пароли не совпадают");

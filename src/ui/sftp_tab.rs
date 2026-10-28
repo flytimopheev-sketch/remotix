@@ -285,9 +285,11 @@ impl SftpTab {
                         Ok(files) => {
                             let path = panel.remote_path();
                             let listing_changed = changed
-                                || last_listing.as_ref().map_or(true, |(last_path, last_files)| {
-                                    last_path != &path || last_files != &files
-                                });
+                                || last_listing
+                                    .as_ref()
+                                    .is_none_or(|(last_path, last_files)| {
+                                        last_path != &path || last_files != &files
+                                    });
                             if listing_changed {
                                 last_listing = Some((path.clone(), files.clone()));
                                 let _ = tx_ui.send(ToUi::Remote(files, path));

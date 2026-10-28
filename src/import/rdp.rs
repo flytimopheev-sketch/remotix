@@ -93,16 +93,19 @@ pub fn parse_text(text: &str, name: &str, origin: &str) -> ImportPreview {
     }
 
     let mut username = clean(values.get("username"));
-    let mut options = RdpOptions::default();
-    options.domain = clean(values.get("domain")).unwrap_or_default();
-    if let Some((domain, user)) = username.as_deref().and_then(|u| u.split_once('\\')) {
+    let mut domain = clean(values.get("domain")).unwrap_or_default();
+    if let Some((domain_prefix, user)) = username.as_deref().and_then(|u| u.split_once('\\')) {
         // Явно заданный domain имеет приоритет; встроенный префикс всё равно
         // убираем из логина, иначе сервер получит «CORP\alice» как имя.
-        if options.domain.is_empty() {
-            options.domain = domain.to_string();
+        if domain.is_empty() {
+            domain = domain_prefix.to_string();
         }
         username = Some(user.to_string());
     }
+    let mut options = RdpOptions {
+        domain,
+        ..RdpOptions::default()
+    };
 
     if let Some(width) = int_value(&values, "desktopwidth") {
         options.width = width;
@@ -198,21 +201,25 @@ fn flag(value: &str) -> bool {
 /// Читает UTF-8 (с BOM) и UTF-16LE (типичный формат mstsc).
 fn decode_text(bytes: &[u8]) -> Result<String, String> {
     if bytes.starts_with(&[0xFF, 0xFE]) {
-        if (bytes.len() - 2) % 2 != 0 {
+        if !(bytes.len() - 2).is_multiple_of(2) {
             return Err("неверная кодировка UTF-16: нечётная длина файла".to_string());
         }
         let units: Vec<u16> = bytes[2..]
-            .chunks_exact(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u16::from_le_bytes(*pair))
             .collect();
         String::from_utf16(&units).map_err(|e| format!("неверная кодировка UTF-16: {e}"))
     } else if bytes.starts_with(&[0xFE, 0xFF]) {
-        if (bytes.len() - 2) % 2 != 0 {
+        if !(bytes.len() - 2).is_multiple_of(2) {
             return Err("неверная кодировка UTF-16: нечётная длина файла".to_string());
         }
         let units: Vec<u16> = bytes[2..]
-            .chunks_exact(2)
-            .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u16::from_be_bytes(*pair))
             .collect();
         String::from_utf16(&units).map_err(|e| format!("неверная кодировка UTF-16BE: {e}"))
     } else if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {

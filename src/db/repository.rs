@@ -30,6 +30,12 @@ fn blob_column(row: &rusqlite::Row, index: usize) -> rusqlite::Result<Option<Vec
     })
 }
 
+/// Зашифрованные колонки профиля: id, пароль, пароль ключа, root-пароль.
+type SecretRows = Vec<(i64, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>)>;
+
+/// Идентичность профиля для проверки дублей: протокол, хост, порт, логин.
+type ProfileIdentity = (Protocol, String, u16, Option<String>);
+
 /// Обёртка над SQLite: схема, таблица meta и CRUD профилей/истории.
 /// Учётные данные шифруются AES-256-GCM ключом, выведенным из мастер-пароля.
 pub struct Database {
@@ -117,7 +123,7 @@ impl Database {
             .conn()
             .prepare("SELECT id, username, password, ssh_key_passphrase, root_password FROM profiles")
             .map_err(|e| e.to_string())?;
-        let rows: Vec<(i64, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>)> = stmt
+        let rows: SecretRows = stmt
             .query_map([], |r| {
                 Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
             })
@@ -435,7 +441,7 @@ impl Database {
     pub fn profile_identities(
         &self,
         key: &[u8; 32],
-    ) -> Result<Vec<(Protocol, String, u16, Option<String>)>, String> {
+    ) -> Result<Vec<ProfileIdentity>, String> {
         let mut stmt = self
             .conn()
             .prepare("SELECT protocol, host, port, username FROM profiles")
