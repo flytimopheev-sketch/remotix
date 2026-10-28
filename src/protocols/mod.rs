@@ -1,3 +1,4 @@
+pub mod metrics;
 pub mod ssh;
 // RDP через IronRDP — чистый Rust, кроссплатформенный (не требует FreeRDP).
 pub mod rdp;

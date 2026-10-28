@@ -127,6 +127,11 @@ impl Settings {
         self.flag("terminal.copy_selection", true)
     }
 
+    /// Панель метрик хоста в SSH-вкладке (CPU, память, сеть, load, диск).
+    pub fn terminal_metrics(&self) -> bool {
+        self.flag("terminal.metrics", true)
+    }
+
     // ---------------- RDP ----------------
 
     /// Разрешение экрана по умолчанию: `ШИРИНАxВЫСОТА`.

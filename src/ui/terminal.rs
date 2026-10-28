@@ -7,6 +7,7 @@
 //! терминал на `GtkTextView`: вывод команд, ввод с клавиатуры,
 //! копирование/вставка, масштаб шрифта.
 
+use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Sender};
 use std::time::Duration;
@@ -32,11 +33,16 @@ pub struct TerminalTab {
 enum ToThread {
     Data(Vec<u8>),
     Resize(u32, u32),
+    /// Снять показатели хоста (вызывается таймером раз в N секунд).
+    Metrics,
 }
 
 enum ToUi {
     Out(Vec<u8>),
     State(crate::ui::SessionState),
+    /// Показатели хоста: None — опрос не удался.
+    Metrics(crate::protocols::metrics::HostMetrics),
+    MetricsFailed,
 }
 
 /// Динамическая (во время выполнения) загрузка VTE для GTK4.
@@ -579,21 +585,124 @@ fn apply_text_style(view: &TextView, provider: &CssProvider, scale: f64, base_fo
         .add_provider(provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
 }
 
+/// Снимает показатели хоста отдельным exec-каналом в той же SSH-сессии.
+///
+/// Сессия переведена в неблокирующий режим, поэтому каждый шаг может вернуть
+/// `WouldBlock` — повторяем с паузой до дедлайна `METRICS_TIMEOUT`. Вывод
+/// ограничен 1 МБ. Главный канал терминала при этом не трогаем: его данные
+/// буферизуются на транспорте.
+/// В неблокирующем режиме libssh2 сигнализирует «пока не готово» кодом EAGAIN.
+fn ssh_would_block(e: &ssh2::Error) -> bool {
+    e.code() == ssh2::ErrorCode::Session(libssh2_sys::LIBSSH2_ERROR_EAGAIN)
+}
+
+fn collect_metrics(
+    session: &ssh2::Session,
+    prev: Option<crate::protocols::metrics::Counters>,
+    elapsed: Duration,
+) -> Result<crate::protocols::metrics::MetricsSample, String> {
+    use std::io::Read;
+
+    let deadline = std::time::Instant::now() + crate::protocols::metrics::METRICS_TIMEOUT;
+    let expired = |step: &str| {
+        Err(format!(
+            "не дождались {step} за {} с",
+            crate::protocols::metrics::METRICS_TIMEOUT.as_secs()
+        ))
+    };
+
+    let mut ch = loop {
+        match session.channel_session() {
+            Ok(ch) => break ch,
+            Err(e) if ssh_would_block(&e) => {
+                if std::time::Instant::now() >= deadline {
+                    return expired("открытия канала");
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    };
+    loop {
+        match ch.exec(crate::protocols::metrics::METRICS_COMMAND) {
+            Ok(()) => break,
+            Err(e) if ssh_would_block(&e) => {
+                if std::time::Instant::now() >= deadline {
+                    return expired("запуска команды");
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+
+    let mut out = Vec::new();
+    loop {
+        let mut buf = [0u8; 16384];
+        match ch.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                out.extend_from_slice(&buf[..n]);
+                if out.len() > 1024 * 1024 {
+                    return Err("слишком большой вывод команды метрик".into());
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                if std::time::Instant::now() >= deadline {
+                    // Отдаём накопленное: если ==END== уже пришёл, sample()
+                    // разберёт; иначе вернёт понятную ошибку.
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+
+    let text = String::from_utf8_lossy(&out);
+    crate::protocols::metrics::sample(&text, prev.as_ref(), elapsed)
+}
+
 impl TerminalTab {
     /// Открывает SSH-сессию в новом терминале: VTE, если библиотека есть в
     /// системе, иначе — упрощённый терминал с тем же вводом/выводом.
     ///
     /// `on_state` сообщает об изменении состояния сессии (подключение,
     /// ошибка, закрытие) — её вывод показывается в строке состояния окна.
+    /// `metrics_enabled` включает панель метрик хоста (опрос раз в 5 с).
     pub fn new_ssh(
         title: &str,
         conn: SshConnection,
         on_state: Rc<dyn Fn(crate::ui::SessionState)>,
         font_size: i64,
+        metrics_enabled: bool,
     ) -> Result<Self, String> {
         let root = GtkBox::new(gtk4::Orientation::Vertical, 0);
+
+        // Панель метрик: полоса загрузки CPU + краткий текст.
+        let metrics_box = GtkBox::new(gtk4::Orientation::Horizontal, 8);
+        for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
+            metrics_box.set_property(m, 4);
+        }
+        let metrics_bar = gtk4::LevelBar::builder()
+            .min_value(0.0)
+            .max_value(100.0)
+            .value(0.0)
+            .valign(gtk4::Align::Center)
+            .width_request(120)
+            .height_request(6)
+            .build();
+        let metrics_label = Label::new(None);
+        metrics_label.add_css_class("remotix-field-caption");
+        metrics_label.set_hexpand(true);
+        metrics_label.set_xalign(0.0);
+        metrics_box.append(&metrics_bar);
+        metrics_box.append(&metrics_label);
+        metrics_box.set_visible(false);
+
         let scroll = ScrolledWindow::new();
         scroll.set_vexpand(true);
+        root.append(&metrics_box);
         root.append(&scroll);
 
         let term = Rc::new(TerminalView::new(&scroll, font_size));
@@ -602,6 +711,9 @@ impl TerminalTab {
         let (tx_out, rx_out) = mpsc::channel::<ToUi>();
         let (tx_hk_prompt, rx_hk_prompt) = mpsc::channel::<HostKeyPrompt>();
         let (tx_hk_answer, rx_hk_answer) = mpsc::channel::<bool>();
+
+        // Пока сессия жива: по закрытии/ошибке гасим и таймер метрик.
+        let alive = Rc::new(Cell::new(true));
 
         // Поток: подключение, shell/su → root, неблокирующий цикл обмена.
         std::thread::spawn(move || {
@@ -663,6 +775,9 @@ impl TerminalTab {
             session.set_blocking(false);
             let mut buf = [0u8; 8192];
             let mut last_keepalive = std::time::Instant::now();
+            // Счётчики для дельт CPU/сети (см. protocols::metrics::sample).
+            let mut prev_counters: Option<crate::protocols::metrics::Counters> = None;
+            let mut last_counters_at: Option<std::time::Instant> = None;
             loop {
                 // В неблокирующем режиме libssh2 не шлёт keepalive сам:
                 // раз в 5 секунд проверяем, не пора ли отправить пустой пакет
@@ -697,6 +812,25 @@ impl TerminalTab {
                     Ok(ToThread::Resize(c, r)) => {
                         let _ = ch.request_pty_size(c, r, None, None);
                     }
+                    Ok(ToThread::Metrics) => {
+                        // Второй exec-канал в той же сессии; чтение
+                        // неблокирующее, с дедлайном — поток не замирает.
+                        let elapsed = last_counters_at
+                            .map(|t| t.elapsed())
+                            .unwrap_or(Duration::ZERO);
+                        match collect_metrics(&session, prev_counters, elapsed) {
+                            Ok(s) => {
+                                if tx_out.send(ToUi::Metrics(s.metrics)).is_err() {
+                                    break;
+                                }
+                                prev_counters = Some(s.counters);
+                                last_counters_at = Some(std::time::Instant::now());
+                            }
+                            Err(_) => {
+                                let _ = tx_out.send(ToUi::MetricsFailed);
+                            }
+                        }
+                    }
                     Err(_) => {}
                 }
                 if ch.eof() {
@@ -713,11 +847,42 @@ impl TerminalTab {
         status.set_halign(gtk4::Align::Start);
         let status_out = status.clone();
         let state_cb = on_state.clone();
+        let metrics_bar_out = metrics_bar.clone();
+        let metrics_label_out = metrics_label.clone();
+        let metrics_box_out = metrics_box.clone();
+        let alive_out = alive.clone();
+        let metrics_ok = Rc::new(Cell::new(true));
+        let metrics_ok_out = metrics_ok.clone();
+        let mut metrics_fails: u32 = 0;
         glib::timeout_add_local(Duration::from_millis(PROMPT_MS), move || {
             loop {
                 match rx_out.try_recv() {
                     Ok(ToUi::Out(data)) => term_out.feed(&data),
+                    Ok(ToUi::Metrics(m)) => {
+                        if let Some(cpu) = m.cpu_percent {
+                            metrics_bar_out.set_value(cpu.clamp(0.0, 100.0));
+                        }
+                        metrics_label_out.set_text(&m.summary());
+                        metrics_box_out.set_visible(true);
+                        metrics_fails = 0;
+                    }
+                    Ok(ToUi::MetricsFailed) => {
+                        // Три неудачи подряд → считаем метрики недоступными
+                        // и гасим панель (таймер тоже остановится).
+                        metrics_fails += 1;
+                        if metrics_fails >= 3 {
+                            metrics_box_out.set_visible(false);
+                            metrics_ok_out.set(false);
+                        }
+                    }
                     Ok(ToUi::State(state)) => {
+                        if matches!(
+                            state,
+                            crate::ui::SessionState::Closed
+                                | crate::ui::SessionState::Failed(_)
+                        ) {
+                            alive_out.set(false);
+                        }
                         let text = match &state {
                             crate::ui::SessionState::Failed(e) => format!("● Ошибка: {e}"),
                             crate::ui::SessionState::Closed => "● Сессия закрыта".to_string(),
@@ -763,6 +928,21 @@ impl TerminalTab {
                     Err(mpsc::TryRecvError::Empty) => return glib::ControlFlow::Continue,
                     Err(mpsc::TryRecvError::Disconnected) => return glib::ControlFlow::Break,
                 }
+            });
+        }
+
+        // Таймер метрик: раз в 5 секунд просим поток снять показатели.
+        // Останавливается при закрытии сессии и после трёх неудач опроса.
+        if metrics_enabled {
+            let tx_metrics = tx_in.clone();
+            let alive_metrics = alive.clone();
+            let metrics_ok_timer = metrics_ok.clone();
+            glib::timeout_add_local(Duration::from_secs(5), move || {
+                if !alive_metrics.get() || !metrics_ok_timer.get() {
+                    return glib::ControlFlow::Break;
+                }
+                let _ = tx_metrics.send(ToThread::Metrics);
+                glib::ControlFlow::Continue
             });
         }
 

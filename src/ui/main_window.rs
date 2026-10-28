@@ -1569,8 +1569,15 @@ impl MainWindow {
 
         let settings = crate::settings::Settings::new(self.state.db.clone());
         let font_size = settings.terminal_font_size();
+        let metrics_enabled = settings.terminal_metrics();
 
-        match TerminalTab::new_ssh(&title, SshConnection::new(profile), on_state, font_size) {
+        match TerminalTab::new_ssh(
+            &title,
+            SshConnection::new(profile),
+            on_state,
+            font_size,
+            metrics_enabled,
+        ) {
             Ok(tab) => {
                 self.append_session(&title, "utilities-terminal-symbolic", &tab.root);
                 self.set_status(&format!("{title}: подключение…"));

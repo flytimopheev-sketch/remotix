@@ -188,6 +188,9 @@ fn terminal_page(settings: &Settings) -> gtk4::Box {
     let blink = Switch::new();
     blink.set_active(settings.terminal_cursor_blink());
 
+    let metrics = Switch::new();
+    metrics.set_active(settings.terminal_metrics());
+
     let scheme = DropDown::builder()
         .model(&StringList::new(&["Тёмная", "Светлая", "Как в системе"]))
         .selected(match settings.terminal_color_scheme().as_str() {
@@ -204,6 +207,7 @@ fn terminal_page(settings: &Settings) -> gtk4::Box {
     add_row(&grid, 1, "Размер шрифта:", &size);
     add_row(&grid, 2, "Мигание курсора:", &blink);
     add_row(&grid, 3, "Цветовая схема:", &scheme);
+    add_row(&grid, 4, "Метрики хоста:", &metrics);
     page.append(&grid);
 
     {
@@ -231,6 +235,12 @@ fn terminal_page(settings: &Settings) -> gtk4::Box {
         let settings = settings.clone();
         blink.connect_active_notify(move |s| {
             let _ = settings.set("terminal.cursor_blink", &crate::settings::Value::Flag(s.is_active()));
+        });
+    }
+    {
+        let settings = settings.clone();
+        metrics.connect_active_notify(move |s| {
+            let _ = settings.set("terminal.metrics", &crate::settings::Value::Flag(s.is_active()));
         });
     }
     {
