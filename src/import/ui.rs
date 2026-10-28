@@ -11,7 +11,7 @@ use gtk4::{gio, Box as GtkBox, Button, FileChooserAction, FileChooserNative, Fil
 
 use crate::app::AppState;
 use crate::import::normalize::ImportPreview;
-use crate::import::{json, preview, rdp, remmina, ssh_config};
+use crate::import::{csv, json, preview, rdp, remmina, ssh_config};
 
 /// Кнопки импорта из стандартных источников.
 pub fn build(
@@ -25,10 +25,12 @@ pub fn build(
     let ssh = Button::with_label("Импортировать из ~/.ssh/config…");
     let remmina = Button::with_label("Импортировать из Remmina…");
     let rdp = Button::with_label("Импортировать из файлов .rdp…");
+    let csv = Button::with_label("Импортировать из CSV…");
     let json = Button::with_label("Импортировать из JSON Remotix…");
     box_.append(&ssh);
     box_.append(&remmina);
     box_.append(&rdp);
+    box_.append(&csv);
     box_.append(&json);
 
     {
@@ -96,6 +98,47 @@ pub fn build(
                         .filter_map(|file| file.path())
                         .collect();
                     let preview = rdp::scan_paths(&paths);
+                    show_preview(preview, &state, &parent, &status, refresh.clone());
+                }
+                chooser.destroy();
+            });
+            chooser.show();
+        });
+    }
+
+    {
+        let state = state.clone();
+        let parent = parent.clone();
+        let status = status.clone();
+        let refresh = refresh.clone();
+        csv.connect_clicked(move |_| {
+            let chooser = FileChooserNative::new(
+                Some("Импорт подключений из CSV"),
+                Some(&parent),
+                FileChooserAction::Open,
+                Some("Импортировать"),
+                Some("Отмена"),
+            );
+            chooser.set_select_multiple(true);
+            let filter = FileFilter::new();
+            filter.set_name(Some("Файлы CSV"));
+            filter.add_pattern("*.csv");
+            filter.add_pattern("*.CSV");
+            chooser.set_filter(&filter);
+
+            let state = state.clone();
+            let parent = parent.clone();
+            let status = status.clone();
+            let refresh = refresh.clone();
+            chooser.connect_response(move |chooser, response| {
+                if response == gtk4::ResponseType::Accept {
+                    let paths: Vec<PathBuf> = chooser
+                        .files()
+                        .iter::<gio::File>()
+                        .filter_map(Result::ok)
+                        .filter_map(|file| file.path())
+                        .collect();
+                    let preview = csv::scan_paths(&paths);
                     show_preview(preview, &state, &parent, &status, refresh.clone());
                 }
                 chooser.destroy();
@@ -182,9 +225,20 @@ fn show_preview(
         let mut added = 0usize;
         let mut errors = Vec::new();
         for candidate in candidates {
-            match state.db.add_profile(&key, &candidate.profile) {
+            // Группы из источника (CSV «группа») создаются до записи профиля.
+            let mut profile = candidate.profile;
+            if !candidate.group_path.is_empty() {
+                match state.db.ensure_group_path(&candidate.group_path) {
+                    Ok(group_id) => profile.group_id = group_id,
+                    Err(e) => errors.push(format!(
+                        "{}: не удалось создать группу: {e}",
+                        profile.name
+                    )),
+                }
+            }
+            match state.db.add_profile(&key, &profile) {
                 Ok(_) => added += 1,
-                Err(e) => errors.push(format!("{}: {e}", candidate.profile.name)),
+                Err(e) => errors.push(format!("{}: {e}", profile.name)),
             }
         }
 

@@ -156,8 +156,111 @@ impl Database {
         Ok(())
     }
 
+    /// Создаёт группу с автогенерацией id. Возвращает id новой группы.
+    pub fn create_group(
+        &self,
+        name: &str,
+        parent_id: Option<i64>,
+    ) -> Result<i64, String> {
+        self.conn()
+            .execute(
+                "INSERT INTO groups(name, parent_id) VALUES (?1, ?2)",
+                params![name, parent_id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(self.conn().last_insert_rowid())
+    }
+
+    /// Все группы: (id, имя, родитель).
+    pub fn list_groups(&self) -> Result<Vec<(i64, String, Option<i64>)>, String> {
+        let mut stmt = self
+            .conn()
+            .prepare("SELECT id, name, parent_id FROM groups ORDER BY name")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<i64>>(2)?))
+            })
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    }
+
+    /// Находит группу по имени и родителю (или её отсутствие).
+    fn find_group(&self, name: &str, parent_id: Option<i64>) -> Result<Option<i64>, String> {
+        self.conn()
+            .query_row(
+                "SELECT id FROM groups WHERE name = ?1 AND parent_id IS ?2",
+                params![name, parent_id],
+                |r| r.get::<_, i64>(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())
+    }
+
+    /// Возвращает id листа по пути групп, создавая недостающие.
+    ///
+    /// Пустой путь — `None` (без группы). Циклы (группа внутри себя)
+    /// отсекаются на глубине: путь длиной больше 32 считается некорректным.
+    pub fn ensure_group_path(&self, path: &[String]) -> Result<Option<i64>, String> {
+        if path.is_empty() {
+            return Ok(None);
+        }
+        if path.len() > 32 {
+            return Err("слишком глубокая вложенность групп".to_string());
+        }
+        let mut parent: Option<i64> = None;
+        for name in path {
+            let name = name.trim();
+            if name.is_empty() {
+                continue;
+            }
+            match self.find_group(name, parent)? {
+                Some(id) => parent = Some(id),
+                None => {
+                    parent = Some(self.create_group(name, parent)?);
+                }
+            }
+        }
+        Ok(parent)
+    }
+
+    /// Переименовывает группу.
+    pub fn rename_group(&self, id: i64, name: &str) -> Result<(), String> {
+        self.conn()
+            .execute(
+                "UPDATE groups SET name = ?1 WHERE id = ?2",
+                params![name, id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Переносит профиль в группу (`None` — без группы).
+    pub fn set_profile_group(&self, id: i64, group_id: Option<i64>) -> Result<(), String> {
+        self.conn()
+            .execute(
+                "UPDATE profiles SET group_id = ?1 WHERE id = ?2",
+                params![group_id, id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Удаляет группу: её профили остаются, но без группы, а дочерние
+    /// группы поднимаются на уровень выше (внешние ключи в SQLite по
+    /// умолчанию не включены, поэтому «висячие» ссылки надо чистить самим).
     pub fn delete_group(&self, id: i64) -> rusqlite::Result<usize> {
-        self.conn().execute("DELETE FROM groups WHERE id = ?1", params![id])
+        self.conn().execute(
+            "UPDATE profiles SET group_id = NULL WHERE group_id = ?1",
+            params![id],
+        )?;
+        self.conn().execute(
+            "UPDATE groups SET parent_id = (SELECT parent_id FROM groups WHERE id = ?1)
+             WHERE parent_id = ?1 AND id != ?1",
+            params![id],
+        )?;
+        self.conn()
+            .execute("DELETE FROM groups WHERE id = ?1", params![id])
     }
 
     // PART3
@@ -593,6 +696,109 @@ mod tests {
             db.history(None, None).expect("журнал").is_empty(),
             "история подключений должна удаляться вместе с профилем"
         );
+    }
+
+    // ---------- группы ----------
+
+    #[test]
+    fn ensure_group_path_creates_nested_groups_once() {
+        let (db, _key) = opened();
+
+        let leaf = db
+            .ensure_group_path(&["Прод".to_string(), "Сервера".to_string()])
+            .expect("создание пути групп");
+        assert!(leaf.is_some());
+
+        // Повторный вызов должен найти существующие группы, а не дублировать.
+        let again = db
+            .ensure_group_path(&["Прод".to_string(), "Сервера".to_string()])
+            .expect("повторное создание пути");
+        assert_eq!(leaf, again);
+
+        let groups = db.list_groups().expect("список групп");
+        assert_eq!(groups.len(), 2, "группы не должны дублироваться");
+    }
+
+    #[test]
+    fn ensure_group_path_empty_is_none() {
+        let (db, _key) = opened();
+        assert_eq!(
+            db.ensure_group_path(&[]).expect("пустой путь"),
+            None,
+            "пустой путь — профиль без группы"
+        );
+    }
+
+    #[test]
+    fn delete_group_detaches_profiles_and_reparents_children() {
+        let (db, key) = opened();
+
+        let root = db
+            .ensure_group_path(&["Корень".to_string()])
+            .expect("корневая группа")
+            .expect("есть id");
+        let child = db
+            .ensure_group_path(&["Корень".to_string(), "Ребёнок".to_string()])
+            .expect("дочерняя группа")
+            .expect("есть id");
+
+        // Один профиль в удаляемой группе, другой — в дочерней.
+        let mut in_root = sample();
+        in_root.name = "В корне".to_string();
+        in_root.group_id = Some(root);
+        let in_root_id = db.add_profile(&key, &in_root).expect("профиль");
+
+        let mut in_child = sample();
+        in_child.name = "В ребёнке".to_string();
+        in_child.group_id = Some(child);
+        let in_child_id = db.add_profile(&key, &in_child).expect("профиль");
+
+        db.delete_group(root).expect("удаление группы");
+
+        let profiles = db.list_profiles(&key).expect("чтение профилей");
+        assert_eq!(profiles.len(), 2, "профили должны остаться в списке");
+        let by_id = |id: i64| profiles.iter().find(|p| p.id == id).cloned().unwrap();
+        assert_eq!(by_id(in_root_id).group_id, None, "профиль из удалённой группы — без группы");
+        assert_eq!(by_id(in_child_id).group_id, Some(child), "профиль дочерней группы не трогаем");
+
+        // Дочерняя группа поднялась на верхний уровень.
+        let groups = db.list_groups().expect("группы");
+        assert_eq!(groups.len(), 1, "осталась только «Ребёнок»");
+        assert_eq!(groups[0].0, child);
+        assert_eq!(groups[0].2, None);
+    }
+
+    #[test]
+    fn set_profile_group_moves_profile() {
+        let (db, key) = opened();
+        let id = db.add_profile(&key, &sample()).expect("профиль");
+
+        let group = db
+            .ensure_group_path(&["Инфраструктура".to_string()])
+            .expect("группа")
+            .expect("есть id");
+        db.set_profile_group(id, Some(group)).expect("перенос");
+
+        let profiles = db.list_profiles(&key).expect("чтение");
+        assert_eq!(profiles[0].group_id, Some(group));
+
+        db.set_profile_group(id, None).expect("возврат");
+        let profiles = db.list_profiles(&key).expect("чтение");
+        assert_eq!(profiles[0].group_id, None);
+    }
+
+    #[test]
+    fn rename_group_updates_name() {
+        let (db, _key) = opened();
+        let id = db
+            .ensure_group_path(&["Старое".to_string()])
+            .expect("группа")
+            .expect("есть id");
+
+        db.rename_group(id, "Новое").expect("переименование");
+
+        let groups = db.list_groups().expect("группы");
+        assert_eq!(groups[0].1, "Новое");
     }
 }
 

@@ -15,6 +15,7 @@ pub enum Source {
     Remmina,
     Rdp,
     RemotixJson,
+    Csv,
 }
 
 impl Source {
@@ -25,6 +26,7 @@ impl Source {
             Source::Remmina => "Remmina",
             Source::Rdp => "RDP-файл",
             Source::RemotixJson => "JSON Remotix",
+            Source::Csv => "CSV",
         }
     }
 }
@@ -36,6 +38,9 @@ pub struct Candidate {
     /// Файл/секция, откуда взята запись (для подробностей в диалоге).
     pub origin: String,
     pub profile: NewProfile,
+    /// Путь вложенных групп («Прод» / «Прод/Сервера»), создаётся при записи.
+    /// Пустой — профиль без группы.
+    pub group_path: Vec<String>,
 }
 
 /// Пропущенная запись с понятной причиной.
@@ -59,11 +64,23 @@ impl ImportPreview {
     /// Добавляет черновик, нормализуя поля. Ошибки становятся причинами
     /// пропуска, а не прерывают весь импорт.
     pub fn push(&mut self, source: Source, origin: impl Into<String>, profile: NewProfile) {
+        self.push_grouped(source, origin, profile, Vec::new());
+    }
+
+    /// Вариант `push` с путём групп: группы создаются при подтверждении.
+    pub fn push_grouped(
+        &mut self,
+        source: Source,
+        origin: impl Into<String>,
+        profile: NewProfile,
+        group_path: Vec<String>,
+    ) {
         match normalize_profile(profile) {
             Ok(profile) => self.candidates.push(Candidate {
                 source,
                 origin: origin.into(),
                 profile,
+                group_path,
             }),
             Err((name, reason)) => self.skip(source, name, reason),
         }

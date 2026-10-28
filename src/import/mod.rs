@@ -4,6 +4,7 @@
 //! пользователю. В базу попадают только подтверждённые профили, и никогда —
 //! пароли: они не читаются ни из SSH config, ни из Remmina, ни из `.rdp`.
 
+pub mod csv;
 pub mod json;
 pub mod normalize;
 pub mod preview;
