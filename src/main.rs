@@ -28,6 +28,7 @@ mod logging;
 mod models;
 mod profiles_io;
 mod protocols;
+mod recording;
 mod settings;
 mod ui;
 mod wol;

@@ -132,6 +132,13 @@ impl Settings {
         self.flag("terminal.metrics", true)
     }
 
+    /// Запись вывода SSH-сессий в формат script(1)/scriptreplay(1)
+    /// (каталог `<данные>/recordings`). По умолчанию выключена: это осознанный
+    /// выбор в пользу приватности — включается в настройках.
+    pub fn terminal_recording(&self) -> bool {
+        self.flag("terminal.recording", false)
+    }
+
     // ---------------- RDP ----------------
 
     /// Разрешение экрана по умолчанию: `ШИРИНАxВЫСОТА`.

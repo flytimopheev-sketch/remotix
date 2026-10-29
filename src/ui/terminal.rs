@@ -694,12 +694,15 @@ impl TerminalTab {
     /// `on_state` сообщает об изменении состояния сессии (подключение,
     /// ошибка, закрытие) — её вывод показывается в строке состояния окна.
     /// `metrics_enabled` включает панель метрик хоста (опрос раз в 5 с).
+    /// `recording_enabled` включает запись вывода сессии в формат
+    /// script(1)/scriptreplay(1) — файлы в `<данные>/recordings`.
     pub fn new_ssh(
         title: &str,
         conn: SshConnection,
         on_state: Rc<dyn Fn(crate::ui::SessionState)>,
         font_size: i64,
         metrics_enabled: bool,
+        recording_enabled: bool,
     ) -> Result<Self, String> {
         let root = GtkBox::new(gtk4::Orientation::Vertical, 0);
 
@@ -797,6 +800,31 @@ impl TerminalTab {
             // Канал открыт — сессия работает.
             let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Connected));
 
+            // Запись сессии (включается в настройках). Ошибки записи диска
+            // не должны прерывать работу терминала — они фиксируются в
+            // журнале, сессия продолжается.
+            let command = match conn.profile.username.as_deref() {
+                Some(u) if !u.trim().is_empty() => format!("ssh {u}@{}", conn.profile.host),
+                _ => format!("ssh {}", conn.profile.host),
+            };
+            let mut recording = if recording_enabled {
+                match crate::recording::Recording::start(
+                    &crate::recording::recordings_dir(),
+                    &command,
+                ) {
+                    Ok(r) => Some(r),
+                    Err(e) => {
+                        crate::logging::warn(&format!("запись сессии не началась: {e}"));
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            // Код выхода для итоговой строки записи (1 — сессия оборвалась
+            // ошибкой, 0 — штатное закрытие).
+            let mut failed = false;
+
             session.set_blocking(false);
             let mut buf = [0u8; 8192];
             let mut last_keepalive = std::time::Instant::now();
@@ -817,12 +845,16 @@ impl TerminalTab {
                         break;
                     }
                     Ok(n) => {
+                        if let Some(r) = recording.as_mut() {
+                            let _ = r.write_out(&buf[..n]);
+                        }
                         if tx_out.send(ToUi::Out(buf[..n].to_vec())).is_err() {
                             break;
                         }
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
                     Err(e) => {
+                        failed = true;
                         let _ = tx_out
                             .send(ToUi::State(crate::ui::SessionState::Failed(e.to_string())));
                         break;
@@ -861,6 +893,10 @@ impl TerminalTab {
                     let _ = tx_out.send(ToUi::State(crate::ui::SessionState::Closed));
                     break;
                 }
+            }
+            // Финализация записи (typescript + timing) до разрыва сессии.
+            if let Some(r) = recording.take() {
+                let _ = r.finish(if failed { 1 } else { 0 });
             }
             let _ = session.disconnect(None, "закрыто пользователем", None);
         });

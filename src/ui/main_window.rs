@@ -1608,6 +1608,7 @@ impl MainWindow {
         let settings = crate::settings::Settings::new(self.state.db.clone());
         let font_size = settings.terminal_font_size();
         let metrics_enabled = settings.terminal_metrics();
+        let recording_enabled = settings.terminal_recording();
 
         match TerminalTab::new_ssh(
             &title,
@@ -1615,6 +1616,7 @@ impl MainWindow {
             on_state,
             font_size,
             metrics_enabled,
+            recording_enabled,
         ) {
             Ok(tab) => {
                 self.append_session(&title, "utilities-terminal-symbolic", &tab.root);

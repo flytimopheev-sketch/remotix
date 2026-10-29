@@ -58,6 +58,11 @@ pub fn warn(message: &str) {
     eprintln!("Remotix: {}", sanitize(message));
 }
 
+/// Пишет информационное сообщение в stderr уже очищенным от секретов.
+pub fn info(message: &str) {
+    eprintln!("Remotix: {}", sanitize(message));
+}
+
 /// Пишет сообщение об ошибке в stderr уже очищенным от секретов.
 pub fn error(message: &str) {
     eprintln!("Remotix: ошибка: {}", sanitize(message));
