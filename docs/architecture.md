@@ -116,6 +116,7 @@ SQLite (`rusqlite`, bundled). Таблицы:
 - `profiles(...)` — профили; секретные поля — BLOB-шифротексты,
   `bastion_profile_id` — ссылка на другой SSH-профиль (jump host).
 - `expect_rules(pattern, send, ...)` — автоответы; `send` — шифротекст.
+- `snippets(name, command, ...)` — команды терминала; `command` — шифротекст.
 - `connection_history(profile_id, started_at, ...)` — журнал.
 
 Внешние ключи SQLite не форсятся: `delete_group` вручную репарентит

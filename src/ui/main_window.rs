@@ -24,7 +24,7 @@ use crate::ui::history_tab::HistoryTab;
 use crate::ui::profile_editor::ProfileEditor;
 use crate::ui::rdp_viewer::RdpViewer;
 use crate::ui::sftp_tab::SftpTab;
-use crate::ui::terminal::TerminalTab;
+use crate::ui::terminal::{TerminalExtras, TerminalTab};
 use crate::ui::SessionState;
 use crate::wol;
 
@@ -1618,6 +1618,7 @@ impl MainWindow {
         let metrics_enabled = settings.terminal_metrics();
         let recording_enabled = settings.terminal_recording();
         let expect_rules = self.expect_rules();
+        let snippets = self.snippets();
 
         let conn = match self.bastion_for(&profile) {
             Some(bastion) => SshConnection::with_bastion(profile, bastion),
@@ -1631,7 +1632,10 @@ impl MainWindow {
             font_size,
             metrics_enabled,
             recording_enabled,
-            expect_rules,
+            TerminalExtras {
+                expect_rules,
+                snippets,
+            },
         ) {
             Ok(tab) => {
                 self.append_session(&title, "utilities-terminal-symbolic", &tab.root);
@@ -1839,6 +1843,18 @@ impl MainWindow {
                 .collect(),
             Err(e) => {
                 crate::logging::warn(&format!("expect-правила не загружены: {e}"));
+                Vec::new()
+            }
+        }
+    }
+
+    /// Сохранённые команды для меню «Сниппеты» в SSH-вкладке.
+    fn snippets(&self) -> Vec<crate::db::repository::SnippetRow> {
+        let key = self.state.unlocked_key();
+        match self.state.db.list_snippets(&key) {
+            Ok(rows) => rows,
+            Err(e) => {
+                crate::logging::warn(&format!("сниппеты не загружены: {e}"));
                 Vec::new()
             }
         }

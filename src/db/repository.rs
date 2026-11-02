@@ -52,6 +52,16 @@ pub struct ExpectRuleRow {
     pub enabled: bool,
 }
 
+/// Сниппет — сохранённая команда для терминала. Команда расшифрована при
+/// чтении (в БД лежит BLOB-шифротекст), но не является `SecretString`:
+/// её текст нужен интерфейсу для показа и редактирования.
+#[derive(Clone)]
+pub struct SnippetRow {
+    pub id: i64,
+    pub name: String,
+    pub command: String,
+}
+
 /// Обёртка над SQLite: схема, таблица meta и CRUD профилей/истории.
 /// Учётные данные шифруются AES-256-GCM ключом, выведенным из мастер-пароля.
 pub struct Database {
@@ -702,6 +712,80 @@ impl Database {
         Ok(())
     }
 
+    // ---------- snippets ----------
+
+    /// Сохранённые команды терминала, по алфавиту.
+    pub fn list_snippets(&self, key: &[u8; 32]) -> Result<Vec<SnippetRow>, String> {
+        let mut stmt = self
+            .conn()
+            .prepare("SELECT id, name, command FROM snippets ORDER BY name COLLATE NOCASE, id")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    blob_column(r, 2)?.unwrap_or_default(),
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+
+        let mut out = Vec::new();
+        for row in rows {
+            let (id, name, encrypted) = row.map_err(|e| e.to_string())?;
+            // Испорченный шифротекст (другой мастер-пароль) — команду
+            // показать и отправить нельзя, поэтому сниппет пропускается.
+            let plain = match crypto::decrypt(key, &encrypted) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            out.push(SnippetRow {
+                id,
+                name,
+                command: String::from_utf8_lossy(&plain).into_owned(),
+            });
+        }
+        Ok(out)
+    }
+
+    /// Добавляет сниппет; команда шифруется тем же ключом, что и пароли.
+    pub fn add_snippet(&self, key: &[u8; 32], name: &str, command: &str) -> Result<i64, String> {
+        let t = now();
+        self.conn()
+            .execute(
+                "INSERT INTO snippets(name, command, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?3)",
+                params![name, crypto::encrypt(key, command.as_bytes()), t],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(self.conn().last_insert_rowid())
+    }
+
+    /// Обновляет имя и команду сниппета.
+    pub fn update_snippet(
+        &self,
+        key: &[u8; 32],
+        id: i64,
+        name: &str,
+        command: &str,
+    ) -> Result<(), String> {
+        self.conn()
+            .execute(
+                "UPDATE snippets SET name = ?1, command = ?2, updated_at = ?3 WHERE id = ?4",
+                params![name, crypto::encrypt(key, command.as_bytes()), now(), id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Удаляет сниппет.
+    pub fn delete_snippet(&self, id: i64) -> Result<(), String> {
+        self.conn()
+            .execute("DELETE FROM snippets WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     // ---------- history ----------
 
     /// Удаляет профиль вместе с его историей подключений.
@@ -1184,5 +1268,46 @@ mod tests {
             "секрет не должен храниться в БД открыто"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn snippet_crud_and_encryption() {
+        let (db, key) = opened();
+        let id = db
+            .add_snippet(&key, "Диск", "df -h")
+            .expect("сохранение сниппета");
+
+        let snippets = db.list_snippets(&key).expect("чтение сниппетов");
+        assert_eq!(snippets.len(), 1);
+        assert_eq!(snippets[0].name, "Диск");
+        assert_eq!(snippets[0].command, "df -h");
+
+        // Команда лежит в БД зашифрованной: открытого текста нет.
+        let raw: Vec<u8> = db
+            .conn()
+            .query_row(
+                "SELECT command FROM snippets WHERE id = ?1",
+                params![id],
+                |r| r.get(0),
+            )
+            .expect("шифротекст");
+        assert!(
+            !raw.windows(5).any(|w| w == b"df -h"),
+            "команда не должна храниться открытым текстом"
+        );
+
+        db.update_snippet(&key, id, "Диск", "df -i")
+            .expect("обновление сниппета");
+        let snippets = db.list_snippets(&key).expect("чтение после обновления");
+        assert_eq!(snippets[0].command, "df -i");
+
+        // Чужой ключ не должен показывать испорченную команду.
+        assert!(db
+            .list_snippets(&[0u8; 32])
+            .expect("чтение чужим ключом")
+            .is_empty());
+
+        db.delete_snippet(id).expect("удаление сниппета");
+        assert!(db.list_snippets(&key).expect("чтение").is_empty());
     }
 }

@@ -14,7 +14,10 @@ use std::time::Duration;
 
 use gtk4::glib;
 use gtk4::prelude::*;
-use gtk4::{Box as GtkBox, CssProvider, EventControllerKey, Label, ScrolledWindow, TextView};
+use gtk4::{
+    Box as GtkBox, Button, CssProvider, EventControllerKey, Label, MenuButton, Popover,
+    ScrolledWindow, TextView,
+};
 use secrecy::ExposeSecret;
 
 use crate::protocols::ssh::{HostKeyConfig, HostKeyPrompt, SshConnection};
@@ -28,6 +31,13 @@ const FONT_SCALE_MAX: f64 = 4.0;
 pub struct TerminalTab {
     pub root: GtkBox,
     pub title: String,
+}
+
+/// Дополнительные данные сессии, которые не являются её параметрами
+/// подключения: автоответы и сохранённые команды.
+pub struct TerminalExtras {
+    pub expect_rules: Vec<crate::expect::Rule>,
+    pub snippets: Vec<crate::db::repository::SnippetRow>,
 }
 
 enum ToThread {
@@ -705,8 +715,12 @@ impl TerminalTab {
         font_size: i64,
         metrics_enabled: bool,
         recording_enabled: bool,
-        expect_rules: Vec<crate::expect::Rule>,
+        extras: TerminalExtras,
     ) -> Result<Self, String> {
+        let TerminalExtras {
+            expect_rules,
+            snippets,
+        } = extras;
         let root = GtkBox::new(gtk4::Orientation::Vertical, 0);
 
         // Панель метрик: полоса загрузки CPU + краткий текст.
@@ -741,6 +755,41 @@ impl TerminalTab {
         let (tx_out, rx_out) = mpsc::channel::<ToUi>();
         let (tx_hk_prompt, rx_hk_prompt) = mpsc::channel::<HostKeyPrompt>();
         let (tx_hk_answer, rx_hk_answer) = mpsc::channel::<bool>();
+
+        // Меню сниппетов: сохранённые команды отправляются в канал с Enter.
+        // Строка меню появляется только если сниппеты есть.
+        if !snippets.is_empty() {
+            let bar = GtkBox::new(gtk4::Orientation::Horizontal, 6);
+            bar.set_margin_top(4);
+            bar.set_margin_bottom(4);
+            bar.set_margin_start(6);
+            bar.set_margin_end(6);
+
+            let menu = MenuButton::builder().label("Сниппеты").build();
+            menu.add_css_class("flat");
+            let popover = Popover::new();
+            let items = GtkBox::new(gtk4::Orientation::Vertical, 2);
+            for snippet in snippets {
+                let button = Button::with_label(&snippet.name);
+                button.add_css_class("flat");
+                button.set_halign(gtk4::Align::Fill);
+                button.set_tooltip_text(Some(&snippet.command));
+                let tx = tx_in.clone();
+                let popover_ref = popover.clone();
+                button.connect_clicked(move |_| {
+                    // Команда вводится как в терминале: Enter в конце.
+                    let mut command = snippet.command.trim_end_matches(['\r', '\n']).to_string();
+                    command.push('\r');
+                    let _ = tx.send(ToThread::Data(command.into_bytes()));
+                    popover_ref.popdown();
+                });
+                items.append(&button);
+            }
+            popover.set_child(Some(&items));
+            menu.set_popover(Some(&popover));
+            bar.append(&menu);
+            root.prepend(&bar);
+        }
 
         // Пока сессия жива: по закрытии/ошибке гасим и таймер метрик.
         let alive = Rc::new(Cell::new(true));

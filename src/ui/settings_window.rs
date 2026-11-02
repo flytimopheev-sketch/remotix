@@ -19,6 +19,9 @@ pub struct SettingsWindow {
 }
 
 impl SettingsWindow {
+    /// Индекс страницы «Профили» (на неё открывается импорт).
+    pub const PAGE_PROFILES: u32 = 5;
+
     /// Создаёт окно настроек.
     ///
     /// `on_changed` вызывается после применения настроек (например, при
@@ -59,6 +62,7 @@ impl SettingsWindow {
             &profiles_page(&state, &window),
             Some(&Label::new(Some("Профили"))),
         );
+        notebook.append_page(&snippets_page(&state), Some(&Label::new(Some("Сниппеты"))));
 
         let content = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
         content.append(&notebook);
@@ -105,7 +109,7 @@ impl SettingsWindow {
         self.window.present();
     }
 
-    /// Показывает конкретную страницу (0 — оформление, 4 — профили).
+    /// Показывает конкретную страницу (0 — оформление, 5 — профили).
     pub fn present_page(&self, page: u32) {
         self.notebook.set_current_page(Some(page));
         self.window.present();
@@ -803,6 +807,201 @@ fn expect_page(state: &Rc<AppState>) -> gtk4::Box {
                     form.once.set_active(false);
                     form.enabled.set_active(true);
                     form.submit.set_label("Добавить правило");
+                    page_state.borrow_mut().editing = None;
+                    form.status.set_text("Сохранено.");
+                }
+                Err(e) => form.status.set_text(&e),
+            }
+            reload(&state, &list_ref, &page_state, &form);
+        });
+    }
+
+    page
+}
+
+/// Виджеты формы сниппета (клонируются во все обработчики строк).
+struct SnippetForm {
+    name: Entry,
+    command: Entry,
+    submit: Button,
+    status: Label,
+}
+
+/// Состояние страницы «Сниппеты»: загруженные команды и id редактируемой.
+struct SnippetPageState {
+    editing: Option<i64>,
+    snippets: Vec<crate::db::repository::SnippetRow>,
+}
+
+/// Страница «Сниппеты»: сохранённые команды терминала.
+///
+/// Команды хранятся зашифрованными (BLOB, как ответы expect) и отправляются
+/// из меню над SSH-терминалом. Это не менеджер секретов: текст команды
+/// виден в списке и в поле редактирования.
+fn snippets_page(state: &Rc<AppState>) -> gtk4::Box {
+    let page = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
+    for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
+        page.set_property(m, 16);
+    }
+
+    let title = Label::new(Some("Сниппеты команд"));
+    title.add_css_class("remotix-section-title");
+    page.append(&title);
+
+    let hint = Label::new(Some(
+        "Сохранённые команды для SSH-терминала. В открытой сессии меню \
+         «Сниппеты» над терминалом отправляет выбранную команду в канал и \
+         добавляет Enter. Текст команд хранится зашифрованным; не используйте \
+         сниппеты как хранилище паролей.",
+    ));
+    hint.set_wrap(true);
+    hint.set_xalign(0.0);
+    hint.add_css_class("remotix-field-caption");
+    page.append(&hint);
+
+    let list = ListBox::new();
+    let scrolled = ScrolledWindow::builder()
+        .child(&list)
+        .height_request(160)
+        .vexpand(true)
+        .build();
+    page.append(&scrolled);
+
+    let name = Entry::new();
+    name.set_placeholder_text(Some("название, например: Свободное место"));
+    let command = Entry::new();
+    command.set_placeholder_text(Some("команда, например: df -h"));
+    let grid = Grid::new();
+    grid.set_row_spacing(8);
+    grid.set_column_spacing(12);
+    add_row(&grid, 0, "Название:", &name);
+    add_row(&grid, 1, "Команда:", &command);
+    page.append(&grid);
+
+    let status = Label::new(None);
+    status.set_wrap(true);
+    status.set_xalign(0.0);
+    page.append(&status);
+
+    let submit = Button::with_label("Добавить сниппет");
+    page.append(&submit);
+
+    let form = Rc::new(SnippetForm {
+        name,
+        command,
+        submit,
+        status,
+    });
+    let page_state = Rc::new(std::cell::RefCell::new(SnippetPageState {
+        editing: None,
+        snippets: Vec::new(),
+    }));
+
+    // Перечитывает сниппеты из БД и перестраивает список строк.
+    fn reload(
+        state: &Rc<AppState>,
+        list: &ListBox,
+        page_state: &Rc<std::cell::RefCell<SnippetPageState>>,
+        form: &Rc<SnippetForm>,
+    ) {
+        crate::ui::clear_list(list);
+
+        let key = state.unlocked_key();
+        let snippets = match state.db.list_snippets(&key) {
+            Ok(snippets) => snippets,
+            Err(e) => {
+                form.status.set_text(&e);
+                return;
+            }
+        };
+
+        for snippet in &snippets {
+            let id = snippet.id;
+            let row = ListBoxRow::new();
+            let hbox = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
+            let text = Label::new(Some(&format!("{} — {}", snippet.name, snippet.command)));
+            text.set_hexpand(true);
+            text.set_xalign(0.0);
+            text.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+            hbox.append(&text);
+
+            let edit = Button::with_label("Изменить");
+            hbox.append(&edit);
+            let remove = Button::with_label("Удалить");
+            hbox.append(&remove);
+            row.set_child(Some(&hbox));
+            list.append(&row);
+
+            {
+                let page_state = page_state.clone();
+                let form = form.clone();
+                edit.connect_clicked(move |_| {
+                    let mut st = page_state.borrow_mut();
+                    if let Some(found) = st.snippets.iter().find(|s| s.id == id) {
+                        form.name.set_text(&found.name);
+                        form.command.set_text(&found.command);
+                        form.submit.set_label("Сохранить изменения");
+                        st.editing = Some(id);
+                    }
+                });
+            }
+            {
+                let state = state.clone();
+                let page_state = page_state.clone();
+                let form = form.clone();
+                let list_ref = list.clone();
+                remove.connect_clicked(move |_| {
+                    if let Err(e) = state.db.delete_snippet(id) {
+                        form.status.set_text(&e);
+                    }
+                    reload(&state, &list_ref, &page_state, &form);
+                });
+            }
+        }
+
+        page_state.borrow_mut().snippets = snippets;
+        if page_state.borrow().snippets.is_empty() {
+            let empty = ListBoxRow::new();
+            let label = Label::new(Some("Сниппетов пока нет — добавьте первый ниже."));
+            label.set_xalign(0.0);
+            empty.set_child(Some(&label));
+            empty.set_sensitive(false);
+            list.append(&empty);
+        }
+    }
+
+    {
+        let list_ref = list.clone();
+        reload(state, &list_ref, &page_state, &form);
+    }
+
+    {
+        let state = state.clone();
+        let page_state = page_state.clone();
+        let form = form.clone();
+        let list_ref = list.clone();
+        // Отдельный клон кнопки: замыкание двигает form целиком.
+        let button = form.submit.clone();
+        button.connect_clicked(move |_| {
+            let name = form.name.text().trim().to_string();
+            let command = form.command.text().trim().to_string();
+            if name.is_empty() || command.is_empty() {
+                form.status
+                    .set_text("Укажите и название, и команду для отправки.");
+                return;
+            }
+            let key = state.unlocked_key();
+
+            let editing = page_state.borrow().editing;
+            let result = match editing {
+                Some(id) => state.db.update_snippet(&key, id, &name, &command),
+                None => state.db.add_snippet(&key, &name, &command).map(|_| ()),
+            };
+            match result {
+                Ok(()) => {
+                    form.name.set_text("");
+                    form.command.set_text("");
+                    form.submit.set_label("Добавить сниппет");
                     page_state.borrow_mut().editing = None;
                     form.status.set_text("Сохранено.");
                 }

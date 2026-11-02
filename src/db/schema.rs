@@ -1,5 +1,5 @@
 /// Схема базы данных Remotix (см. ТЗ, раздел «Схема базы данных»).
-pub const SCHEMA_VERSION: i64 = 5;
+pub const SCHEMA_VERSION: i64 = 6;
 
 pub const CREATE_META: &str = "CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
@@ -60,6 +60,14 @@ pub const CREATE_EXPECT_RULES: &str = "CREATE TABLE IF NOT EXISTS expect_rules (
     position INTEGER NOT NULL DEFAULT 0
 );";
 
+pub const CREATE_SNIPPETS: &str = "CREATE TABLE IF NOT EXISTS snippets (
+    id         INTEGER PRIMARY KEY,
+    name       TEXT NOT NULL,
+    command    BLOB NOT NULL,   -- зашифровано: сохранённая команда терминала
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);";
+
 pub const INDICES: &[&str] = &[
     "CREATE INDEX IF NOT EXISTS idx_profiles_name  ON profiles(name);",
     "CREATE INDEX IF NOT EXISTS idx_profiles_host  ON profiles(host);",
@@ -75,6 +83,7 @@ pub fn initialize(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     conn.execute_batch(CREATE_PROFILES)?;
     conn.execute_batch(CREATE_HISTORY)?;
     conn.execute_batch(CREATE_EXPECT_RULES)?;
+    conn.execute_batch(CREATE_SNIPPETS)?;
     for idx in INDICES {
         conn.execute_batch(idx)?;
     }

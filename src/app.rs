@@ -271,7 +271,7 @@ fn open_settings() {
 
 /// Открывает окно «Параметры» сразу на странице импорта профилей.
 fn open_import() {
-    open_settings_page(Some(4));
+    open_settings_page(Some(SettingsWindow::PAGE_PROFILES));
 }
 
 /// Открывает настройки на указанной странице (или переиспользует открытое
