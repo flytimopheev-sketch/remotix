@@ -62,6 +62,18 @@ pub struct SnippetRow {
     pub command: String,
 }
 
+/// Сводка по журналу подключений: итоги, период и самые частые профили.
+#[derive(Clone, Default)]
+pub struct HistoryStats {
+    pub total: i64,
+    pub success: i64,
+    pub failed: i64,
+    pub first_at: Option<i64>,
+    pub last_at: Option<i64>,
+    /// Пары «имя профиля — число подключений», по убыванию.
+    pub top_profiles: Vec<(String, i64)>,
+}
+
 /// Обёртка над SQLite: схема, таблица meta и CRUD профилей/истории.
 /// Учётные данные шифруются AES-256-GCM ключом, выведенным из мастер-пароля.
 pub struct Database {
@@ -867,6 +879,56 @@ impl Database {
             .map_err(|e| e.to_string())
     }
 
+    /// Сводка по журналу: количество подключений (успешных и с ошибкой),
+    /// период и топ-5 профилей по числу подключений.
+    pub fn history_stats(&self) -> Result<HistoryStats, String> {
+        let (total, success, failed, first_at, last_at) = self
+            .conn()
+            .query_row(
+                "SELECT COUNT(*),
+                        COALESCE(SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END), 0),
+                        COALESCE(SUM(CASE WHEN status <> 'success' THEN 1 ELSE 0 END), 0),
+                        MIN(started_at), MAX(started_at)
+                 FROM connection_history",
+                [],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, i64>(1)?,
+                        r.get::<_, i64>(2)?,
+                        r.get::<_, Option<i64>>(3)?,
+                        r.get::<_, Option<i64>>(4)?,
+                    ))
+                },
+            )
+            .map_err(|e| e.to_string())?;
+
+        let mut stmt = self
+            .conn()
+            .prepare(
+                "SELECT IFNULL(p.name, '?') AS name, COUNT(*) AS n
+                 FROM connection_history h LEFT JOIN profiles p ON p.id = h.profile_id
+                 GROUP BY h.profile_id, name
+                 ORDER BY n DESC, name
+                 LIMIT 5",
+            )
+            .map_err(|e| e.to_string())?;
+        let top_profiles = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        Ok(HistoryStats {
+            total,
+            success,
+            failed,
+            first_at,
+            last_at,
+            top_profiles,
+        })
+    }
+
     /// Экспорт журнала подключений в CSV.
     pub fn export_history_csv(&self, path: &Path) -> Result<usize, String> {
         let rows = self.history(None, None)?;
@@ -1012,6 +1074,55 @@ mod tests {
         let message = rows[0].error_message.as_deref().unwrap_or_default();
         assert!(!message.contains("hunter2"));
         assert!(message.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn history_stats_counts_period_and_top_profiles() {
+        let (db, key) = opened();
+
+        let mut first_profile = sample();
+        first_profile.name = "Первый".to_string();
+        let first = db
+            .add_profile(&key, &first_profile)
+            .expect("первый профиль");
+
+        let mut second_profile = sample();
+        second_profile.name = "Второй".to_string();
+        let second = db
+            .add_profile(&key, &second_profile)
+            .expect("второй профиль");
+
+        db.add_history(first, 100, Some(101), "success", None)
+            .expect("первое подключение");
+        db.add_history(first, 300, Some(330), "success", None)
+            .expect("второе подключение");
+        db.add_history(
+            second,
+            500,
+            Some(510),
+            "error",
+            Some(("E_CONNECT".to_string(), "нет связи".to_string())),
+        )
+        .expect("ошибка подключения");
+
+        let stats = db.history_stats().expect("сводка по журналу");
+        assert_eq!(stats.total, 3);
+        assert_eq!(stats.success, 2);
+        assert_eq!(stats.failed, 1);
+        assert_eq!(stats.first_at, Some(100));
+        assert_eq!(stats.last_at, Some(500));
+        assert_eq!(stats.top_profiles.len(), 2);
+        assert_eq!(stats.top_profiles[0].0, "Первый");
+        assert_eq!(stats.top_profiles[0].1, 2);
+        assert_eq!(stats.top_profiles[1].0, "Второй");
+        assert_eq!(stats.top_profiles[1].1, 1);
+
+        // Пустой журнал не должен давать ошибку или отрицательные значения.
+        let empty = Database::open(":memory:").expect("пустая БД");
+        let stats = empty.history_stats().expect("сводка пустого журнала");
+        assert_eq!(stats.total, 0);
+        assert_eq!(stats.first_at, None);
+        assert!(stats.top_profiles.is_empty());
     }
 
     /// Профиль с историей подключений должен удаляться без ошибки
