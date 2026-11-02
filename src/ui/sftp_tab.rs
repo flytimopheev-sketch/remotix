@@ -160,9 +160,11 @@ pub struct SftpTab {
 }
 
 impl SftpTab {
-    /// Создаёт вкладку SFTP для профиля.
+    /// Создаёт вкладку SFTP для профиля. `bastion` — SSH-бастион (если задан
+    /// в профиле): соединение открывается через него.
     pub fn new(
         profile: Profile,
+        bastion: Option<Profile>,
         on_state: Rc<dyn Fn(SessionState)>,
         on_close: Rc<dyn Fn()>,
     ) -> Self {
@@ -242,13 +244,15 @@ impl SftpTab {
                     verifier: Some(&verifier),
                     ..Default::default()
                 };
-                let mut panel = match SftpPanel::new_with_host_key(&profile, &host_key) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        let _ = tx_ui.send(ToUi::Error(format!("Не удалось подключиться: {e}")));
-                        return;
-                    }
-                };
+                let mut panel =
+                    match SftpPanel::new_with_host_key(&profile, bastion.as_ref(), &host_key) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            let _ =
+                                tx_ui.send(ToUi::Error(format!("Не удалось подключиться: {e}")));
+                            return;
+                        }
+                    };
                 let _ = tx_ui.send(ToUi::Status("SFTP-сессия установлена".to_string()));
 
                 // Список перерисовывается только при реальном изменении:

@@ -968,6 +968,7 @@ mod tests {
             ssh_key_passphrase: None,
             root_password: None,
             group_id: None,
+            bastion_profile_id: None,
             tags: vec![],
             icon: None,
             notes: None,

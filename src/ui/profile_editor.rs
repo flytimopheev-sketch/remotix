@@ -40,11 +40,20 @@ impl ProfileEditor {
         D: Fn() + 'static,
     {
         let key = state.unlocked_key();
-        let existing = state
-            .db
-            .list_profiles(&key)
-            .ok()
-            .and_then(|all| all.into_iter().find(|p| Some(p.id) == profile_id));
+        let all_profiles = state.db.list_profiles(&key).unwrap_or_default();
+        let existing = all_profiles
+            .iter()
+            .find(|p| Some(p.id) == profile_id)
+            .cloned();
+
+        // Бастион — другой сохранённый SSH-профиль. Цепочки не поддерживаются:
+        // профиль, который сам ходит через бастион, в список не попадает.
+        let bastion_candidates: Vec<(i64, String)> = all_profiles
+            .iter()
+            .filter(|p| p.protocol == Protocol::Ssh)
+            .filter(|p| Some(p.id) != profile_id && p.bastion_profile_id.is_none())
+            .map(|p| (p.id, p.name.clone()))
+            .collect();
 
         let window = Window::builder()
             .title(match profile_id {
@@ -80,6 +89,25 @@ impl ProfileEditor {
 
         let user = Entry::new();
         user.set_placeholder_text(Some("Логин"));
+
+        // Бастион (SSH jump host): первый пункт — «без бастиона».
+        let mut bastion_labels: Vec<&str> = vec!["Без бастиона"];
+        bastion_labels.extend(bastion_candidates.iter().map(|(_, name)| name.as_str()));
+        let bastion = DropDown::builder()
+            .model(&StringList::new(&bastion_labels))
+            .selected(0)
+            .build();
+        bastion.set_tooltip_text(Some(
+            "Подключение выполняется через другой SSH-профиль (jump host). \
+             Бастион должен быть сохранён заранее. Цепочки бастионов не \
+             поддерживаются.",
+        ));
+        let bastion_ids: Rc<Vec<i64>> = Rc::new(
+            bastion_candidates
+                .iter()
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>(),
+        );
 
         let password = PasswordEntry::new();
         password.set_show_peek_icon(true);
@@ -165,6 +193,11 @@ impl ProfileEditor {
             };
             resolution.set_selected(idx);
             legacy_rdp.set_active(p.rdp_options.allow_legacy_security);
+            if let Some(current) = p.bastion_profile_id {
+                if let Some(pos) = bastion_ids.iter().position(|id| *id == current) {
+                    bastion.set_selected(pos as u32 + 1);
+                }
+            }
         } else {
             port.set_value(f64::from(Protocol::Ssh.default_port()));
             // Разрешение экрана по умолчанию — из настроек приложения.
@@ -221,6 +254,7 @@ impl ProfileEditor {
             "Разрешить незащищённый RDP (RC4):",
             &legacy_rdp,
         );
+        let cap_bastion = add_field(&extra_grid, 6, "Бастион (SSH):", &bastion);
 
         name.set_hexpand(true);
         host.set_hexpand(true);
@@ -283,12 +317,14 @@ impl ProfileEditor {
             let domain = domain.clone();
             let resolution = resolution.clone();
             let legacy_rdp = legacy_rdp.clone();
+            let bastion = bastion.clone();
             let cap_key = cap_key.clone();
             let cap_su = cap_su.clone();
             let cap_root_pw = cap_root_pw.clone();
             let cap_domain = cap_domain.clone();
             let cap_res = cap_res.clone();
             let cap_legacy = cap_legacy.clone();
+            let cap_bastion = cap_bastion.clone();
             Rc::new(move |protocol_index: u32| {
                 let is_ssh = protocol_index == 0;
                 let is_rdp = protocol_index == 1;
@@ -305,6 +341,8 @@ impl ProfileEditor {
                 cap_res.set_visible(is_rdp);
                 legacy_rdp.set_visible(is_rdp);
                 cap_legacy.set_visible(is_rdp);
+                bastion.set_visible(is_ssh);
+                cap_bastion.set_visible(is_ssh);
             })
         };
 
@@ -349,6 +387,8 @@ impl ProfileEditor {
             let domain = domain.clone();
             let resolution = resolution.clone();
             let legacy_rdp = legacy_rdp.clone();
+            let bastion = bastion.clone();
+            let bastion_ids = bastion_ids.clone();
             let db = state.db.clone();
             let on_saved = Rc::new(on_saved);
 
@@ -363,6 +403,14 @@ impl ProfileEditor {
                     0 => Protocol::Ssh,
                     1 => Protocol::Rdp,
                     _ => Protocol::Vnc,
+                };
+                let bastion_profile_id = if protocol == Protocol::Ssh {
+                    match bastion.selected() {
+                        0 => None,
+                        n => bastion_ids.get((n - 1) as usize).copied(),
+                    }
+                } else {
+                    None
                 };
                 let (width, height) = match resolution.selected() {
                     1 => (1280, 800),
@@ -413,6 +461,7 @@ impl ProfileEditor {
                     ..crate::models::profile::SshOptions::default()
                 };
                 profile.ssh_options = options;
+                profile.bastion_profile_id = bastion_profile_id;
 
                 let rdp = crate::models::profile::RdpOptions {
                     width,

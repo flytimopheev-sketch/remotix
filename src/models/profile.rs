@@ -143,6 +143,11 @@ pub struct Profile {
     #[serde(skip)]
     pub root_password: Option<SecretString>,
     pub group_id: Option<i64>,
+    /// Профиль-бастион (SSH jump host): через него открывается подключение.
+    /// Ссылка на другой SSH-профиль, поэтому пароль/ключ бастиона хранятся
+    /// и шифруются в нём, а не дублируются здесь.
+    #[serde(default)]
+    pub bastion_profile_id: Option<i64>,
     #[serde(default)]
     pub tags: Vec<String>,
     pub icon: Option<String>,
@@ -181,6 +186,7 @@ impl fmt::Debug for Profile {
                 &self.root_password.as_ref().map(|_| "<скрыт>"),
             )
             .field("group_id", &self.group_id)
+            .field("bastion_profile_id", &self.bastion_profile_id)
             .field("tags", &self.tags)
             .field("icon", &self.icon)
             .field("notes", &self.notes)
@@ -208,6 +214,8 @@ pub struct NewProfile {
     pub ssh_key_passphrase: Option<SecretString>,
     pub root_password: Option<SecretString>,
     pub group_id: Option<i64>,
+    /// Профиль-бастион (SSH jump host) — ссылка на существующий профиль.
+    pub bastion_profile_id: Option<i64>,
     pub tags: Vec<String>,
     pub icon: Option<String>,
     pub notes: Option<String>,
@@ -238,6 +246,7 @@ impl fmt::Debug for NewProfile {
                 &self.root_password.as_ref().map(|_| "<скрыт>"),
             )
             .field("group_id", &self.group_id)
+            .field("bastion_profile_id", &self.bastion_profile_id)
             .field("tags", &self.tags)
             .field("icon", &self.icon)
             .field("notes", &self.notes)
@@ -287,6 +296,7 @@ mod tests {
             ssh_key_passphrase: Some(SecretString::from("passphrase-secret".to_string())),
             root_password: Some(SecretString::from("root-secret".to_string())),
             group_id: None,
+            bastion_profile_id: None,
             tags: vec![],
             icon: None,
             notes: None,

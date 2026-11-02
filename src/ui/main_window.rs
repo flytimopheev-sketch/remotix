@@ -351,6 +351,7 @@ impl MainWindow {
             ssh_key_passphrase: profile.ssh_key_passphrase.clone(),
             root_password: profile.root_password.clone(),
             group_id: profile.group_id,
+            bastion_profile_id: profile.bastion_profile_id,
             tags: profile.tags.clone(),
             icon: profile.icon.clone(),
             notes: profile.notes.clone(),
@@ -1264,6 +1265,13 @@ impl MainWindow {
             return;
         }
 
+        // Через бастион прямой TCP-пробы целевого узла недостаточно: узел
+        // может быть доступен только изнутри сети. Ошибку покажет сессия.
+        if profile.protocol == Protocol::Ssh && profile.bastion_profile_id.is_some() {
+            self.open_connection(profile, action);
+            return;
+        }
+
         let host = profile.host.trim().to_string();
         let port = profile.port;
         let addr = host_check::endpoint(&host, port);
@@ -1611,9 +1619,14 @@ impl MainWindow {
         let recording_enabled = settings.terminal_recording();
         let expect_rules = self.expect_rules();
 
+        let conn = match self.bastion_for(&profile) {
+            Some(bastion) => SshConnection::with_bastion(profile, bastion),
+            None => SshConnection::new(profile),
+        };
+
         match TerminalTab::new_ssh(
             &title,
-            SshConnection::new(profile),
+            conn,
             on_state,
             font_size,
             metrics_enabled,
@@ -1716,12 +1729,27 @@ impl MainWindow {
             })
         };
 
-        let tab = SftpTab::new(profile, on_state, on_close);
+        let bastion = self.bastion_for(&profile);
+        let tab = SftpTab::new(profile, bastion, on_state, on_close);
         let page = tab.root.clone().upcast::<gtk4::Widget>();
         *page_cell.borrow_mut() = Some(page.clone());
 
         self.append_session(&title, "folder-remote-symbolic", &page);
         self.set_status(&format!("{title}: подключение…"));
+    }
+
+    /// Профиль-бастион для подключения. Бастионом может быть только другой
+    /// SSH-профиль; список профилей уже прочитан при обновлении окна.
+    fn bastion_for(&self, profile: &Profile) -> Option<Profile> {
+        let id = profile.bastion_profile_id?;
+        if id == profile.id {
+            return None;
+        }
+        self.all
+            .borrow()
+            .iter()
+            .find(|p| p.id == id && p.protocol == Protocol::Ssh)
+            .cloned()
     }
 
     /// Профиль, выбранный в боковой панели.
@@ -1968,6 +1996,7 @@ fn quick_profile(text: &str) -> Option<Profile> {
         ssh_key_passphrase: None,
         root_password: None,
         group_id: None,
+        bastion_profile_id: None,
         tags: vec![],
         icon: None,
         notes: None,

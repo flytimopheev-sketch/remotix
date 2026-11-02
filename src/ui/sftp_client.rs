@@ -28,18 +28,25 @@ pub struct SftpPanel {
 
 impl SftpPanel {
     pub fn new(profile: &Profile) -> Result<Self, String> {
-        Self::new_with_host_key(profile, &crate::protocols::ssh::HostKeyConfig::default())
+        Self::new_with_host_key(
+            profile,
+            None,
+            &crate::protocols::ssh::HostKeyConfig::default(),
+        )
     }
 
     /// Подключение с явной проверкой ключа хоста (терминал/SFTP используют
-    /// диалог подтверждения, тесты — временный known_hosts).
+    /// диалог подтверждения, тесты — временный known_hosts). `bastion` —
+    /// профиль SSH-бастиона, через который идёт соединение.
     pub fn new_with_host_key(
         profile: &Profile,
+        bastion: Option<&Profile>,
         host_key: &crate::protocols::ssh::HostKeyConfig<'_>,
     ) -> Result<Self, String> {
         // Способы входа (пароль, ключ, ssh-agent) те же, что у терминала.
         let username = profile.username.as_deref().unwrap_or("root");
-        let session = crate::protocols::ssh::connect_session_with(profile, username, host_key)?;
+        let session =
+            crate::protocols::ssh::connect_session_with(profile, username, bastion, host_key)?;
 
         // Начальный каталог — абсолютный путь домашнего каталога пользователя.
         // Относительные пути сервер SFTP разрешает от своего рабочего
@@ -428,6 +435,7 @@ mod tests {
             ssh_key_passphrase: None,
             root_password: None,
             group_id: None,
+            bastion_profile_id: None,
             tags: vec![],
             icon: None,
             notes: None,
@@ -466,8 +474,8 @@ mod tests {
             verifier: None,
         };
         let profile = test_profile();
-        let mut panel =
-            SftpPanel::new_with_host_key(&profile, &host_key).expect("подключение к SFTP-серверу");
+        let mut panel = SftpPanel::new_with_host_key(&profile, None, &host_key)
+            .expect("подключение к SFTP-серверу");
 
         // Начальный каталог — абсолютный путь.
         let start = panel.remote_path();
@@ -501,6 +509,43 @@ mod tests {
         // На уровень выше — снова абсолютный путь.
         panel.cd_up().expect("переход в родительский каталог");
         assert_eq!(panel.remote_path(), start);
+    }
+
+    /// SFTP через бастион: сессия к целевому узлу открывается внутри канала
+    /// `direct-tcpip`. Бастион и цель — один и тот же sshd.
+    #[test]
+    fn connects_through_bastion() {
+        if std::net::TcpStream::connect("127.0.0.1:2222").is_err() {
+            eprintln!("SSH-сервер на 127.0.0.1:2222 недоступен — тест пропущен");
+            return;
+        }
+
+        let known_hosts = TempKnownHosts(std::env::temp_dir().join(format!(
+            "remotix-sftp-bastion-known-hosts-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        )));
+        let host_key = HostKeyConfig {
+            known_hosts: known_hosts.0.clone(),
+            accept_new: true,
+            verifier: None,
+        };
+        let bastion = test_profile();
+        let profile = test_profile();
+        let mut panel = SftpPanel::new_with_host_key(&profile, Some(&bastion), &host_key)
+            .expect("подключение к SFTP через бастион");
+
+        assert!(
+            panel.remote_path().starts_with('/'),
+            "начальный путь должен быть абсолютным: {}",
+            panel.remote_path()
+        );
+        panel
+            .remote_list()
+            .expect("список удалённого каталога через бастион");
     }
 
     /// SFTP под Windows отдаёт абсолютные пути с буквой диска — такие пути

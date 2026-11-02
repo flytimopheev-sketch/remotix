@@ -1,5 +1,5 @@
 /// Схема базы данных Remotix (см. ТЗ, раздел «Схема базы данных»).
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 pub const CREATE_META: &str = "CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
@@ -25,6 +25,7 @@ pub const CREATE_PROFILES: &str = "CREATE TABLE IF NOT EXISTS profiles (
     ssh_key_passphrase BLOB,          -- зашифровано, опционально
     root_password      BLOB,          -- зашифровано: пароль root для su (SSH, опционально)
     group_id           INTEGER,
+    bastion_profile_id INTEGER,       -- профиль-бастион (SSH jump host)
     tags               TEXT,
     icon               TEXT,
     notes              TEXT,
@@ -35,7 +36,8 @@ pub const CREATE_PROFILES: &str = "CREATE TABLE IF NOT EXISTS profiles (
     created_at         INTEGER NOT NULL,
     updated_at         INTEGER NOT NULL,
     last_connected_at  INTEGER,
-    FOREIGN KEY (group_id) REFERENCES groups(id)
+    FOREIGN KEY (group_id) REFERENCES groups(id),
+    FOREIGN KEY (bastion_profile_id) REFERENCES profiles(id) ON DELETE SET NULL
 );";
 
 pub const CREATE_HISTORY: &str = "CREATE TABLE IF NOT EXISTS connection_history (
@@ -99,6 +101,22 @@ fn migrate(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     if !has_mac_address {
         conn.execute_batch("ALTER TABLE profiles ADD COLUMN mac_address TEXT;")?;
     }
+
+    // v4 -> v5: профиль-бастион (SSH jump host). Ссылка на другой профиль,
+    // поэтому секреты бастиона не дублируются; при удалении бастиона
+    // подключение просто становится прямым.
+    let has_bastion: bool = conn
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('profiles') WHERE name = 'bastion_profile_id'",
+        )?
+        .query_row([], |r| r.get::<_, i64>(0))
+        .map(|n| n > 0)?;
+    if !has_bastion {
+        conn.execute_batch(
+            "ALTER TABLE profiles ADD COLUMN bastion_profile_id INTEGER \
+             REFERENCES profiles(id) ON DELETE SET NULL;",
+        )?;
+    }
     Ok(())
 }
 
@@ -106,19 +124,32 @@ fn migrate(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
 mod tests {
     use super::*;
 
+    /// Собирает «старую» схему profiles: убирает внешние ключи и указанные
+    /// колонки, а также висячую запятую перед закрывающей скобкой.
+    fn old_profiles(columns: &[&str]) -> String {
+        let mut lines: Vec<String> = CREATE_PROFILES
+            .lines()
+            .filter(|line| !line.contains("FOREIGN KEY"))
+            .filter(|line| !columns.iter().any(|c| line.contains(c)))
+            .map(str::to_string)
+            .collect();
+        if let Some(pos) = lines.iter().position(|line| line.trim() == ");") {
+            if pos > 0 {
+                lines[pos - 1] = lines[pos - 1].trim_end_matches(',').to_string();
+            }
+        }
+        lines.join("\n")
+    }
+
     #[test]
     fn migration_adds_mac_address_to_v2_database() {
         let conn = rusqlite::Connection::open_in_memory().expect("тестовая БД");
-        let old_profiles = CREATE_PROFILES
-            .lines()
-            .filter(|line| !line.contains("mac_address"))
-            .collect::<Vec<_>>()
-            .join("\n");
+        let schema_v2 = old_profiles(&["mac_address", "bastion_profile_id"]);
         assert!(
-            !old_profiles.contains("mac_address"),
+            !schema_v2.contains("mac_address"),
             "тестовая схема должна быть без MAC"
         );
-        conn.execute_batch(&old_profiles).expect("схема v2");
+        conn.execute_batch(&schema_v2).expect("схема v2");
 
         initialize(&conn).expect("миграция схемы");
 
@@ -131,5 +162,29 @@ mod tests {
             .map(|n| n > 0)
             .expect("подсчёт колонок");
         assert!(has_mac_address, "колонка mac_address должна появиться");
+    }
+
+    #[test]
+    fn migration_adds_bastion_to_v4_database() {
+        let conn = rusqlite::Connection::open_in_memory().expect("тестовая БД");
+        let schema_v4 = old_profiles(&["bastion_profile_id"]);
+        assert!(
+            !schema_v4.contains("bastion_profile_id"),
+            "тестовая схема должна быть без бастиона"
+        );
+        conn.execute_batch(&schema_v4).expect("схема v4");
+
+        initialize(&conn).expect("миграция схемы");
+
+        let has_bastion: bool = conn
+            .prepare(
+                "SELECT COUNT(*) FROM pragma_table_info('profiles') \
+                 WHERE name = 'bastion_profile_id'",
+            )
+            .expect("pragma_table_info")
+            .query_row([], |r| r.get::<_, i64>(0))
+            .map(|n| n > 0)
+            .expect("подсчёт колонок");
+        assert!(has_bastion, "колонка bastion_profile_id должна появиться");
     }
 }

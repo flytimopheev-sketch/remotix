@@ -318,9 +318,10 @@ impl Database {
         self.conn()
             .execute(
                 "INSERT INTO profiles(name, protocol, host, port, username, password,
-                ssh_key_path, ssh_key_passphrase, root_password, group_id, tags, icon, notes,
-                mac_address, rdp_options, vnc_options, ssh_options, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?18)",
+                ssh_key_path, ssh_key_passphrase, root_password, group_id, bastion_profile_id,
+                tags, icon, notes, mac_address, rdp_options, vnc_options, ssh_options,
+                created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?19)",
                 params![
                     p.name,
                     p.protocol.unwrap_or(Protocol::Ssh).as_str(),
@@ -332,6 +333,7 @@ impl Database {
                     enc_secret(&p.ssh_key_passphrase),
                     enc_secret(&p.root_password),
                     p.group_id,
+                    p.bastion_profile_id,
                     p.tags.join(","),
                     p.icon,
                     p.notes,
@@ -364,10 +366,10 @@ impl Database {
             .execute(
                 "UPDATE profiles SET name = ?1, protocol = ?2, host = ?3, port = ?4,
                     username = ?5, password = ?6, ssh_key_path = ?7, ssh_key_passphrase = ?8,
-                    root_password = ?9, group_id = ?10, tags = ?11, icon = ?12, notes = ?13,
-                    mac_address = ?14, rdp_options = ?15, vnc_options = ?16, ssh_options = ?17,
-                    updated_at = ?18
-                 WHERE id = ?19",
+                    root_password = ?9, group_id = ?10, bastion_profile_id = ?11, tags = ?12,
+                    icon = ?13, notes = ?14, mac_address = ?15, rdp_options = ?16,
+                    vnc_options = ?17, ssh_options = ?18, updated_at = ?19
+                 WHERE id = ?20",
                 params![
                     p.name,
                     p.protocol.unwrap_or(Protocol::Ssh).as_str(),
@@ -379,6 +381,7 @@ impl Database {
                     enc_secret(&p.ssh_key_passphrase),
                     enc_secret(&p.root_password),
                     p.group_id,
+                    p.bastion_profile_id,
                     p.tags.join(","),
                     p.icon,
                     p.notes,
@@ -413,7 +416,8 @@ impl Database {
             .prepare(
                 "SELECT id, name, protocol, host, port, username, password, ssh_key_path,
                     ssh_key_passphrase, root_password, group_id, tags, icon, notes, mac_address,
-                    rdp_options, vnc_options, ssh_options, created_at, updated_at, last_connected_at
+                    rdp_options, vnc_options, ssh_options, created_at, updated_at, last_connected_at,
+                    bastion_profile_id
              FROM profiles ORDER BY name",
             )
             .map_err(|e| e.to_string())?;
@@ -441,6 +445,7 @@ impl Database {
                     r.get::<_, i64>(18)?,
                     r.get::<_, i64>(19)?,
                     r.get::<_, Option<i64>>(20)?,
+                    r.get::<_, Option<i64>>(21)?,
                 ))
             })
             .map_err(|e| e.to_string())?;
@@ -469,6 +474,7 @@ impl Database {
                 created_at,
                 updated_at,
                 last_connected_at,
+                bastion_profile_id,
             ) = row.map_err(|e| e.to_string())?;
             let protocol = match protocol.as_str() {
                 "RDP" => Protocol::Rdp,
@@ -487,6 +493,7 @@ impl Database {
                 ssh_key_passphrase: dec_secret(&ssh_key_passphrase),
                 root_password: dec_secret(&root_password),
                 group_id,
+                bastion_profile_id,
                 tags: tags
                     .unwrap_or_default()
                     .split(',')
@@ -707,6 +714,12 @@ impl Database {
             "DELETE FROM connection_history WHERE profile_id = ?1",
             params![id],
         )?;
+        // Внешние ключи SQLite не форсятся, поэтому ссылку «профиль-бастион»
+        // снимаем вручную: цель продолжает работать прямым подключением.
+        self.conn().execute(
+            "UPDATE profiles SET bastion_profile_id = NULL WHERE bastion_profile_id = ?1",
+            params![id],
+        )?;
         self.conn()
             .execute("DELETE FROM profiles WHERE id = ?1", params![id])
     }
@@ -853,6 +866,37 @@ mod tests {
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].host, "other.example.org");
         assert_eq!(profiles[0].port, 2222);
+    }
+
+    #[test]
+    fn profile_bastion_roundtrip_and_cleared_on_delete() {
+        let (db, key) = opened();
+        let bastion_id = db
+            .add_profile(&key, &sample())
+            .expect("сохранение профиля-бастиона");
+
+        let mut target = sample();
+        target.name = "Цель".to_string();
+        target.host = "inner.example.org".to_string();
+        target.bastion_profile_id = Some(bastion_id);
+        let target_id = db.add_profile(&key, &target).expect("сохранение цели");
+
+        let profiles = db.list_profiles(&key).expect("чтение профилей");
+        let saved = profiles
+            .iter()
+            .find(|p| p.id == target_id)
+            .expect("целевой профиль");
+        assert_eq!(saved.bastion_profile_id, Some(bastion_id));
+
+        // Удаление бастиона не удаляет цель и не ломает внешний ключ:
+        // ON DELETE SET NULL делает подключение прямым.
+        db.delete_profile(bastion_id).expect("удаление бастиона");
+        let profiles = db.list_profiles(&key).expect("чтение после удаления");
+        let saved = profiles
+            .iter()
+            .find(|p| p.id == target_id)
+            .expect("цель должна остаться");
+        assert_eq!(saved.bastion_profile_id, None);
     }
 
     #[test]

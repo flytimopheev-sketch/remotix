@@ -1,4 +1,5 @@
-use std::net::{TcpStream, ToSocketAddrs};
+use std::io::{Read, Write};
+use std::net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -82,6 +83,8 @@ pub fn default_known_hosts_path() -> PathBuf {
 /// (по защищённому каналу) или по ключу, поддержка ssh-agent.
 pub struct SshConnection {
     pub profile: Profile,
+    /// Профиль-бастион (SSH jump host); его сессия живёт в туннельном потоке.
+    bastion: Option<Box<Profile>>,
     session: Option<ssh2::Session>,
 }
 
@@ -89,6 +92,17 @@ impl SshConnection {
     pub fn new(profile: Profile) -> Self {
         Self {
             profile,
+            bastion: None,
+            session: None,
+        }
+    }
+
+    /// Подключение через SSH-бастион: сначала открывается сессия на бастион,
+    /// затем через неё — канал до целевого узла.
+    pub fn with_bastion(profile: Profile, bastion: Profile) -> Self {
+        Self {
+            profile,
+            bastion: Some(Box::new(bastion)),
             session: None,
         }
     }
@@ -101,7 +115,12 @@ impl SshConnection {
     /// Подключение с настройками проверки ключа хоста.
     pub fn connect_with(&mut self, config: &HostKeyConfig<'_>) -> Result<(), String> {
         let username = self.profile.username.clone().unwrap_or_else(whoami);
-        self.session = Some(connect_session_with(&self.profile, &username, config)?);
+        self.session = Some(connect_session_with(
+            &self.profile,
+            &username,
+            self.bastion.as_deref(),
+            config,
+        )?);
         // Переход в root выполняется отдельно, в том же канале, в котором
         // будет работать терминал (см. `open_shell`).
         Ok(())
@@ -132,16 +151,58 @@ impl Connection for SshConnection {
 /// Используется и терминалом, и SFTP-клиентом: если способы входа разойдутся,
 /// при входе по ключу SFTP перестанет подключаться.
 pub fn connect_session(profile: &Profile, username: &str) -> Result<ssh2::Session, String> {
-    connect_session_with(profile, username, &HostKeyConfig::default())
+    connect_session_with(profile, username, None, &HostKeyConfig::default())
 }
 
 /// Вариант `connect_session` с явной политикой проверки ключа хоста.
+///
+/// `bastion` — профиль SSH-бастиона (jump host). Если задан, TCP-соединение
+/// до целевого узла идёт через `channel_direct_tcpip` на бастионе; ключ
+/// целевого узла проверяется как обычно, по его собственному `host:port`.
 pub fn connect_session_with(
+    profile: &Profile,
+    username: &str,
+    bastion: Option<&Profile>,
+    config: &HostKeyConfig<'_>,
+) -> Result<ssh2::Session, String> {
+    let tcp = match bastion {
+        Some(bastion) => {
+            let bastion_user = bastion
+                .username
+                .clone()
+                .filter(|u| !u.is_empty())
+                .unwrap_or_else(whoami);
+            let bastion_session = connect_direct(bastion, &bastion_user, config).map_err(|e| {
+                format!(
+                    "не удалось подключиться к бастиону {}:{}: {e}",
+                    bastion.host, bastion.port
+                )
+            })?;
+            let local_port = local_tunnel(bastion_session, &profile.host, profile.port)?;
+            tcp_connect("127.0.0.1", local_port, CONNECT_TIMEOUT)?
+        }
+        None => tcp_connect(&profile.host, profile.port, CONNECT_TIMEOUT)?,
+    };
+    handshake_and_auth(profile, username, tcp, config)
+}
+
+/// Прямое подключение: TCP + SSH-рукопожатие + проверка ключа + вход.
+fn connect_direct(
     profile: &Profile,
     username: &str,
     config: &HostKeyConfig<'_>,
 ) -> Result<ssh2::Session, String> {
     let tcp = tcp_connect(&profile.host, profile.port, CONNECT_TIMEOUT)?;
+    handshake_and_auth(profile, username, tcp, config)
+}
+
+/// SSH-рукопожатие и аутентификация поверх уже установленного TCP-соединения.
+fn handshake_and_auth(
+    profile: &Profile,
+    username: &str,
+    tcp: TcpStream,
+    config: &HostKeyConfig<'_>,
+) -> Result<ssh2::Session, String> {
     let mut session = ssh2::Session::new().map_err(|e| format!("ошибка libssh2: {e}"))?;
     session.set_tcp_stream(tcp);
     session.set_timeout(HANDSHAKE_TIMEOUT_MS);
@@ -213,6 +274,148 @@ pub fn connect_session_with(
     session.set_timeout(0);
     session.set_keepalive(true, KEEPALIVE_INTERVAL_SECS);
     Ok(session)
+}
+
+/// Открывает локальный TCP-порт, все байты которого уходят в SSH-канал
+/// бастиона до `host:port`.
+///
+/// libssh2 умеет открыть канал (`channel_direct_tcpip`), но вложенную
+/// SSH-сессию поверх канала обёртка `ssh2` не поддерживает: `set_tcp_stream`
+/// требует настоящий сокет. Поэтому канал поднимается как порт на 127.0.0.1,
+/// к которому подключается целевая сессия.
+///
+/// Порт слушает только loopback, принимает одно соединение и закрывается,
+/// если за `CONNECT_TIMEOUT` никто не подключился.
+fn local_tunnel(session: ssh2::Session, host: &str, port: u16) -> Result<u16, String> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))
+        .map_err(|e| format!("не удалось открыть локальный туннель: {e}"))?;
+    let local_port = listener
+        .local_addr()
+        .map_err(|e| format!("не удалось определить порт туннеля: {e}"))?
+        .port();
+    let host = host.to_string();
+
+    std::thread::spawn(move || {
+        let _ = listener.set_nonblocking(true);
+        let deadline = Instant::now() + CONNECT_TIMEOUT;
+
+        let mut stream = loop {
+            match listener.accept() {
+                Ok((stream, _)) => break stream,
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    if Instant::now() >= deadline {
+                        return;
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(_) => return,
+            }
+        };
+
+        // Открытие канала — блокирующая операция с ограничением по времени.
+        session.set_timeout(HANDSHAKE_TIMEOUT_MS);
+        let channel = session.channel_direct_tcpip(&host, port, None);
+        session.set_timeout(0);
+        let Ok(mut channel) = channel else {
+            return;
+        };
+        // Неблокирующий режим — для опроса обеих сторон в одном потоке.
+        // Сессией больше никто не пользуется, поэтому режим общий.
+        session.set_blocking(false);
+        let _ = stream.set_nonblocking(true);
+
+        pump_tunnel(&mut stream, &mut channel);
+        let _ = channel.close();
+        let _ = session.disconnect(None, "туннель закрыт", None);
+    });
+
+    Ok(local_port)
+}
+
+/// Перекачивает байты между локальным сокетом и SSH-каналом, пока обе
+/// стороны не закроются. Оба потока неблокирующие; EOF одной стороны
+/// передаётся другой (send_eof / shutdown), чтобы SSH-сессия завершилась
+/// штатно, а не висела до тайм-аута.
+fn pump_tunnel(stream: &mut TcpStream, channel: &mut ssh2::Channel) {
+    let mut buf = [0u8; 16 * 1024];
+    // Данные, которые не удалось записать сразу (неблокирующий режим).
+    let mut to_channel: Vec<u8> = Vec::new();
+    let mut to_stream: Vec<u8> = Vec::new();
+    let mut stream_closed = false;
+    let mut channel_closed = false;
+    let mut eof_sent = false;
+    let mut shutdown_done = false;
+
+    loop {
+        let mut progress = false;
+
+        // Локальный клиент -> канал (бастион -> целевой узел).
+        if to_channel.is_empty() && !stream_closed {
+            match stream.read(&mut buf) {
+                Ok(0) => {
+                    stream_closed = true;
+                    if !eof_sent {
+                        let _ = channel.send_eof();
+                        eof_sent = true;
+                    }
+                }
+                Ok(n) => {
+                    to_channel.extend_from_slice(&buf[..n]);
+                    progress = true;
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(_) => return,
+            }
+        }
+        if !to_channel.is_empty() {
+            match channel.write(&to_channel) {
+                Ok(n) if n > 0 => {
+                    to_channel.drain(..n);
+                    progress = true;
+                }
+                Ok(_) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(_) => return,
+            }
+        }
+
+        // Канал -> локальный клиент.
+        if to_stream.is_empty() && !channel_closed {
+            match channel.read(&mut buf) {
+                Ok(0) => {
+                    channel_closed = true;
+                    if !shutdown_done {
+                        let _ = stream.shutdown(Shutdown::Write);
+                        shutdown_done = true;
+                    }
+                }
+                Ok(n) => {
+                    to_stream.extend_from_slice(&buf[..n]);
+                    progress = true;
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(_) => return,
+            }
+        }
+        if !to_stream.is_empty() {
+            match stream.write(&to_stream) {
+                Ok(n) if n > 0 => {
+                    to_stream.drain(..n);
+                    progress = true;
+                }
+                Ok(_) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(_) => return,
+            }
+        }
+
+        if stream_closed && channel_closed && to_channel.is_empty() && to_stream.is_empty() {
+            return;
+        }
+        if !progress {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
 }
 
 /// Устанавливает TCP-соединение с общим дедлайном на все адреса хоста.
@@ -584,6 +787,7 @@ mod tests {
             ssh_key_passphrase: None,
             root_password: None,
             group_id: None,
+            bastion_profile_id: None,
             tags: vec![],
             icon: None,
             notes: None,
@@ -711,6 +915,38 @@ mod tests {
         assert!(
             out.contains("shell-works"),
             "в выводе терминала нет ответа на команду: {out:?}"
+        );
+    }
+
+    /// Проверяет путь через бастион: TCP до целевого узла открывается
+    /// каналом `direct-tcpip` на бастионе, а не напрямую.
+    ///
+    /// Используется тот же sshd, что и для прямого теста (бастион и цель —
+    /// один и тот же сервер). Без sshd тест пропускается.
+    #[test]
+    fn connects_through_bastion() {
+        use std::io::Read;
+
+        if TcpStream::connect("127.0.0.1:2222").is_err() {
+            eprintln!("SSH-сервер на 127.0.0.1:2222 недоступен — тест пропущен");
+            return;
+        }
+
+        let bastion = test_profile();
+        let target = test_profile();
+        let session =
+            connect_session_with(&target, "tester", Some(&bastion), &test_host_key_config())
+                .expect("подключение через бастион");
+
+        let mut channel = session.channel_session().expect("канал сессии");
+        channel
+            .exec("echo bastion-remotix")
+            .expect("выполнение команды");
+        let mut out = String::new();
+        channel.read_to_string(&mut out).expect("чтение вывода");
+        assert!(
+            out.contains("bastion-remotix"),
+            "в выводе нет ожидаемого текста: {out:?}"
         );
     }
 

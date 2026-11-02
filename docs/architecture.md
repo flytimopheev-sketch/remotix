@@ -113,12 +113,16 @@ SQLite (`rusqlite`, bundled). Таблицы:
 - `meta(key, value)` — соль/параметры Argon2, verifier, версия схемы,
   настройки приложения (settings.rs пишет туда же `ключ = Value`).
 - `groups(id, name, parent_id)` — дерево групп, ограничение глубины 32.
-- `profiles(...)` — профили; секретные поля — BLOB-шифротексты.
+- `profiles(...)` — профили; секретные поля — BLOB-шифротексты,
+  `bastion_profile_id` — ссылка на другой SSH-профиль (jump host).
+- `expect_rules(pattern, send, ...)` — автоответы; `send` — шифротекст.
 - `connection_history(profile_id, started_at, ...)` — журнал.
 
 Внешние ключи SQLite не форсятся: `delete_group` вручную репарентит
-детей и отвязывает профили. Миграции — только добавлением DDL в
-`schema::initialize` (идемпотентные `CREATE IF NOT EXISTS`).
+детей и отвязывает профили, `delete_profile` снимает ссылки бастионов.
+Миграции — только добавлением DDL в `schema::initialize` (идемпотентные
+`CREATE IF NOT EXISTS` + `ALTER TABLE ... ADD COLUMN` по проверке
+`pragma_table_info`).
 
 ## VTE: динамическая загрузка
 
@@ -151,6 +155,11 @@ copy_clipboard/set_font_scale/get_char_*). Нет — запасной `GtkTextV
   SSH known_hosts. Кандидат №1 в безопасности.
 - **VNC** (`protocols/vnc.rs`) — заглушка, в UI не подключена. Решение:
   минимальный RFB 3.8 (DES + raw/copyrect) или удаление из описания.
+- **SSH-бастион** реализован через `channel_direct_tcpip` и локальный
+  TCP-порт на 127.0.0.1: libssh2-обёртка `ssh2` не умеет запускать
+  вложенную сессию поверх канала (`set_tcp_stream` требует сокет).
+  Порт принимает одно соединение и закрывается; поддерживается один
+  уровень бастиона.
 - **gettext** нет — строки в коде русские; локализация задумана до
   разрастания UI, дороже потом.
 - **`regex` не используется** — в Cargo.lock его нет, добавлять ради
