@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use gtk4::prelude::*;
 use gtk4::{
-    glib, Adjustment, Button, DropDown, Entry, Grid, Label, Notebook, PasswordEntry, SpinButton,
-    StringList, Switch, Window,
+    glib, Adjustment, Button, DropDown, Entry, Grid, Label, ListBox, ListBoxRow, Notebook,
+    PasswordEntry, ScrolledWindow, SpinButton, StringList, Switch, Window,
 };
 
 use crate::app::AppState;
@@ -50,6 +50,7 @@ impl SettingsWindow {
             Some(&Label::new(Some("Терминал"))),
         );
         notebook.append_page(&rdp_page(&settings), Some(&Label::new(Some("RDP"))));
+        notebook.append_page(&expect_page(&state), Some(&Label::new(Some("Автоответы"))));
         notebook.append_page(
             &security_page(&settings, &state),
             Some(&Label::new(Some("Безопасность"))),
@@ -585,4 +586,231 @@ fn add_row(grid: &Grid, row: i32, caption: &str, widget: &impl IsA<gtk4::Widget>
     label.add_css_class("remotix-field-caption");
     grid.attach(&label, 0, row, 1, 1);
     grid.attach(widget, 1, row, 1, 1);
+}
+
+/// Виджеты формы expect-правила (клонируются во все обработчики строк).
+struct ExpectForm {
+    pattern: Entry,
+    send: PasswordEntry,
+    once: Switch,
+    enabled: Switch,
+    submit: Button,
+    status: Label,
+}
+
+/// Состояние страницы «Автоответы»: загруженные правила и id редактируемого.
+struct ExpectPageState {
+    editing: Option<i64>,
+    rules: Vec<crate::db::repository::ExpectRuleRow>,
+}
+
+/// Страница «Автоответы»: expect-правила — шаблон вывода → строка отправки.
+///
+/// Правила глобальные (для всех SSH-сессий) и применяются в порядке списка.
+/// Ответы хранятся зашифрованными в таблице expect_rules; в списке и в поле
+/// ввода они показываются скрытыми (открыть — значок глаза в поле).
+fn expect_page(state: &Rc<AppState>) -> gtk4::Box {
+    let page = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
+    for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
+        page.set_property(m, 16);
+    }
+
+    let title = Label::new(Some("Автоответы на вывод терминала"));
+    title.add_css_class("remotix-section-title");
+    page.append(&title);
+
+    let hint = Label::new(Some(
+        "Когда в выводе SSH-сессии встречается шаблон, в канал отправляется \
+         строка ответа — Enter добавляется автоматически. В шаблоне `*` — \
+         любая последовательность символов, `?` — ровно один символ, \
+         остальное — литералы. Ответы хранятся зашифрованными, как пароли. \
+         Правила применяются ко всем SSH-сессиям, поэтому не пишите в ответ \
+         пароль, который не должен уйти на другой хост.",
+    ));
+    hint.set_wrap(true);
+    hint.set_xalign(0.0);
+    hint.add_css_class("remotix-field-caption");
+    page.append(&hint);
+
+    let list = ListBox::new();
+    let scrolled = ScrolledWindow::builder()
+        .child(&list)
+        .height_request(150)
+        .vexpand(true)
+        .build();
+    page.append(&scrolled);
+
+    let pattern = Entry::new();
+    pattern.set_placeholder_text(Some("например: *assword*:"));
+    let send = PasswordEntry::new();
+    send.set_show_peek_icon(true);
+    send.set_placeholder_text(Some("ответ, который отправится в канал"));
+    let once = Switch::new();
+    let enabled = Switch::new();
+    enabled.set_active(true);
+
+    let grid = Grid::new();
+    grid.set_row_spacing(8);
+    grid.set_column_spacing(12);
+    add_row(&grid, 0, "Шаблон вывода:", &pattern);
+    add_row(&grid, 1, "Отправить:", &send);
+    add_row(&grid, 2, "Один раз за сессию:", &once);
+    add_row(&grid, 3, "Включено:", &enabled);
+    page.append(&grid);
+
+    let status = Label::new(None);
+    status.set_wrap(true);
+    status.set_xalign(0.0);
+    page.append(&status);
+
+    let submit = Button::with_label("Добавить правило");
+    page.append(&submit);
+
+    let form = Rc::new(ExpectForm {
+        pattern,
+        send,
+        once,
+        enabled,
+        submit,
+        status,
+    });
+    let page_state = Rc::new(std::cell::RefCell::new(ExpectPageState {
+        editing: None,
+        rules: Vec::new(),
+    }));
+
+    // Перечитывает правила из БД и перестраивает список строк.
+    fn reload(
+        state: &Rc<AppState>,
+        list: &ListBox,
+        page_state: &Rc<std::cell::RefCell<ExpectPageState>>,
+        form: &Rc<ExpectForm>,
+    ) {
+        crate::ui::clear_list(list);
+
+        let key = state.unlocked_key();
+        let rules = match state.db.list_expect_rules(&key) {
+            Ok(rules) => rules,
+            Err(e) => {
+                form.status.set_text(&e);
+                return;
+            }
+        };
+
+        for rule in &rules {
+            let id = rule.id;
+            let row = ListBoxRow::new();
+            let hbox = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
+            let flags = match (rule.once, rule.enabled) {
+                (_, false) => "выключено",
+                (true, true) => "один раз",
+                (false, true) => "всегда",
+            };
+            // Ответ в списке не показывается: это может быть пароль.
+            let text = Label::new(Some(&format!("{} → •••••• [{}]", rule.pattern, flags)));
+            text.set_hexpand(true);
+            text.set_xalign(0.0);
+            hbox.append(&text);
+
+            let edit = Button::with_label("Изменить");
+            hbox.append(&edit);
+            let remove = Button::with_label("Удалить");
+            hbox.append(&remove);
+            row.set_child(Some(&hbox));
+            list.append(&row);
+
+            {
+                let page_state = page_state.clone();
+                let form = form.clone();
+                edit.connect_clicked(move |_| {
+                    let mut st = page_state.borrow_mut();
+                    if let Some(found) = st.rules.iter().find(|r| r.id == id) {
+                        use secrecy::ExposeSecret;
+                        form.pattern.set_text(&found.pattern);
+                        form.send.set_text(found.send.expose_secret());
+                        form.once.set_active(found.once);
+                        form.enabled.set_active(found.enabled);
+                        form.submit.set_label("Сохранить изменения");
+                        st.editing = Some(id);
+                    }
+                });
+            }
+            {
+                let state = state.clone();
+                let page_state = page_state.clone();
+                let form = form.clone();
+                let list_ref = list.clone();
+                remove.connect_clicked(move |_| {
+                    if let Err(e) = state.db.delete_expect_rule(id) {
+                        form.status.set_text(&e);
+                    }
+                    reload(&state, &list_ref, &page_state, &form);
+                });
+            }
+        }
+
+        page_state.borrow_mut().rules = rules;
+        if page_state.borrow().rules.is_empty() {
+            let empty = ListBoxRow::new();
+            let label = Label::new(Some("Правил пока нет — добавьте первое ниже."));
+            label.set_xalign(0.0);
+            empty.set_child(Some(&label));
+            empty.set_sensitive(false);
+            list.append(&empty);
+        }
+    }
+
+    {
+        let list_ref = list.clone();
+        reload(state, &list_ref, &page_state, &form);
+    }
+
+    {
+        let state = state.clone();
+        let page_state = page_state.clone();
+        let form = form.clone();
+        let list_ref = list.clone();
+        // Приёмник — отдельный клон кнопки: замыкание двигает form целиком,
+        // а `form.submit.connect_clicked` держал бы заимствование form.
+        let button = form.submit.clone();
+        button.connect_clicked(move |_| {
+            let pattern = form.pattern.text().to_string();
+            let send = form.send.text().to_string();
+            if pattern.trim().is_empty() || send.is_empty() {
+                form.status
+                    .set_text("Укажите и шаблон, и строку для отправки.");
+                return;
+            }
+            let key = state.unlocked_key();
+            let send = secrecy::SecretString::from(send);
+            let once = form.once.is_active();
+            let enabled = form.enabled.is_active();
+
+            let editing = page_state.borrow().editing;
+            let result = match editing {
+                Some(id) => state
+                    .db
+                    .update_expect_rule(&key, id, &pattern, &send, once, enabled),
+                None => state
+                    .db
+                    .add_expect_rule(&key, &pattern, &send, once, enabled)
+                    .map(|_| ()),
+            };
+            match result {
+                Ok(()) => {
+                    form.pattern.set_text("");
+                    form.send.set_text("");
+                    form.once.set_active(false);
+                    form.enabled.set_active(true);
+                    form.submit.set_label("Добавить правило");
+                    page_state.borrow_mut().editing = None;
+                    form.status.set_text("Сохранено.");
+                }
+                Err(e) => form.status.set_text(&e),
+            }
+            reload(&state, &list_ref, &page_state, &form);
+        });
+    }
+
+    page
 }

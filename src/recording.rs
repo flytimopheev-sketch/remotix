@@ -154,6 +154,13 @@ pub fn recordings_dir() -> PathBuf {
 /// Свободная пара путей для новой записи: при совпадении имени добавляется
 /// счётчик `-2`, `-3`, …
 fn free_paths(dir: &Path, command: &str) -> io::Result<(PathBuf, PathBuf)> {
+    free_paths_with_stamp(dir, command, &file_stamp())
+}
+
+/// Та же выдача путей, но с явной меткой времени — детерминированно
+/// для тестов (реальная метка включает миллисекунды и может смениться
+/// между двумя вызовами).
+fn free_paths_with_stamp(dir: &Path, command: &str, stamp: &str) -> io::Result<(PathBuf, PathBuf)> {
     // Имя файла собирается как OsString вручную: PathBuf::set_extension
     // заменил бы «расширение», распознав точку в имени хоста
     // (session-example.org-… превратился бы в session-example.log).
@@ -161,7 +168,7 @@ fn free_paths(dir: &Path, command: &str) -> io::Result<(PathBuf, PathBuf)> {
     // Имя сессии в файле — хост из COMMAND: читаемое и безопасное.
     base.push(session_slug(command));
     base.push("-");
-    base.push(file_stamp());
+    base.push(stamp);
 
     let make = |n: Option<u32>, ext: &str| {
         let mut s = base.clone();
@@ -374,9 +381,10 @@ mod tests {
     #[test]
     fn free_paths_avoids_collision() {
         let dir = temp_dir("collision");
-        let (out1, timing1) = free_paths(&dir, "ssh alpha").unwrap();
+        let stamp = "20261102-120000-000";
+        let (out1, timing1) = free_paths_with_stamp(&dir, "ssh alpha", stamp).unwrap();
         std::fs::File::create(&out1).unwrap();
-        let (out2, _) = free_paths(&dir, "ssh alpha").unwrap();
+        let (out2, _) = free_paths_with_stamp(&dir, "ssh alpha", stamp).unwrap();
         assert_ne!(out1, out2);
         assert_ne!(timing1, PathBuf::from(&out2));
         assert!(out2.to_string_lossy().contains("-2.log"));

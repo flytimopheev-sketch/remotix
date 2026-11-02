@@ -1609,6 +1609,7 @@ impl MainWindow {
         let font_size = settings.terminal_font_size();
         let metrics_enabled = settings.terminal_metrics();
         let recording_enabled = settings.terminal_recording();
+        let expect_rules = self.expect_rules();
 
         match TerminalTab::new_ssh(
             &title,
@@ -1617,6 +1618,7 @@ impl MainWindow {
             font_size,
             metrics_enabled,
             recording_enabled,
+            expect_rules,
         ) {
             Ok(tab) => {
                 self.append_session(&title, "utilities-terminal-symbolic", &tab.root);
@@ -1790,6 +1792,28 @@ impl MainWindow {
             .state
             .db
             .add_history(profile_id, started, Some(ended), status, error);
+    }
+
+    /// Включённые expect-правила из БД: ответы расшифровываются ключом
+    /// хранилища и уходят в поток сессии (SecretString — открытие только
+    /// в момент отправки). Ошибка чтения не должна блокировать подключение.
+    fn expect_rules(&self) -> Vec<crate::expect::Rule> {
+        let key = self.state.unlocked_key();
+        match self.state.db.list_expect_rules(&key) {
+            Ok(rows) => rows
+                .into_iter()
+                .filter(|r| r.enabled)
+                .map(|r| crate::expect::Rule {
+                    pattern: r.pattern,
+                    send: r.send,
+                    once: r.once,
+                })
+                .collect(),
+            Err(e) => {
+                crate::logging::warn(&format!("expect-правила не загружены: {e}"));
+                Vec::new()
+            }
+        }
     }
 
     /// Обновляет состояние сессии в строке состояния.

@@ -33,6 +33,7 @@ src/
 │   ├── repository.rs  # CRUD профилей/групп/истории + шифрование полей
 │   └── crypto.rs      # Argon2id (ключ), AES-256-GCM (данные), verifier
 ├── models/profile.rs  # Profile, NewProfile, SshOptions/RdpOptions/VncOptions
+├── expect.rs          # автоответы: вайлдкард-матчер (*, ?) + движок сессии
 ├── recording.rs       # запись сессии: typescript + timing (script/scriptreplay)
 ├── protocols/
 │   ├── ssh.rs         # SshConnection: TCP → баннер → kex → auth, known_hosts

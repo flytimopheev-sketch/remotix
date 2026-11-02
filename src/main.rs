@@ -22,6 +22,7 @@
 mod app;
 mod config;
 mod db;
+mod expect;
 mod host_check;
 mod import;
 mod logging;

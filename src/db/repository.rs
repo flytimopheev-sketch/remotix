@@ -42,6 +42,16 @@ type SecretRows = Vec<(
 /// Идентичность профиля для проверки дублей: протокол, хост, порт, логин.
 type ProfileIdentity = (Protocol, String, u16, Option<String>);
 
+/// Expect-правило из БД: шаблон вывода и строка для отправки в канал.
+/// `send` расшифрован (хранится в BLOB, как учётные данные профиля).
+pub struct ExpectRuleRow {
+    pub id: i64,
+    pub pattern: String,
+    pub send: SecretString,
+    pub once: bool,
+    pub enabled: bool,
+}
+
 /// Обёртка над SQLite: схема, таблица meta и CRUD профилей/истории.
 /// Учётные данные шифруются AES-256-GCM ключом, выведенным из мастер-пароля.
 pub struct Database {
@@ -575,6 +585,116 @@ impl Database {
         Ok(())
     }
 
+    // ---------- expect-правила ----------
+
+    /// Список expect-правил в порядке следования, `send` расшифрован.
+    ///
+    /// Правило с испорченным шифротекстом пропускается целиком: шаблон
+    /// без строки отправки не имеет смысла, а «полпустой» отправлять нельзя.
+    pub fn list_expect_rules(&self, key: &[u8; 32]) -> Result<Vec<ExpectRuleRow>, String> {
+        let mut stmt = self
+            .conn()
+            .prepare(
+                "SELECT id, pattern, send, once, enabled FROM expect_rules ORDER BY position, id",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    blob_column(r, 2)?.unwrap_or_default(),
+                    r.get::<_, i64>(3)?,
+                    r.get::<_, i64>(4)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (id, pattern, send, once, enabled) = row.map_err(|e| e.to_string())?;
+            let plain = match crypto::decrypt(key, &send) {
+                Ok(v) => String::from_utf8_lossy(&v).into_owned(),
+                Err(_) => continue,
+            };
+            out.push(ExpectRuleRow {
+                id,
+                pattern,
+                send: SecretString::from(plain),
+                once: once != 0,
+                enabled: enabled != 0,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Добавляет expect-правило в конец списка.
+    pub fn add_expect_rule(
+        &self,
+        key: &[u8; 32],
+        pattern: &str,
+        send: &SecretString,
+        once: bool,
+        enabled: bool,
+    ) -> Result<i64, String> {
+        let position: i64 = self
+            .conn()
+            .query_row(
+                "SELECT COALESCE(MAX(position), 0) + 1 FROM expect_rules",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn()
+            .execute(
+                "INSERT INTO expect_rules(pattern, send, once, enabled, position)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    pattern,
+                    crypto::encrypt(key, send.expose_secret().as_bytes()),
+                    i64::from(once),
+                    i64::from(enabled),
+                    position
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(self.conn().last_insert_rowid())
+    }
+
+    /// Обновляет expect-правило (шаблон, отправка, флаги).
+    pub fn update_expect_rule(
+        &self,
+        key: &[u8; 32],
+        id: i64,
+        pattern: &str,
+        send: &SecretString,
+        once: bool,
+        enabled: bool,
+    ) -> Result<(), String> {
+        self.conn()
+            .execute(
+                "UPDATE expect_rules
+                 SET pattern = ?1, send = ?2, once = ?3, enabled = ?4
+                 WHERE id = ?5",
+                params![
+                    pattern,
+                    crypto::encrypt(key, send.expose_secret().as_bytes()),
+                    i64::from(once),
+                    i64::from(enabled),
+                    id
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Удаляет expect-правило.
+    pub fn delete_expect_rule(&self, id: i64) -> Result<(), String> {
+        self.conn()
+            .execute("DELETE FROM expect_rules WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     // ---------- history ----------
 
     /// Удаляет профиль вместе с его историей подключений.
@@ -892,5 +1012,133 @@ mod tests {
 
         let groups = db.list_groups().expect("группы");
         assert_eq!(groups[0].1, "Новое");
+    }
+
+    // ---------- expect-правила ----------
+
+    #[test]
+    fn expect_rules_roundtrip() {
+        let (db, key) = opened();
+
+        let id1 = db
+            .add_expect_rule(
+                &key,
+                "Password:",
+                &SecretString::from("hunter2".to_string()),
+                true,
+                true,
+            )
+            .expect("первое правило");
+        let id2 = db
+            .add_expect_rule(
+                &key,
+                "[yes/no]*:",
+                &SecretString::from("yes".to_string()),
+                false,
+                true,
+            )
+            .expect("второе правило");
+
+        let rules = db.list_expect_rules(&key).expect("чтение правил");
+        assert_eq!(rules.len(), 2, "порядок — по позиции");
+        assert_eq!(rules[0].id, id1);
+        assert_eq!(rules[0].pattern, "Password:");
+        assert_eq!(rules[0].send.expose_secret(), "hunter2");
+        assert!(rules[0].once);
+        assert!(rules[0].enabled);
+        assert_eq!(rules[1].id, id2);
+        assert!(!rules[1].once);
+    }
+
+    #[test]
+    fn expect_rule_update_and_delete() {
+        let (db, key) = opened();
+        let id = db
+            .add_expect_rule(
+                &key,
+                "old",
+                &SecretString::from("a".to_string()),
+                false,
+                true,
+            )
+            .expect("правило");
+
+        db.update_expect_rule(
+            &key,
+            id,
+            "new",
+            &SecretString::from("b".to_string()),
+            true,
+            false,
+        )
+        .expect("обновление");
+
+        let rules = db.list_expect_rules(&key).expect("чтение");
+        assert_eq!(rules[0].pattern, "new");
+        assert_eq!(rules[0].send.expose_secret(), "b");
+        assert!(rules[0].once);
+        assert!(!rules[0].enabled);
+
+        db.delete_expect_rule(id).expect("удаление");
+        assert!(db.list_expect_rules(&key).expect("чтение").is_empty());
+    }
+
+    /// Правило с шифротекстом под другим ключом пропускается: отправлять
+    /// непонятно что нельзя.
+    #[test]
+    fn expect_rules_skip_corrupted_secrets() {
+        let (db, key) = opened();
+        db.add_expect_rule(
+            &key,
+            "Password:",
+            &SecretString::from("hunter2".to_string()),
+            true,
+            true,
+        )
+        .expect("правило");
+
+        let wrong = [0u8; 32]; // не тот ключ
+        let rules = db.list_expect_rules(&wrong).expect("чтение");
+        assert!(
+            rules.is_empty(),
+            "испорченная отправка не должна попадать в список"
+        );
+    }
+
+    /// В файле БД не должно остаться расшифрованной строки отправки.
+    #[test]
+    fn expect_rule_send_is_stored_encrypted() {
+        let dir = std::env::temp_dir().join(format!(
+            "remotix-expect-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("временный каталог");
+        let path = dir.join("test.db");
+        {
+            let db = Database::open(path.to_str().expect("путь")).expect("открытие БД");
+            db.init_master("master").expect("создание мастер-пароля");
+            let key = db.unlock("master").expect("разблокировка");
+
+            db.add_expect_rule(
+                &key,
+                "Password:",
+                &SecretString::from("hunter2".to_string()),
+                true,
+                true,
+            )
+            .expect("правило");
+        }
+
+        let raw = std::fs::read(&path).expect("файл БД");
+        let text = String::from_utf8_lossy(&raw);
+        assert!(
+            !text.contains("hunter2"),
+            "секрет не должен храниться в БД открыто"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

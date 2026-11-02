@@ -696,6 +696,8 @@ impl TerminalTab {
     /// `metrics_enabled` включает панель метрик хоста (опрос раз в 5 с).
     /// `recording_enabled` включает запись вывода сессии в формат
     /// script(1)/scriptreplay(1) — файлы в `<данные>/recordings`.
+    /// `expect_rules` — автоответы: при совпадении шаблона с окном вывода
+    /// в канал отправляется строка правила (см. `crate::expect`).
     pub fn new_ssh(
         title: &str,
         conn: SshConnection,
@@ -703,6 +705,7 @@ impl TerminalTab {
         font_size: i64,
         metrics_enabled: bool,
         recording_enabled: bool,
+        expect_rules: Vec<crate::expect::Rule>,
     ) -> Result<Self, String> {
         let root = GtkBox::new(gtk4::Orientation::Vertical, 0);
 
@@ -744,6 +747,8 @@ impl TerminalTab {
 
         // Поток: подключение, shell/su → root, неблокирующий цикл обмена.
         std::thread::spawn(move || {
+            use std::io::Write;
+
             let mut conn = conn;
             let verifier = move |prompt: &HostKeyPrompt| {
                 tx_hk_prompt.send(prompt.clone()).is_ok()
@@ -825,6 +830,10 @@ impl TerminalTab {
             // ошибкой, 0 — штатное закрытие).
             let mut failed = false;
 
+            // Expect-правила: автоответы на промпты. Строки ответов живут
+            // в SecretString и открываются только в момент отправки.
+            let mut expect = crate::expect::ExpectEngine::new(expect_rules);
+
             session.set_blocking(false);
             let mut buf = [0u8; 8192];
             let mut last_keepalive = std::time::Instant::now();
@@ -848,6 +857,9 @@ impl TerminalTab {
                         if let Some(r) = recording.as_mut() {
                             let _ = r.write_out(&buf[..n]);
                         }
+                        for bytes in expect.on_output(&buf[..n]) {
+                            let _ = ch.write_all(&bytes);
+                        }
                         if tx_out.send(ToUi::Out(buf[..n].to_vec())).is_err() {
                             break;
                         }
@@ -862,7 +874,6 @@ impl TerminalTab {
                 }
                 match rx_in.recv_timeout(Duration::from_millis(PROMPT_MS)) {
                     Ok(ToThread::Data(d)) => {
-                        use std::io::Write;
                         let _ = ch.write_all(&d);
                     }
                     Ok(ToThread::Resize(c, r)) => {
