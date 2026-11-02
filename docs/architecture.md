@@ -111,7 +111,8 @@ terminal.rs:  tx_in (Data/Resize/Metrics)  ──▶   recv_timeout → write/re
 SQLite (`rusqlite`, bundled). Таблицы:
 
 - `meta(key, value)` — соль/параметры Argon2, verifier, версия схемы,
-  настройки приложения (settings.rs пишет туда же `ключ = Value`).
+  настройки приложения (settings.rs пишет туда же `ключ = Value`), список
+  вкладок для восстановления (`session.tabs`).
 - `groups(id, name, parent_id)` — дерево групп, ограничение глубины 32.
 - `profiles(...)` — профили; секретные поля — BLOB-шифротексты,
   `bastion_profile_id` — ссылка на другой SSH-профиль (jump host).

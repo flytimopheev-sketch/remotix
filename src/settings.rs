@@ -139,6 +139,23 @@ impl Settings {
         self.flag("terminal.recording", false)
     }
 
+    // ---------------- Восстановление вкладок ----------------
+
+    /// Открывать при запуске вкладки сессий, которые были открыты при выходе.
+    pub fn session_restore(&self) -> bool {
+        self.flag("session.restore", true)
+    }
+
+    /// Сохранённый список вкладок в формате `ssh:12,sftp:3`.
+    pub fn session_tabs(&self) -> String {
+        self.text("session.tabs", "")
+    }
+
+    /// Сохраняет список вкладок (пустая строка — вкладок не было).
+    pub fn set_session_tabs(&self, tabs: &str) -> Result<(), String> {
+        self.set("session.tabs", &Value::Text(tabs.to_string()))
+    }
+
     // ---------------- RDP ----------------
 
     /// Разрешение экрана по умолчанию: `ШИРИНАxВЫСОТА`.

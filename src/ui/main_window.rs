@@ -45,6 +45,49 @@ enum SideRow {
     Profile(Box<Profile>),
 }
 
+/// Тип вкладки сессии, которую можно восстановить при следующем запуске.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RestoreKind {
+    Ssh,
+    Sftp,
+    Rdp,
+}
+
+impl RestoreKind {
+    fn key(self) -> &'static str {
+        match self {
+            RestoreKind::Ssh => "ssh",
+            RestoreKind::Sftp => "sftp",
+            RestoreKind::Rdp => "rdp",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "ssh" => Some(RestoreKind::Ssh),
+            "sftp" => Some(RestoreKind::Sftp),
+            "rdp" => Some(RestoreKind::Rdp),
+            _ => None,
+        }
+    }
+}
+
+/// Разбирает запись списка вкладок `kind:id` (например, `ssh:12`).
+fn parse_restore_item(item: &str) -> Option<(RestoreKind, i64)> {
+    let (kind, id) = item.split_once(':')?;
+    let id = id.parse::<i64>().ok()?;
+    (id > 0).then_some((RestoreKind::parse(kind)?, id))
+}
+
+/// Открытая вкладка сессии для восстановления: заголовок (он же ключ
+/// дедупликации), профиль и тип вкладки.
+#[derive(Clone, Debug)]
+struct RestoreTab {
+    title: String,
+    profile_id: i64,
+    kind: RestoreKind,
+}
+
 /// Главное окно: список подключений, вкладки сессий, строка состояния.
 #[derive(Clone)]
 pub struct MainWindow {
@@ -76,6 +119,8 @@ pub struct MainWindow {
     sessions: Rc<RefCell<Vec<(String, SessionState)>>>,
     /// Открытые вкладки сессий: (название, страница).
     session_pages: Rc<RefCell<Vec<(String, gtk4::Widget)>>>,
+    /// Вкладки, которые нужно открыть при следующем запуске.
+    restore_tabs: Rc<RefCell<Vec<RestoreTab>>>,
 }
 
 impl MainWindow {
@@ -237,6 +282,7 @@ impl MainWindow {
             tags_list: tags_list.clone(),
             sessions: Rc::new(RefCell::new(Vec::new())),
             session_pages: Rc::new(RefCell::new(Vec::new())),
+            restore_tabs: Rc::new(RefCell::new(Vec::new())),
         };
 
         // ---------------- Обработчики ----------------
@@ -312,6 +358,7 @@ impl MainWindow {
         }
 
         win.refresh_profiles();
+        win.restore_sessions();
         win
     }
 
@@ -1594,6 +1641,7 @@ impl MainWindow {
             profile.username.as_deref().unwrap_or("?"),
             profile.host
         );
+        let restore_id = profile.id;
 
         // Если такая сессия уже открыта — просто переключаемся на её вкладку.
         if let Some(page) = self.existing_session(&title) {
@@ -1639,6 +1687,7 @@ impl MainWindow {
         ) {
             Ok(tab) => {
                 self.append_session(&title, "utilities-terminal-symbolic", &tab.root);
+                self.track_tab(&title, restore_id, RestoreKind::Ssh);
                 self.set_status(&format!("{title}: подключение…"));
             }
             Err(e) => self.set_status(&format!("{title}: {e}")),
@@ -1652,6 +1701,7 @@ impl MainWindow {
             profile.username.as_deref().unwrap_or("?"),
             profile.host
         );
+        let restore_id = profile.id;
 
         if let Some(page) = self.existing_session(&title) {
             self.focus_session(&page);
@@ -1672,6 +1722,7 @@ impl MainWindow {
 
         let viewer = RdpViewer::new(profile, on_state);
         self.append_session(&title, "computer-symbolic", viewer.root());
+        self.track_tab(&title, restore_id, RestoreKind::Rdp);
         self.set_status(&format!("{title}: подключение…"));
     }
 
@@ -1712,6 +1763,14 @@ impl MainWindow {
     /// Создаёт вкладку SFTP после проверки доступности узла.
     fn open_sftp_for_profile(&self, profile: Profile) {
         let title = format!("SFTP {}", profile.host);
+        let restore_id = profile.id;
+
+        if let Some(page) = self.existing_session(&title) {
+            self.focus_session(&page);
+            self.set_status(&format!("{title}: сессия уже открыта"));
+            return;
+        }
+
         let on_state = {
             let win = self.clone();
             let title = title.clone();
@@ -1724,12 +1783,18 @@ impl MainWindow {
         let on_close = {
             let notebook = self.notebook.clone();
             let page_cell = page_cell.clone();
+            let session_pages = self.session_pages.clone();
+            let win = self.clone();
+            let title = title.clone();
             Rc::new(move || {
                 if let Some(page) = page_cell.borrow().clone() {
                     if let Some(index) = notebook.page_num(&page) {
                         notebook.remove_page(Some(index));
                     }
+                    session_pages.borrow_mut().retain(|(_, p)| *p != page);
                 }
+                win.untrack_tab(&title);
+                win.update_welcome();
             })
         };
 
@@ -1739,6 +1804,7 @@ impl MainWindow {
         *page_cell.borrow_mut() = Some(page.clone());
 
         self.append_session(&title, "folder-remote-symbolic", &page);
+        self.track_tab(&title, restore_id, RestoreKind::Sftp);
         self.set_status(&format!("{title}: подключение…"));
     }
 
@@ -1797,16 +1863,108 @@ impl MainWindow {
             let notebook = self.notebook.clone();
             let page = page.clone();
             let session_pages = self.session_pages.clone();
+            let win = self.clone();
+            let title = title.to_string();
             close.connect_clicked(move |_| {
                 if let Some(index) = notebook.page_num(&page) {
                     notebook.remove_page(Some(index));
                 }
                 session_pages.borrow_mut().retain(|(_, p)| *p != page);
+                win.untrack_tab(&title);
+                win.update_welcome();
             });
         }
 
         self.welcome.set_visible(false);
         self.on_session_state(title, SessionState::Connecting);
+    }
+
+    /// Показывает приглашение, когда не осталось ни одной вкладки.
+    fn update_welcome(&self) {
+        self.welcome.set_visible(self.notebook.n_pages() == 0);
+    }
+
+    /// Запоминает вкладку для восстановления при следующем запуске.
+    fn track_tab(&self, title: &str, profile_id: i64, kind: RestoreKind) {
+        // Быстрое подключение (id 0) в базе не сохраняется — восстановить его
+        // нечем.
+        if profile_id <= 0 {
+            return;
+        }
+        {
+            let mut tabs = self.restore_tabs.borrow_mut();
+            tabs.retain(|t| t.title != title);
+            tabs.push(RestoreTab {
+                title: title.to_string(),
+                profile_id,
+                kind,
+            });
+        }
+        self.save_restore_tabs();
+    }
+
+    /// Убирает вкладку из списка восстановления (закрыта пользователем).
+    fn untrack_tab(&self, title: &str) {
+        let changed = {
+            let mut tabs = self.restore_tabs.borrow_mut();
+            let before = tabs.len();
+            tabs.retain(|t| t.title != title);
+            tabs.len() != before
+        };
+        if changed {
+            self.save_restore_tabs();
+        }
+    }
+
+    /// Сохраняет список открытых вкладок в meta (`ssh:12,sftp:3`).
+    fn save_restore_tabs(&self) {
+        let list = self
+            .restore_tabs
+            .borrow()
+            .iter()
+            .map(|t| format!("{}:{}", t.kind.key(), t.profile_id))
+            .collect::<Vec<_>>()
+            .join(",");
+        let settings = crate::settings::Settings::new(self.state.db.clone());
+        if let Err(e) = settings.set_session_tabs(&list) {
+            crate::logging::warn(&format!("не удалось сохранить список вкладок: {e}"));
+        }
+    }
+
+    /// Открывает вкладки, сохранённые при прошлом выходе.
+    ///
+    /// Профили могли быть удалены или сменить протокол — такие записи
+    /// пропускаются. Список перезаписывается по мере открытия, поэтому
+    /// устаревшие записи не накапливаются.
+    fn restore_sessions(&self) {
+        let settings = crate::settings::Settings::new(self.state.db.clone());
+        if !settings.session_restore() {
+            return;
+        }
+        let saved = settings.session_tabs();
+        if saved.trim().is_empty() {
+            return;
+        }
+
+        if let Err(e) = settings.set_session_tabs("") {
+            crate::logging::warn(&format!("не удалось очистить список вкладок: {e}"));
+        }
+
+        for item in saved.split(',') {
+            let Some((kind, id)) = parse_restore_item(item) else {
+                continue;
+            };
+            let profile = self.all.borrow().iter().find(|p| p.id == id).cloned();
+            let Some(profile) = profile else {
+                continue;
+            };
+            match (kind, profile.protocol) {
+                (RestoreKind::Ssh, Protocol::Ssh) => self.open_ssh_terminal(profile),
+                (RestoreKind::Sftp, Protocol::Ssh) => self.open_sftp_for_profile(profile),
+                (RestoreKind::Rdp, Protocol::Rdp) => self.open_rdp_session(profile),
+                _ => {}
+            }
+        }
     }
 
     /// Записывает результат подключения в журнал.
@@ -2024,4 +2182,29 @@ fn quick_profile(text: &str) -> Option<Profile> {
         updated_at: 0,
         last_connected_at: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Формат списка вкладок в meta: `kind:id` через запятую.
+    #[test]
+    fn restore_items_are_parsed() {
+        assert_eq!(parse_restore_item("ssh:12"), Some((RestoreKind::Ssh, 12)));
+        assert_eq!(parse_restore_item("sftp:3"), Some((RestoreKind::Sftp, 3)));
+        assert_eq!(parse_restore_item("rdp:7"), Some((RestoreKind::Rdp, 7)));
+        assert_eq!(parse_restore_item("vnc:5"), None, "VNC не восстанавливаем");
+        assert_eq!(parse_restore_item("ssh:0"), None, "быстрое подключение");
+        assert_eq!(parse_restore_item("ssh:-3"), None);
+        assert_eq!(parse_restore_item("ssh"), None);
+        assert_eq!(parse_restore_item("ssh:"), None);
+    }
+
+    #[test]
+    fn restore_kind_keys_roundtrip() {
+        for kind in [RestoreKind::Ssh, RestoreKind::Sftp, RestoreKind::Rdp] {
+            assert_eq!(RestoreKind::parse(kind.key()), Some(kind));
+        }
+    }
 }

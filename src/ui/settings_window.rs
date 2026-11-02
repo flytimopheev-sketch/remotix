@@ -205,6 +205,9 @@ fn terminal_page(settings: &Settings) -> gtk4::Box {
     let recording = Switch::new();
     recording.set_active(settings.terminal_recording());
 
+    let restore = Switch::new();
+    restore.set_active(settings.session_restore());
+
     let scheme = DropDown::builder()
         .model(&StringList::new(&["Тёмная", "Светлая", "Как в системе"]))
         .selected(match settings.terminal_color_scheme().as_str() {
@@ -223,7 +226,18 @@ fn terminal_page(settings: &Settings) -> gtk4::Box {
     add_row(&grid, 3, "Цветовая схема:", &scheme);
     add_row(&grid, 4, "Метрики хоста:", &metrics);
     add_row(&grid, 5, "Запись сессий:", &recording);
+    add_row(&grid, 6, "Восстанавливать вкладки:", &restore);
     page.append(&grid);
+
+    let hint = Label::new(Some(
+        "При запуске заново открываются SSH-терминалы, SFTP- и RDP-вкладки, \
+         которые были открыты при выходе. Подключение выполняется сразу после \
+         разблокировки хранилища; отключите переключатель, если это не нужно.",
+    ));
+    hint.set_wrap(true);
+    hint.set_xalign(0.0);
+    hint.add_css_class("remotix-field-caption");
+    page.append(&hint);
 
     {
         let settings = settings.clone();
@@ -269,6 +283,15 @@ fn terminal_page(settings: &Settings) -> gtk4::Box {
         recording.connect_active_notify(move |s| {
             let _ = settings.set(
                 "terminal.recording",
+                &crate::settings::Value::Flag(s.is_active()),
+            );
+        });
+    }
+    {
+        let settings = settings.clone();
+        restore.connect_active_notify(move |s| {
+            let _ = settings.set(
+                "session.restore",
                 &crate::settings::Value::Flag(s.is_active()),
             );
         });
