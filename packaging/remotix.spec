@@ -1,7 +1,7 @@
 Name:           remotix
 Version:        1.6.0
 Release:        1%{?dist}
-Summary:        Клиент удалённого доступа (RDP/VNC/SSH) для РЕД ОС
+Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
 URL:            https://github.com/flytimopheev-sketch/remotix
 Source0:        %{name}-%{version}.tar.gz
@@ -35,7 +35,7 @@ Recommends:     vte291-gtk4
 
 %description
 Единый интерфейс для подключения к удалённым рабочим столам и серверам
-по протоколам RDP, VNC и SSH, аналог Remmina/RustDesk. Работает полностью
+по протоколам RDP и SSH, аналог Remmina/RustDesk. Работает полностью
 офлайн, без облака и телеметрии. Учётные данные хранятся зашифрованными
 (Argon2id + AES-256-GCM). SSH-терминал использует VTE для GTK4, если он
 установлен в системе, иначе — встроенный упрощённый терминал.
@@ -137,5 +137,5 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
   приложению и больше не закрывает его)
 - Рабочий список профилей, редактор подключений, поиск и горячие клавиши
 * Mon Sep 07 2026 Remotix Team <flytimopheev@gmail.com> - 1.4.0
-- Первый выпуск: RDP/VNC/SSH, SFTP, шифрование, история подключений
+- Первый выпуск: RDP/SSH, SFTP, шифрование, история подключений
 

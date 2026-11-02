@@ -6,14 +6,14 @@
   <project_license>MIT</project_license>
 
   <name>Remotix</name>
-  <summary>Клиент удалённого доступа (RDP, VNC, SSH)</summary>
+  <summary>Клиент удалённого доступа (RDP, SSH)</summary>
   <developer_name>flytimopheev</developer_name>
   <update_contact>flytimopheev_at_gmail.com</update_contact>
 
   <description>
     <p>
       Remotix — единый интерфейс для подключения к удалённым рабочим столам
-      и серверам по протоколам RDP, VNC и SSH. Аналог Remmina и RustDesk,
+      и серверам по протоколам RDP и SSH. Аналог Remmina и RustDesk,
       который работает полностью офлайн: без облака и без телеметрии.
     </p>
     <p>Основные возможности:</p>
@@ -36,7 +36,6 @@
 
   <keywords>
     <keyword>RDP</keyword>
-    <keyword>VNC</keyword>
     <keyword>SSH</keyword>
     <keyword>SFTP</keyword>
     <keyword>remote desktop</keyword>

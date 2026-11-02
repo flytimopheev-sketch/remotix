@@ -429,7 +429,7 @@ fn show_about(parent: &ApplicationWindow) {
         .title("О программе Remotix")
         .comments(
             "Единый клиент удалённого доступа для РЕД ОС.\n\
-             RDP · VNC · SSH · SFTP — всё в одном окне.\n\
+             RDP · SSH · SFTP — всё в одном окне.\n\
              Работает полностью офлайн: без облака, без телеметрии.",
         )
         .website("https://github.com/flytimopheev-sketch/remotix")
