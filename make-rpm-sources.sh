@@ -4,14 +4,14 @@
 # Требуются: rpm-build, cargo, rust. Зависимости сборки ставятся автоматически.
 set -euo pipefail
 
-VERSION=1.6.0
+VERSION=1.7.0
 PROJ_DIR="${1:-$(pwd)}"
 cd "$PROJ_DIR"
 
 echo "==> Установка зависимостей сборки (openssl-devel решает ошибку openssl-sys, gcc — сборку rusqlite bundled)..."
-dnf install -y rpm-build cargo rust gcc gtk4-devel libssh2-devel \
+dnf install -y rpm-build cargo rust gcc gtk4-devel \
                openssl-devel sqlite-devel || \
-  sudo dnf install -y rpm-build cargo rust gcc gtk4-devel libssh2-devel \
+  sudo dnf install -y rpm-build cargo rust gcc gtk4-devel \
                openssl-devel sqlite-devel
 
 BUILD_DIR=$(mktemp -d)

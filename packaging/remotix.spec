@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.6.0
+Version:        1.7.0
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
@@ -17,7 +17,6 @@ BuildRequires:  cargo
 BuildRequires:  rust
 BuildRequires:  pkg-config
 BuildRequires:  gtk4-devel
-BuildRequires:  libssh2-devel
 BuildRequires:  openssl-devel
 BuildRequires:  sqlite-devel
 # Примечание: VTE для GTK4 в сборке не нужен — терминал подгружает
@@ -27,8 +26,8 @@ BuildRequires:  sqlite-devel
 # для libssh2; rustls (ring) для RDP-канала — полностью офлайн.
 
 Requires:       gtk4
-# Модуль SSH линкуется с системной libssh2 (crate ssh2) — она нужна в рантайме.
-Requires:       libssh2
+# libssh2 собирается статически из vendor/libssh2-sys и входит в бинарник,
+# поэтому отдельный системный пакет libssh2 в рантайме не требуется.
 # VTE для GTK4 опционален: с ним SSH-терминал получает полную эмуляцию
 # (ANSI, vim/htop), без него используется встроенный упрощённый терминал.
 Recommends:     vte291-gtk4
@@ -68,6 +67,18 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Tue Nov 03 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.0
+- SSH-бастионы (jump host) через channel_direct_tcpip
+- Автоответы на вывод терминала (expect-правила с * и ?)
+- Запись SSH-сессий в формате script(1)/scriptreplay(1)
+- Сниппеты команд SSH-терминала с шифрованным хранением
+- Сводка журнала: итоги, период и топ-5 профилей
+- Восстановление открытых вкладок после разблокировки
+- Генератор паролей и палитры терминала
+- Запуск по ссылке: --connect и URI ssh://, rdp://, vnc://
+- Проверка доступности узла, Wake-on-LAN и метрики SSH-хоста
+- Импорт подключений из CSV, группы профилей и фильтр по тегам
+- RPM: libssh2 статически встроен, системная зависимость убрана
 * Tue Oct 27 2026 Remotix Team <flytimopheev@gmail.com> - 1.6.0
 - SSH: строгая проверка ключа хоста, диалог с SHA256-отпечатком, запрет
   изменённых ключей, безопасное дополнение known_hosts

@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-%D0%A0%D0%95%D0%94%20%D0%9E%D0%A1%207%20%7C%208-crimson?style=flat-square)](#-установка)
 [![CI](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml/badge.svg?branch=main)](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml)
-[![Release](https://img.shields.io/badge/release-1.6.0-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
+[![Release](https://img.shields.io/badge/release-1.7.0-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
 
 Единый интерфейс для подключения к удалённым рабочим столам и серверам.
 Написан на Rust + GTK4, работает **полностью офлайн**: без облака, без телеметрии,
@@ -110,7 +110,7 @@ Remotix — это «одно окно» для всех удалённых по
 ### Готовый RPM-пакет
 
 ```bash
-sudo dnf install ./remotix-1.6.0-1.x86_64.rpm
+sudo dnf install ./remotix-1.7.0-1.x86_64.rpm
 ```
 
 После установки Remotix появляется в меню приложений («Сеть → Remotix»),
@@ -126,8 +126,9 @@ sudo dnf install ./remotix-1.6.0-1.x86_64.rpm
 | `/usr/share/metainfo/remotix.metainfo.xml` | метаданные AppStream |
 | `/usr/share/licenses/remotix/LICENSE` | текст лицензии |
 
-Зависимости: `gtk4`, `libssh2`. Пакет `vte291-gtk4` желателен, но не обязателен:
-без него SSH-терминал работает в упрощённом режиме.
+Зависимости: `gtk4` и OpenSSL (`libcrypto`/`libssl`). `libssh2` собирается
+статически из `vendor/` и отдельного пакета не требует. Пакет `vte291-gtk4`
+желателен, но не обязателен: без него SSH-терминал работает в упрощённом режиме.
 
 ### Готовые пакеты из релизов
 
@@ -136,7 +137,7 @@ sudo dnf install ./remotix-1.6.0-1.x86_64.rpm
 
 <p align="center">
   <a href="https://github.com/flytimopheev-sketch/remotix/releases">
-    <img src="https://img.shields.io/badge/releases-1.6.0-blue?style=flat-square" alt="Releases">
+    <img src="https://img.shields.io/badge/releases-1.7.0-blue?style=flat-square" alt="Releases">
   </a>
 </p>
 
@@ -150,14 +151,16 @@ sudo dnf install ./remotix-1.6.0-1.x86_64.rpm
 | --- | --- |
 | Rust | stable (edition 2021) |
 | GTK4 | 4.6+ |
-| libssh2 | 1.9+ |
 | OpenSSL | 1.1 / 3.x |
 | pkg-config, gcc | любые |
+
+`libssh2` не нужен в системе: его исходники входят в `vendor/` и собираются
+статически вместе с бинарником.
 
 Для РЕД ОС:
 
 ```bash
-sudo dnf install gcc cargo rust pkg-config gtk4-devel libssh2-devel openssl-devel
+sudo dnf install gcc cargo rust pkg-config gtk4-devel openssl-devel
 ```
 
 ### Из исходников
