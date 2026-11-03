@@ -17,6 +17,7 @@ use gtk4::{
 };
 
 use crate::app::AppState;
+use crate::connect_target::ConnectTarget;
 use crate::host_check;
 use crate::models::{Profile, Protocol};
 use crate::protocols::ssh::SshConnection;
@@ -439,6 +440,22 @@ impl MainWindow {
             }
             None => self.set_status("Формат быстрого подключения: user@host"),
         }
+    }
+
+    /// Открывает цель из `--connect` или URI (`ssh://`, `rdp://`, `vnc://`).
+    ///
+    /// Если сохранённый профиль совпадает по протоколу, хосту, порту и логину,
+    /// используется он — так подхватываются сохранённые ключи и пароли.
+    /// Иначе открывается временная сессия без учётных данных.
+    pub fn connect_target(&self, target: ConnectTarget) {
+        let saved = self
+            .all
+            .borrow()
+            .iter()
+            .find(|profile| target.matches(profile))
+            .cloned();
+        let profile = saved.unwrap_or_else(|| target.to_profile());
+        self.connect_profile(profile);
     }
 
     /// Стирает расшифрованные профили из памяти при блокировке.

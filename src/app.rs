@@ -7,6 +7,7 @@ use gtk4::prelude::*;
 use gtk4::{gio, glib, Application, ApplicationWindow, Button, Label};
 use zeroize::{Zeroize, Zeroizing};
 
+use crate::connect_target::ConnectTarget;
 use crate::db::repository::Database;
 use crate::ui::main_window::MainWindow;
 use crate::ui::master_password::MasterPasswordDialog;
@@ -79,11 +80,16 @@ thread_local! {
         const { RefCell::new(None) };
     /// Окно с сообщением об ошибке (нужно удерживать, иначе оно закроется).
     static ERROR_WINDOW: RefCell<Option<ApplicationWindow>> = const { RefCell::new(None) };
+    /// Цели из ссылок, ожидающие появления окна и разблокировки хранилища.
+    static PENDING_TARGETS: RefCell<Vec<ConnectTarget>> = const { RefCell::new(Vec::new()) };
+    /// Ошибки разбора ссылок до появления окна.
+    static PENDING_NOTICES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Обработчик сигнала «activate» — обычный запуск приложения.
 pub fn activate(app: &Application) {
     ensure_window(app);
+    open_pending_targets();
 }
 
 /// Обработчик сигнала «open» — запуск с файлами или URI.
@@ -92,16 +98,66 @@ pub fn activate(app: &Application) {
 /// делать с переданными файлами, и завершает работу с сообщением
 /// «This application can not open files.».
 pub fn open(app: &Application, files: &[gio::File], _hint: &str) {
+    for file in files {
+        let uri = file.uri();
+        if uri.starts_with("file:") {
+            // Локальные файлы Remotix не открывает; сохраняем прежнее
+            // диагностическое сообщение и не считаем это ссылкой.
+            let path = file
+                .path()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| uri.to_string());
+            crate::logging::warn(&format!("получено имя файла для открытия: {path}"));
+            continue;
+        }
+        match ConnectTarget::parse(uri.as_str()) {
+            Ok(target) => PENDING_TARGETS.with(|t| t.borrow_mut().push(target)),
+            Err(error) => {
+                crate::logging::warn(&format!("ссылка {uri} не открыта: {error}"));
+                queue_notice(format!("Ссылка не открыта: {error}"));
+            }
+        }
+    }
+
     // Запуск с аргументами должен приводить к тому же результату, что и
     // обычный запуск: показываем окно приложения.
     ensure_window(app);
+    open_pending_targets();
+}
 
-    for file in files {
-        let target = file
-            .path()
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| file.uri().to_string());
-        crate::logging::warn(&format!("получено имя файла для открытия: {target}"));
+/// Показывает сообщение сразу или после появления окна.
+fn queue_notice(message: String) {
+    if let Some(main) = MAIN_UI.with(|m| m.borrow().clone()) {
+        main.set_status(&message);
+    } else {
+        PENDING_NOTICES.with(|n| n.borrow_mut().push(message));
+    }
+}
+
+/// Открывает накопленные цели, если окно создано и хранилище разблокировано.
+fn open_pending_targets() {
+    let unlocked = APP_STATE.with(|s| {
+        s.borrow()
+            .as_ref()
+            .map(|state| !state.is_locked())
+            .unwrap_or(false)
+    });
+    if !unlocked {
+        return;
+    }
+
+    let Some(main) = MAIN_UI.with(|m| m.borrow().clone()) else {
+        return;
+    };
+
+    let notices = PENDING_NOTICES.with(|n| std::mem::take(&mut *n.borrow_mut()));
+    if let Some(last) = notices.last() {
+        main.set_status(last);
+    }
+
+    let targets = PENDING_TARGETS.with(|t| std::mem::take(&mut *t.borrow_mut()));
+    for target in targets {
+        main.connect_target(target);
     }
 }
 
@@ -111,9 +167,18 @@ fn ensure_window(app: &Application) {
     crate::ui::theme::install();
 
     // Повторная активация (клик по значку в меню при уже открытом окне) —
-    // просто поднимаем существующее окно.
+    // просто поднимаем существующее окно. Заблокированное окно не показываем:
+    // поверх должен оставаться диалог мастер-пароля.
     if let Some(window) = MAIN_WINDOW.with(|w| w.borrow().clone()) {
-        window.present();
+        let locked = APP_STATE.with(|s| {
+            s.borrow()
+                .as_ref()
+                .map(|state| state.is_locked())
+                .unwrap_or(false)
+        });
+        if !locked {
+            window.present();
+        }
         return;
     }
 
@@ -262,6 +327,9 @@ fn build_main_window(app: &Application, db: Rc<Database>, mut key: [u8; 32]) {
     MAIN_UI.with(|u| *u.borrow_mut() = Some(Rc::new(main)));
     MAIN_WINDOW.with(|w| *w.borrow_mut() = Some(window.clone()));
     window.present();
+
+    // Ссылка из --connect/URI ждала разблокировки — открываем её сейчас.
+    open_pending_targets();
 }
 
 /// Открывает окно «Параметры».
@@ -362,6 +430,8 @@ fn lock_window(app: &Application, window: &ApplicationWindow) {
         }
         locked_window.set_visible(true);
         locked_window.present();
+        // Ссылки, пришедшие во время блокировки, открываем после неё.
+        open_pending_targets();
     });
 
     // Если пользователь закрыл диалог, не показываем окно с уже стёртым
