@@ -27,6 +27,7 @@ mod host_check;
 mod import;
 mod logging;
 mod models;
+mod password;
 mod profiles_io;
 mod protocols;
 mod recording;

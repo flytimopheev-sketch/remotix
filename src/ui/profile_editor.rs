@@ -111,6 +111,7 @@ impl ProfileEditor {
 
         let password = PasswordEntry::new();
         password.set_show_peek_icon(true);
+        let password_row = password_with_generator(&password);
 
         // Wake-on-LAN
         let mac = Entry::new();
@@ -127,6 +128,7 @@ impl ProfileEditor {
         su_to_root.set_active(false);
         let root_password = PasswordEntry::new();
         root_password.set_show_peek_icon(true);
+        let root_password_row = password_with_generator(&root_password);
 
         // RDP
         let domain = Entry::new();
@@ -226,7 +228,7 @@ impl ProfileEditor {
         add_field(&grid, 2, "Адрес:", &host);
         add_field(&grid, 3, "Порт:", &port);
         add_field(&grid, 4, "Пользователь:", &user);
-        add_field(&grid, 5, "Пароль:", &password);
+        add_field(&grid, 5, "Пароль:", &password_row);
         add_field(&grid, 6, "MAC для Wake-on-LAN:", &mac);
 
         // Дополнительные параметры — отдельным блоком, чтобы их было видно.
@@ -245,7 +247,7 @@ impl ProfileEditor {
         // скрывать вместе с самими полями.
         let cap_key = add_field(&extra_grid, 0, "Ключ SSH:", &key_path);
         let cap_su = add_field(&extra_grid, 1, "Вход под root через su -:", &su_to_root);
-        let cap_root_pw = add_field(&extra_grid, 2, "Пароль root:", &root_password);
+        let cap_root_pw = add_field(&extra_grid, 2, "Пароль root:", &root_password_row);
         let cap_domain = add_field(&extra_grid, 3, "Домен (RDP):", &domain);
         let cap_res = add_field(&extra_grid, 4, "Разрешение экрана (RDP):", &resolution);
         let cap_legacy = add_field(
@@ -620,4 +622,23 @@ fn add_field(grid: &Grid, row: i32, caption: &str, widget: &impl IsA<gtk4::Widge
     grid.attach(&label, 0, row, 1, 1);
     grid.attach(widget, 1, row, 1, 1);
     label
+}
+
+/// Поле пароля с кнопкой генерации: 20 символов, все классы, `OsRng`.
+fn password_with_generator(entry: &PasswordEntry) -> gtk4::Box {
+    let row = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
+    row.set_hexpand(true);
+    row.append(entry);
+
+    let generate = Button::with_label("Сгенерировать");
+    generate.set_tooltip_text(Some(
+        "Сгенерировать пароль из 20 символов: строчные и заглавные буквы, \
+         цифры и символы. Источник случайности — ОС.",
+    ));
+    let target = entry.clone();
+    generate.connect_clicked(move |_| {
+        target.set_text(&crate::password::generate(crate::password::DEFAULT_LENGTH));
+    });
+    row.append(&generate);
+    row
 }

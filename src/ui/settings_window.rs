@@ -208,14 +208,21 @@ fn terminal_page(settings: &Settings) -> gtk4::Box {
     let restore = Switch::new();
     restore.set_active(settings.session_restore());
 
-    let scheme = DropDown::builder()
-        .model(&StringList::new(&["Тёмная", "Светлая", "Как в системе"]))
-        .selected(match settings.terminal_color_scheme().as_str() {
-            "light" => 1,
-            "system" => 2,
-            _ => 0,
-        })
-        .build();
+    let scheme = {
+        let names: Vec<&str> = crate::ui::palette::SCHEMES
+            .iter()
+            .map(|(_, label)| *label)
+            .collect();
+        let current = settings.terminal_color_scheme();
+        let selected = crate::ui::palette::SCHEMES
+            .iter()
+            .position(|(id, _)| *id == current)
+            .unwrap_or(0) as u32;
+        DropDown::builder()
+            .model(&StringList::new(&names))
+            .selected(selected)
+            .build()
+    };
 
     let grid = Grid::new();
     grid.set_row_spacing(8);
@@ -299,14 +306,13 @@ fn terminal_page(settings: &Settings) -> gtk4::Box {
     {
         let settings = settings.clone();
         scheme.connect_selected_notify(move |d| {
-            let value = match d.selected() {
-                1 => "light",
-                2 => "system",
-                _ => "dark",
-            };
+            let id = crate::ui::palette::SCHEMES
+                .get(d.selected() as usize)
+                .map(|(id, _)| *id)
+                .unwrap_or("dark");
             let _ = settings.set(
                 "terminal.color_scheme",
-                &crate::settings::Value::Text(value.into()),
+                &crate::settings::Value::Text(id.to_string()),
             );
         });
     }

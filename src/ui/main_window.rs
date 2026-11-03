@@ -1665,6 +1665,7 @@ impl MainWindow {
         let font_size = settings.terminal_font_size();
         let metrics_enabled = settings.terminal_metrics();
         let recording_enabled = settings.terminal_recording();
+        let palette = crate::ui::palette::resolve(&settings.terminal_color_scheme());
         let expect_rules = self.expect_rules();
         let snippets = self.snippets();
 
@@ -1683,6 +1684,7 @@ impl MainWindow {
             TerminalExtras {
                 expect_rules,
                 snippets,
+                palette,
             },
         ) {
             Ok(tab) => {

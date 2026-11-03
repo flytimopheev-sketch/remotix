@@ -3,6 +3,7 @@ pub mod history_tab;
 pub mod host_key;
 pub mod main_window;
 pub mod master_password;
+pub mod palette;
 pub mod profile_editor;
 pub mod rdp_viewer;
 pub mod settings_window;

@@ -26,6 +26,7 @@ src/
 ├── settings.rs        # key-value настройки в meta-таблице (тема, терминал, RDP…)
 ├── logging.rs         # лог с санитайзером секретов
 ├── host_check.rs      # TCP-проба узла перед подключением
+├── password.rs        # генератор паролей (OsRng, без смещения)
 ├── wol/               # Wake-on-LAN (magic packet, UDP broadcast)
 ├── profiles_io.rs     # JSON-экспорт/импорт профилей
 ├── db/
@@ -53,6 +54,7 @@ src/
 └── ui/
     ├── main_window.rs # окно: сайдбар (дерево групп+теги), вкладки, статус
     ├── terminal.rs    # SSH-вкладка: VTE-динамика/TextView, поток сессии, метрики
+    ├── palette.rs     # палитры терминала: 16 цветов ANSI + фон/текст
     ├── rdp_viewer.rs  # RDP-вкладка: поток IronRDP, surface → GTK drawing
     ├── sftp_tab.rs    # двухпанельный SFTP
     ├── history_tab.rs # журнал + экспорт CSV
@@ -112,7 +114,8 @@ SQLite (`rusqlite`, bundled). Таблицы:
 
 - `meta(key, value)` — соль/параметры Argon2, verifier, версия схемы,
   настройки приложения (settings.rs пишет туда же `ключ = Value`), список
-  вкладок для восстановления (`session.tabs`).
+  вкладок для восстановления (`session.tabs`), палитра терминала
+  (`terminal.color_scheme`) и переключатель `session.restore`.
 - `groups(id, name, parent_id)` — дерево групп, ограничение глубины 32.
 - `profiles(...)` — профили; секретные поля — BLOB-шифротексты,
   `bastion_profile_id` — ссылка на другой SSH-профиль (jump host).
@@ -130,8 +133,11 @@ SQLite (`rusqlite`, bundled). Таблицы:
 
 `libvte-2.91-gtk4.so.0` ищется через `libloading` в рантайме. Есть —
 полноценная эмуляция (через минимальный набор C-функций: new/feed/
-copy_clipboard/set_font_scale/get_char_*). Нет — запасной `GtkTextView`
-с тем же вводом/выводом (escape-последовательности не эмулируются).
+copy_clipboard/set_font_scale/get_char_*/set_colors). Палитра передаётся в
+`vte_terminal_set_colors`; если символа нет, VTE-путь откатывается на
+`GtkTextView`. Нет VTE — запасной `GtkTextView` с тем же вводом/выводом и
+16 цветами ANSI из выбранной схемы (остальные escape-последовательности
+не эмулируются).
 Обе ветки имеют общий интерфейс `TerminalView`, поэтому остальной код
 о режиме не знает.
 

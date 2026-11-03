@@ -21,6 +21,7 @@ use gtk4::{
 use secrecy::ExposeSecret;
 
 use crate::protocols::ssh::{HostKeyConfig, HostKeyPrompt, SshConnection};
+use crate::ui::palette::{self, Palette};
 
 const PROMPT_MS: u64 = 10;
 const BASE_FONT_PX: f64 = 12.0;
@@ -38,6 +39,7 @@ pub struct TerminalTab {
 pub struct TerminalExtras {
     pub expect_rules: Vec<crate::expect::Rule>,
     pub snippets: Vec<crate::db::repository::SnippetRow>,
+    pub palette: Palette,
 }
 
 enum ToThread {
@@ -80,6 +82,27 @@ mod vte_dynamic {
     type TerminalCopyClipboard = unsafe extern "C" fn(GObjectPtr, c_int);
     type TerminalGetCharWidth = unsafe extern "C" fn(GObjectPtr) -> c_long;
     type TerminalGetCharHeight = unsafe extern "C" fn(GObjectPtr) -> c_long;
+    type TerminalSetColors =
+        unsafe extern "C" fn(GObjectPtr, *const Rgba, *const Rgba, *const Rgba, usize);
+
+    /// `GdkRGBA`: четыре `float` подряд.
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct Rgba {
+        red: f32,
+        green: f32,
+        blue: f32,
+        alpha: f32,
+    }
+
+    fn rgba((r, g, b): (u8, u8, u8)) -> Rgba {
+        Rgba {
+            red: f32::from(r) / 255.0,
+            green: f32::from(g) / 255.0,
+            blue: f32::from(b) / 255.0,
+            alpha: 1.0,
+        }
+    }
 
     /// `VTE_FORMAT_TEXT` из `enum VteFormat`.
     const VTE_FORMAT_TEXT: c_int = 1;
@@ -94,6 +117,7 @@ mod vte_dynamic {
         copy_clipboard: TerminalCopyClipboard,
         char_width: TerminalGetCharWidth,
         char_height: TerminalGetCharHeight,
+        set_colors: TerminalSetColors,
     }
 
     // Библиотека используется только из главного потока GTK.
@@ -138,6 +162,7 @@ mod vte_dynamic {
         );
         let char_width = sym!(b"vte_terminal_get_char_width\0", TerminalGetCharWidth);
         let char_height = sym!(b"vte_terminal_get_char_height\0", TerminalGetCharHeight);
+        let set_colors = sym!(b"vte_terminal_set_colors\0", TerminalSetColors);
 
         Some(Api {
             _lib: lib,
@@ -148,6 +173,7 @@ mod vte_dynamic {
             copy_clipboard,
             char_width,
             char_height,
+            set_colors,
         })
     }
 
@@ -207,6 +233,24 @@ mod vte_dynamic {
             unsafe { (self.api.copy_clipboard)(self.raw(), VTE_FORMAT_TEXT) }
         }
 
+        /// Задаёт фон, основной текст и 16 цветов ANSI.
+        pub fn set_colors(&self, palette: &crate::ui::palette::Palette) {
+            let foreground = rgba(palette.foreground);
+            let background = rgba(palette.background);
+            let ansi: Vec<Rgba> = palette.ansi.iter().copied().map(rgba).collect();
+            // SAFETY: терминал жив; указатели валидны на время вызова,
+            // GdkRGBA имеет тот же layout, что и наша структура.
+            unsafe {
+                (self.api.set_colors)(
+                    self.raw(),
+                    &foreground,
+                    &background,
+                    ansi.as_ptr(),
+                    ansi.len(),
+                );
+            }
+        }
+
         pub fn char_size(&self) -> (i32, i32) {
             // SAFETY: терминал жив.
             unsafe {
@@ -227,6 +271,8 @@ struct TerminalView {
     base_font_px: f64,
     /// Текущее оформление вывода (цвет и начертание) для запасного терминала.
     ansi: std::cell::Cell<AnsiState>,
+    /// Палитра фона, текста и ANSI-цветов.
+    palette: Palette,
 }
 
 /// Оформление вывода терминала: цвет символов и жирное начертание.
@@ -249,43 +295,23 @@ pub struct Segment {
     pub bold: bool,
 }
 
-/// Базовые цвета ANSI для тёмной темы.
-const ANSI_BASE: [(u8, u8, u8); 8] = [
-    (0x2e, 0x2e, 0x3a), // чёрный
-    (0xe8, 0x5c, 0x5c), // красный
-    (0x6f, 0xd0, 0x6f), // зелёный
-    (0xe0, 0xc0, 0x60), // жёлтый
-    (0x6f, 0xa8, 0xe8), // синий
-    (0xc8, 0x7f, 0xe0), // пурпурный
-    (0x60, 0xd0, 0xd0), // голубой
-    (0xd0, 0xd0, 0xd0), // белый
-];
-
 /// Переводит 8-битный цвет в 16-битный.
 fn rgb16(r: u8, g: u8, b: u8) -> (u16, u16, u16) {
     (u16::from(r) * 257, u16::from(g) * 257, u16::from(b) * 257)
 }
 
-/// Базовый цвет ANSI (0..7) или светлый вариант (8..15).
-fn ansi_color(index: u32, bright: bool) -> (u16, u16, u16) {
-    let (r, g, b) = ANSI_BASE[(index as usize) % 8];
-    let boost = if bright { 0x30 } else { 0 };
-    rgb16(
-        r.saturating_add(boost),
-        g.saturating_add(boost),
-        b.saturating_add(boost),
-    )
+/// Базовый цвет ANSI (0..7) или яркий вариант (8..15) из палитры.
+fn ansi_color(index: u32, bright: bool, palette: &Palette) -> (u16, u16, u16) {
+    let slot = (index as usize % 8) + if bright { 8 } else { 0 };
+    let (r, g, b) = palette.ansi[slot];
+    rgb16(r, g, b)
 }
 
 /// Цвет из палитры xterm-256.
-fn xterm256(index: u8) -> (u16, u16, u16) {
-    if index < 8 {
-        let (r, g, b) = ANSI_BASE[index as usize];
+fn xterm256(index: u8, palette: &Palette) -> (u16, u16, u16) {
+    // Первые 16 цветов задаются схемой терминала.
+    if let Some(&(r, g, b)) = palette.ansi.get(index as usize) {
         return rgb16(r, g, b);
-    }
-    if index < 16 {
-        let (r, g, b) = ANSI_BASE[(index - 8) as usize];
-        return rgb16(r + 0x30, g + 0x30, b + 0x30);
     }
     if index < 232 {
         const STEPS: [u8; 6] = [0, 95, 135, 175, 215, 255];
@@ -297,7 +323,7 @@ fn xterm256(index: u8) -> (u16, u16, u16) {
 }
 
 /// Применяет последовательность SGR (параметры без `ESC[` и `m`).
-fn apply_sgr(mut state: AnsiState, params: &str) -> AnsiState {
+fn apply_sgr(mut state: AnsiState, params: &str, palette: &Palette) -> AnsiState {
     let parts: Vec<&str> = params.split(';').collect();
     let mut i = 0;
     while i < parts.len() {
@@ -306,13 +332,13 @@ fn apply_sgr(mut state: AnsiState, params: &str) -> AnsiState {
             0 => state = AnsiState::default(),
             1 => state.bold = true,
             22 => state.bold = false,
-            30..=37 => state.color = Some(ansi_color(code - 30, false)),
-            90..=97 => state.color = Some(ansi_color(code - 90, true)),
+            30..=37 => state.color = Some(ansi_color(code - 30, false, palette)),
+            90..=97 => state.color = Some(ansi_color(code - 90, true, palette)),
             39 => state.color = None,
             38 => {
                 if parts.get(i + 1) == Some(&"5") {
                     if let Some(n) = parts.get(i + 2).and_then(|v| v.parse::<u8>().ok()) {
-                        state.color = Some(xterm256(n));
+                        state.color = Some(xterm256(n, palette));
                     }
                     i += 2;
                 } else if parts.get(i + 1) == Some(&"2") {
@@ -376,6 +402,11 @@ fn flush_text(view: &TextView, end: &mut gtk4::TextIter, text: &mut Vec<u8>, sta
 /// `state` — текущее оформление (оно сохраняется между вызовами, поэтому
 /// цвет, заданный в одной части потока, действует и в следующей).
 pub fn parse_ansi(data: &[u8], state: &mut AnsiState) -> Vec<Segment> {
+    parse_ansi_with_palette(data, state, &palette::DARK)
+}
+
+/// То же, но с явной палитрой терминала (для ANSI-цветов 0..15).
+fn parse_ansi_with_palette(data: &[u8], state: &mut AnsiState, palette: &Palette) -> Vec<Segment> {
     let mut segments: Vec<Segment> = Vec::new();
     let mut text: Vec<u8> = Vec::with_capacity(data.len());
     let mut iter = data.iter().copied().peekable();
@@ -395,7 +426,7 @@ pub fn parse_ansi(data: &[u8], state: &mut AnsiState) -> Vec<Segment> {
                         params.push(b as char);
                     }
                     push_segment(&mut segments, &mut text, *state);
-                    *state = apply_sgr(*state, &params);
+                    *state = apply_sgr(*state, &params, palette);
                     continue;
                 }
                 if iter.peek() == Some(&b']') {
@@ -452,9 +483,9 @@ fn push_segment(segments: &mut Vec<Segment>, text: &mut Vec<u8>, state: AnsiStat
 }
 
 /// Разбирает поток с ANSI-последовательностями и выводит текст с цветами.
-fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>) {
+fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>, palette: &Palette) {
     let mut current = state.get();
-    let segments = parse_ansi(data, &mut current);
+    let segments = parse_ansi_with_palette(data, &mut current, palette);
     state.set(current);
 
     let buffer = view.buffer();
@@ -498,11 +529,12 @@ enum Kind {
 
 impl TerminalView {
     /// Создаёт терминал внутри `scroll`: VTE, если библиотека доступна.
-    fn new(scroll: &ScrolledWindow, font_size: i64) -> Self {
+    fn new(scroll: &ScrolledWindow, font_size: i64, palette: Palette) -> Self {
         let base_font_px = (font_size.clamp(8, 32) as f64).max(8.0);
         // Масштаб VTE приводим к базовому размеру шрифта.
         let scale = (base_font_px / BASE_FONT_PX).clamp(0.5, 3.0);
         if let Some(vte) = vte_dynamic::Terminal::new() {
+            vte.set_colors(&palette);
             let widget = vte.widget().clone();
             scroll.set_child(Some(&widget));
             return Self {
@@ -511,6 +543,7 @@ impl TerminalView {
                 scale: std::cell::Cell::new(scale),
                 base_font_px,
                 ansi: std::cell::Cell::new(AnsiState::default()),
+                palette,
             };
         }
 
@@ -522,7 +555,7 @@ impl TerminalView {
         view.add_css_class("remotix-terminal");
         view.set_wrap_mode(gtk4::WrapMode::Char);
         let provider = CssProvider::new();
-        apply_text_style(&view, &provider, 1.0, base_font_px);
+        apply_text_style(&view, &provider, 1.0, base_font_px, &palette);
         scroll.set_child(Some(&view));
         let widget = view.clone().upcast::<gtk4::Widget>();
         Self {
@@ -531,6 +564,7 @@ impl TerminalView {
             scale: std::cell::Cell::new(1.0),
             base_font_px,
             ansi: std::cell::Cell::new(AnsiState::default()),
+            palette,
         }
     }
 
@@ -550,7 +584,7 @@ impl TerminalView {
             Kind::Text { view, .. } => {
                 // ANSI-последовательности разбираются и превращаются в цвет
                 // и начертание символов.
-                feed_ansi(view, data, &self.ansi);
+                feed_ansi(view, data, &self.ansi, &self.palette);
             }
         }
     }
@@ -563,7 +597,7 @@ impl TerminalView {
             Kind::Vte(term) => term.set_font_scale(next),
             Kind::Text { view, provider } => {
                 let base = self.base_font_px;
-                apply_text_style(view, provider, next, base)
+                apply_text_style(view, provider, next, base, &self.palette)
             }
         }
     }
@@ -610,9 +644,23 @@ impl TerminalView {
 }
 
 /// Применяет моноширинный шрифт нужного размера к резервному TextView.
-fn apply_text_style(view: &TextView, provider: &CssProvider, scale: f64, base_font_px: f64) {
+fn apply_text_style(
+    view: &TextView,
+    provider: &CssProvider,
+    scale: f64,
+    base_font_px: f64,
+    palette: &Palette,
+) {
     let size = (base_font_px * scale).round() as i32;
-    let css = format!("textview {{ font-family: monospace; font-size: {size}px; }}");
+    let (br, bg, bb) = palette.background;
+    let (fr, fg, fb) = palette.foreground;
+    let css = format!(
+        "textview.remotix-terminal {{ \
+             font-family: monospace; font-size: {size}px; \
+             background-color: #{br:02x}{bg:02x}{bb:02x}; \
+             color: #{fr:02x}{fg:02x}{fb:02x}; \
+         }}"
+    );
     provider.load_from_data(&css);
     #[allow(deprecated)]
     view.style_context()
@@ -720,6 +768,7 @@ impl TerminalTab {
         let TerminalExtras {
             expect_rules,
             snippets,
+            palette,
         } = extras;
         let root = GtkBox::new(gtk4::Orientation::Vertical, 0);
 
@@ -749,7 +798,7 @@ impl TerminalTab {
         root.append(&metrics_box);
         root.append(&scroll);
 
-        let term = Rc::new(TerminalView::new(&scroll, font_size));
+        let term = Rc::new(TerminalView::new(&scroll, font_size, palette));
 
         let (tx_in, rx_in) = mpsc::channel::<ToThread>();
         let (tx_out, rx_out) = mpsc::channel::<ToUi>();
@@ -1246,6 +1295,14 @@ mod tests {
         assert_eq!(r, 0xffff, "красный канал");
         assert_eq!(g, 0x0000);
         assert_eq!(b, 0x0000);
+    }
+
+    #[test]
+    fn ansi_color_uses_terminal_palette() {
+        let mut state = AnsiState::default();
+        let segs = parse_ansi_with_palette(b"\x1b[31mX", &mut state, &palette::SOLARIZED);
+        let (r, g, b) = segs[0].color.expect("цвет задан");
+        assert_eq!((r, g, b), (220 * 257, 50 * 257, 47 * 257));
     }
 
     #[test]
