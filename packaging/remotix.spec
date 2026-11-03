@@ -79,6 +79,7 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 - Проверка доступности узла, Wake-on-LAN и метрики SSH-хоста
 - Импорт подключений из CSV, группы профилей и фильтр по тегам
 - RPM: libssh2 статически встроен, системная зависимость убрана
+- libz-sys 1.1.31: устранён RUSTSEC-2026-0418
 * Tue Oct 27 2026 Remotix Team <flytimopheev@gmail.com> - 1.6.0
 - SSH: строгая проверка ключа хоста, диалог с SHA256-отпечатком, запрет
   изменённых ключей, безопасное дополнение known_hosts
