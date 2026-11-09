@@ -72,6 +72,7 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
   (xrdp security_layer=rdp, Windows «Уровень безопасности: RDP»)
 - RDP: исправлена endianness ключа в проприетарном сертификате
 - Регрессионные тесты для fallback-ключа и проприетарного сертификата
+- Безопасность: обновлён libsqlite3-sys до SQLite 3.54.1 (RUSTSEC-2026-0459)
 * Tue Nov 03 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.0
 - SSH-бастионы (jump host) через channel_direct_tcpip
 - Автоответы на вывод терминала (expect-правила с * и ?)
