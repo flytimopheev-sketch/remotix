@@ -7,7 +7,7 @@ use ironrdp_core::{Encode, WriteBuf, decode, encode_vec};
 use ironrdp_pdu::rdp::headers::BASIC_SECURITY_HEADER_SIZE;
 use ironrdp_pdu::rdpsec::{
     RdpSecurity, SEC_CLIENT_RANDOM, SEC_ENCRYPT, SEC_INFO_PKT, SEC_LICENSE_ENCRYPT_SC, SEC_LICENSE_PKT,
-    SharedSecurity, encrypt_client_random,
+    SharedSecurity, encrypt_client_random, server_public_key_der,
 };
 use ironrdp_pdu::x224::X224;
 use ironrdp_pdu::{PduHint, gcc, mcs, nego, rdp};
@@ -708,6 +708,18 @@ impl Sequence for ClientConnector {
                             .unwrap_or_else(|| Arc::new(NoopLicenseCache)),
                     );
                     license_exchange.security = self.security.clone();
+                    license_exchange.server_public_key = self.server_security.as_ref().and_then(|server_security| {
+                        if server_security.server_cert.is_empty() {
+                            return None;
+                        }
+                        match server_public_key_der(&server_security.server_cert) {
+                            Ok(public_key) => Some(public_key),
+                            Err(error) => {
+                                debug!(?error, "unable to extract fallback RDP license public key");
+                                None
+                            }
+                        }
+                    });
                     // If a PDU was read (message channel present) it is the first
                     // licensing PDU; advance the licensing sequence with it now,
                     // through the same helper the LicensingExchange state uses, so

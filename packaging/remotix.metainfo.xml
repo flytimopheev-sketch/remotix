@@ -56,6 +56,16 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.7.1" date="2026-11-09">
+      <description>
+        <p>Исправлено подключение по RDP к серверам только со Standard RDP Security.</p>
+        <ul>
+          <li>License exchange без сертификата в Server License Request (xrdp security_layer=rdp, Windows «Уровень безопасности: RDP»)</li>
+          <li>Корректная endianness ключа в проприетарном сертификате</li>
+          <li>Регрессионные тесты license exchange</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.7.0" date="2026-11-03">
       <description>
         <p>SSH-бастионы, автоматизация терминала, статистика журнала и запуск по ссылке.</p>

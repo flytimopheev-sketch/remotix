@@ -1,3 +1,5 @@
+use std::io;
+
 pub mod cert;
 
 #[cfg(test)]
@@ -26,6 +28,11 @@ const MAX_COMPANY_NAME_LEN: usize = 1024;
 const MAX_PRODUCT_ID_LEN: usize = 1024;
 
 const RSA_EXCHANGE_ALGORITHM: u32 = 1;
+
+fn strip_leading_zeros(bytes: &[u8]) -> &[u8] {
+    let start = bytes.iter().position(|&byte| byte != 0).unwrap_or(bytes.len());
+    &bytes[start..]
+}
 
 /// [2.2.2.1] Server License Request (SERVER_LICENSE_REQUEST)
 ///
@@ -131,6 +138,30 @@ impl ServerLicenseRequest {
         self.server_certificate.as_ref().map(|c| c.get_public_key()).transpose()
     }
 
+    /// Return the license-request certificate key, or `fallback_public_key`
+    /// when the server omitted its certificate.
+    ///
+    /// [MS-RDPELE] 2.2.2.1 allows the server to set the certificate BLOB length
+    /// to zero when encryption is already in effect. The client then uses the
+    /// public key from the server certificate in Server Security Data.
+    ///
+    /// [MS-RDPELE]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpele/e17772e9-9642-4bb6-a2bc-82875dd6da7c
+    pub fn get_public_key_with_fallback(
+        &self,
+        fallback_public_key: Option<&[u8]>,
+    ) -> Result<Vec<u8>, ServerLicenseError> {
+        match self.get_public_key()? {
+            Some(public_key) => Ok(public_key),
+            None => fallback_public_key.map(Vec::from).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "attempted to retrieve the server public key from a server license request message that does not have a certificate",
+                )
+                .into()
+            }),
+        }
+    }
+
     pub fn name(&self) -> &'static str {
         Self::NAME
     }
@@ -220,11 +251,18 @@ impl ServerCertificate {
 
         match &self.certificate {
             CertificateType::Proprietary(certificate) => {
-                let public_exponent = certificate.public_key.public_exponent.to_le_bytes();
+                // The RDP wire stores the modulus little-endian (and includes
+                // 8 zero padding bytes); DER expects a big-endian INTEGER.
+                let mut modulus = certificate.public_key.modulus.clone();
+                modulus.reverse();
+                let modulus = strip_leading_zeros(&modulus);
+
+                let public_exponent = certificate.public_key.public_exponent.to_be_bytes();
+                let public_exponent = strip_leading_zeros(&public_exponent);
 
                 let rsa_public_key = pkcs1::RsaPublicKey {
-                    modulus: pkcs1::UintRef::new(&certificate.public_key.modulus)?,
-                    public_exponent: pkcs1::UintRef::new(&public_exponent)?,
+                    modulus: pkcs1::UintRef::new(modulus)?,
+                    public_exponent: pkcs1::UintRef::new(public_exponent)?,
                 };
 
                 let public_key = pkcs1::der::Encode::to_der(&rsa_public_key)?;

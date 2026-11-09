@@ -70,6 +70,9 @@ pub struct LicenseExchangeSequence {
     /// Standard RDP Security cryptor, carried over from the connector when the
     /// GCC exchange selected the standard path. `None` otherwise.
     pub security: Option<SharedSecurity>,
+    /// DER-encoded RSA public key from Server Security Data. Used when the
+    /// Server License Request omits its certificate (MS-RDPELE 2.2.2.1).
+    pub server_public_key: Option<Vec<u8>>,
 }
 
 // Use RefUnwindSafe so that types that embed LicenseCache remain UnwindSafe
@@ -107,6 +110,7 @@ impl LicenseExchangeSequence {
             hardware_id,
             license_cache,
             security: None,
+            server_public_key: None,
         }
     }
 
@@ -203,8 +207,9 @@ impl Sequence for LicenseExchangeSequence {
                             .transpose()?;
 
                         if let Some(info) = license_info {
-                            match server_license::ClientLicenseInfo::from_server_license_request(
+                            match server_license::ClientLicenseInfo::from_server_license_request_with_fallback_key(
                                 &license_request,
+                                self.server_public_key.as_deref(),
                                 &client_random,
                                 &premaster_secret,
                                 self.hardware_id,
@@ -235,8 +240,9 @@ impl Sequence for LicenseExchangeSequence {
                             }
                         } else {
                             let hwid = self.hardware_id;
-                            match server_license::ClientNewLicenseRequest::from_server_license_request(
+                            match server_license::ClientNewLicenseRequest::from_server_license_request_with_fallback_key(
                                 &license_request,
+                                self.server_public_key.as_deref(),
                                 &client_random,
                                 &premaster_secret,
                                 &self.username,

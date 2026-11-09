@@ -1,5 +1,3 @@
-use std::io;
-
 use byteorder::{LittleEndian, WriteBytesExt as _};
 use ironrdp_core::{
     Decode as _, DecodeResult, Encode as _, EncodeResult, ReadCursor, WriteCursor, ensure_size, invalid_field_err,
@@ -43,9 +41,25 @@ impl ClientLicenseInfo {
         hardware_data: [u32; 4],
         license_info: Vec<u8>,
     ) -> Result<(Self, LicenseEncryptionData), ServerLicenseError> {
-        let public_key = license_request.get_public_key()?
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData,
-                                          "attempted to retrieve the server public key from a server license request message that does not have a certificate"))?;
+        Self::from_server_license_request_with_fallback_key(
+            license_request,
+            None,
+            client_random,
+            premaster_secret,
+            hardware_data,
+            license_info,
+        )
+    }
+
+    pub fn from_server_license_request_with_fallback_key(
+        license_request: &ServerLicenseRequest,
+        fallback_public_key: Option<&[u8]>,
+        client_random: &[u8],
+        premaster_secret: &[u8],
+        hardware_data: [u32; 4],
+        license_info: Vec<u8>,
+    ) -> Result<(Self, LicenseEncryptionData), ServerLicenseError> {
+        let public_key = license_request.get_public_key_with_fallback(fallback_public_key)?;
         let encrypted_premaster_secret = encrypt_with_public_key(premaster_secret, &public_key)?;
 
         let master_secret = compute_master_secret(

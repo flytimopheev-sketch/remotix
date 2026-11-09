@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod tests;
 
-use std::io;
-
 use bitflags::bitflags;
 use ironrdp_core::{
     Decode as _, DecodeResult, Encode as _, EncodeResult, ReadCursor, WriteCursor, ensure_size, invalid_field_err,
@@ -64,9 +62,25 @@ impl ClientNewLicenseRequest {
         client_username: &str,
         client_machine_name: &str,
     ) -> Result<(Self, LicenseEncryptionData), ServerLicenseError> {
-        let public_key = license_request.get_public_key()?
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData,
-                                          "attempted to retrieve the server public key from a server license request message that does not have a certificate"))?;
+        Self::from_server_license_request_with_fallback_key(
+            license_request,
+            None,
+            client_random,
+            premaster_secret,
+            client_username,
+            client_machine_name,
+        )
+    }
+
+    pub fn from_server_license_request_with_fallback_key(
+        license_request: &ServerLicenseRequest,
+        fallback_public_key: Option<&[u8]>,
+        client_random: &[u8],
+        premaster_secret: &[u8],
+        client_username: &str,
+        client_machine_name: &str,
+    ) -> Result<(Self, LicenseEncryptionData), ServerLicenseError> {
+        let public_key = license_request.get_public_key_with_fallback(fallback_public_key)?;
 
         let encrypted_premaster_secret = encrypt_with_public_key(premaster_secret, &public_key)?;
 

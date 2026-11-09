@@ -392,6 +392,33 @@ pub fn encrypt_client_random(
     Ok(out)
 }
 
+/// Build a DER-encoded PKCS#1 `RSAPublicKey` from the certificate carried in
+/// Server Security Data.
+///
+/// The RDP wire stores the modulus little-endian; DER expects a big-endian
+/// INTEGER. This is the same key used for the Security Exchange PDU, reused by
+/// the licensing protocol when a Server License Request omits its certificate
+/// (MS-RDPELE 2.2.2.1).
+pub fn server_public_key_der(server_cert: &[u8]) -> Result<Vec<u8>, SecurityError> {
+    use pkcs1::der::Encode as _;
+
+    let (modulus_le, public_exponent) = server_public_key(server_cert)?;
+
+    let modulus_be: Vec<u8> = modulus_le.into_iter().rev().collect();
+    let modulus = strip_leading_zeros(&modulus_be);
+    let exponent_be = public_exponent.to_be_bytes();
+    let exponent = strip_leading_zeros(&exponent_be);
+
+    let rsa_public_key = pkcs1::RsaPublicKey {
+        modulus: pkcs1::UintRef::new(modulus).map_err(|_| SecurityError::PublicKeyEncoding)?,
+        public_exponent: pkcs1::UintRef::new(exponent).map_err(|_| SecurityError::PublicKeyEncoding)?,
+    };
+
+    rsa_public_key
+        .to_der()
+        .map_err(|_| SecurityError::PublicKeyEncoding)
+}
+
 const CERT_CHAIN_VERSION_MASK: u32 = 0x7fff_ffff;
 const CERT_CHAIN_VERSION_2: u32 = 2;
 /// A certificate chain longer than this is not something a real RDP server
@@ -527,6 +554,7 @@ pub enum SecurityError {
     CertNoPublicKey,
     CertTruncated,
     RandomTooShort,
+    PublicKeyEncoding,
 }
 
 impl core::fmt::Display for SecurityError {
@@ -535,6 +563,7 @@ impl core::fmt::Display for SecurityError {
             SecurityError::CertNoPublicKey => write!(f, "server certificate has no RSA public key"),
             SecurityError::CertTruncated => write!(f, "server certificate truncated"),
             SecurityError::RandomTooShort => write!(f, "client random shorter than modulus"),
+            SecurityError::PublicKeyEncoding => write!(f, "unable to encode server public key"),
         }
     }
 }

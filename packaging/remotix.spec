@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.7.0
+Version:        1.7.1
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
@@ -67,6 +67,11 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Mon Nov 09 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.1
+- RDP: license exchange без сертификата в Server License Request
+  (xrdp security_layer=rdp, Windows «Уровень безопасности: RDP»)
+- RDP: исправлена endianness ключа в проприетарном сертификате
+- Регрессионные тесты для fallback-ключа и проприетарного сертификата
 * Tue Nov 03 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.0
 - SSH-бастионы (jump host) через channel_direct_tcpip
 - Автоответы на вывод терминала (expect-правила с * и ?)

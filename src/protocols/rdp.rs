@@ -1056,4 +1056,46 @@ mod tests {
             }
         }
     }
+
+    /// Проверяет Standard RDP Security (RC4) и license exchange без
+    /// сертификата в `SERVER_LICENSE_REQUEST` — путь xrdp с
+    /// `security_layer=rdp`.
+    ///
+    /// Запускать вручную против такого сервера:
+    /// `cargo test connects_with_standard_rdp_security -- --ignored`.
+    #[test]
+    #[ignore = "требует xrdp с security_layer=rdp на 127.0.0.1:3389"]
+    fn connects_with_standard_rdp_security() {
+        if TcpStream::connect("127.0.0.1:3389").is_err() {
+            eprintln!("RDP-сервер на 127.0.0.1:3389 недоступен — тест пропущен");
+            return;
+        }
+
+        let mut conn = RdpConnection::new(test_profile());
+        conn.connect_with(false, false, true)
+            .expect("подключение через Standard RDP Security");
+        conn.set_nonblocking(true)
+            .expect("неблокирующий режим сокета");
+
+        let mut got_frame = false;
+        for _ in 0..100 {
+            match conn.run() {
+                Ok(true) => {
+                    got_frame = true;
+                    break;
+                }
+                Ok(false) => std::thread::sleep(Duration::from_millis(100)),
+                Err(e) => panic!("ошибка обработки кадра: {e}"),
+            }
+        }
+
+        assert!(got_frame, "кадр не получен через Standard RDP Security");
+        let size = conn
+            .image_size()
+            .expect("размер кадра должен быть известен");
+        assert!(
+            size.0 > 0 && size.1 > 0,
+            "некорректный размер кадра: {size:?}"
+        );
+    }
 }

@@ -6,9 +6,17 @@
 //! MAC и потоке RC4 (в том числе продолжение keystream между PDU).
 
 use ironrdp_pdu::gcc::{EncryptionLevel, EncryptionMethod, ServerSecurityData};
+use ironrdp_pdu::rdp::headers::{BasicSecurityHeader, BasicSecurityHeaderFlags};
+use ironrdp_pdu::rdp::server_license::cert::{
+    CertificateType, ProprietaryCertificate, RsaPublicKey,
+};
+use ironrdp_pdu::rdp::server_license::{
+    ClientNewLicenseRequest, LicenseHeader, PreambleFlags, PreambleType, PreambleVersion,
+    ProductInfo, Scope, ServerCertificate, ServerLicenseRequest,
+};
 use ironrdp_pdu::rdpsec::{
-    encrypt_client_random, RdpSecurity, ENCRYPTION_FLAG_128BIT, ENCRYPTION_FLAG_40BIT,
-    ENCRYPTION_FLAG_56BIT,
+    encrypt_client_random, server_public_key_der, RdpSecurity, ENCRYPTION_FLAG_128BIT,
+    ENCRYPTION_FLAG_40BIT, ENCRYPTION_FLAG_56BIT,
 };
 use ironrdp_pdu::{decode, encode_vec};
 
@@ -34,6 +42,64 @@ const V1_EXPECTED: &[u8] = include_bytes!("fixtures/rdp_v1_expected.bin");
 /// терминальный сертификат — последний в цепочке.
 const V2_CHAIN: &[u8] = include_bytes!("fixtures/rdp_v2_chain.bin");
 const V2_EXPECTED: &[u8] = include_bytes!("fixtures/rdp_v2_expected.bin");
+
+const PREMASTER_SECRET: [u8; 48] = [0x5a; 48];
+
+fn license_request_without_certificate() -> ServerLicenseRequest {
+    ServerLicenseRequest {
+        license_header: LicenseHeader {
+            security_header: BasicSecurityHeader {
+                flags: BasicSecurityHeaderFlags::LICENSE_PKT,
+            },
+            preamble_message_type: PreambleType::LicenseRequest,
+            preamble_flags: PreambleFlags::empty(),
+            preamble_version: PreambleVersion::V3,
+            preamble_message_size: 0,
+        },
+        server_random: vec![0x22; 32],
+        product_info: ProductInfo {
+            version: 0x60000,
+            company_name: "xrdp".to_owned(),
+            product_id: "xrdp".to_owned(),
+        },
+        server_certificate: None,
+        scope_list: vec![Scope("microsoft.com".to_owned())],
+    }
+}
+
+/// Licensing encrypts the premaster secret with raw RSA (little-endian) and
+/// appends eight zero bytes. `encrypt_client_random` produces the same value
+/// padded to the modulus length, so normalize the trailing zeros before
+/// comparing.
+fn expected_license_ciphertext(reference: &[u8]) -> Vec<u8> {
+    let mut expected = reference.to_vec();
+    while expected.last() == Some(&0) {
+        expected.pop();
+    }
+    expected.extend_from_slice(&[0; 8]);
+    expected
+}
+
+fn proprietary_certificate_from_v1_fixture() -> ServerCertificate {
+    let rsa1 = V1_CERT
+        .windows(4)
+        .position(|window| window == b"RSA1")
+        .unwrap();
+    let key_len = u32::from_le_bytes(V1_CERT[rsa1 + 4..rsa1 + 8].try_into().unwrap()) as usize;
+    let public_exponent = u32::from_le_bytes(V1_CERT[rsa1 + 16..rsa1 + 20].try_into().unwrap());
+    let modulus = V1_CERT[rsa1 + 20..rsa1 + 20 + key_len].to_vec();
+
+    ServerCertificate {
+        issued_permanently: false,
+        certificate: CertificateType::Proprietary(ProprietaryCertificate {
+            public_key: RsaPublicKey {
+                public_exponent,
+                modulus,
+            },
+            signature: Vec::new(),
+        }),
+    }
+}
 
 #[test]
 fn differential_against_reference() {
@@ -104,4 +170,69 @@ fn encrypt_client_random_x509_chain() {
 fn encrypt_client_random_rejects_certificate_without_key() {
     let cert = vec![0u8; 2048];
     assert!(encrypt_client_random(&cert, &CLIENT_RANDOM).is_err());
+}
+
+#[test]
+fn license_request_without_certificate_uses_proprietary_server_security_key() {
+    let request = license_request_without_certificate();
+    let fallback_public_key = server_public_key_der(V1_CERT).expect("V1 public key");
+
+    let (pdu, _) = ClientNewLicenseRequest::from_server_license_request_with_fallback_key(
+        &request,
+        Some(&fallback_public_key),
+        &CLIENT_RANDOM,
+        &PREMASTER_SECRET,
+        "tester",
+        "HOST",
+    )
+    .expect("client new license request");
+
+    let reference = encrypt_client_random(V1_CERT, &PREMASTER_SECRET).unwrap();
+    assert_eq!(
+        pdu.encrypted_premaster_secret,
+        expected_license_ciphertext(&reference)
+    );
+}
+
+#[test]
+fn license_request_without_certificate_uses_x509_server_security_key() {
+    let request = license_request_without_certificate();
+    let fallback_public_key = server_public_key_der(V2_CHAIN).expect("V2 public key");
+
+    let (pdu, _) = ClientNewLicenseRequest::from_server_license_request_with_fallback_key(
+        &request,
+        Some(&fallback_public_key),
+        &CLIENT_RANDOM,
+        &PREMASTER_SECRET,
+        "tester",
+        "HOST",
+    )
+    .expect("client new license request");
+
+    let reference = encrypt_client_random(V2_CHAIN, &PREMASTER_SECRET).unwrap();
+    assert_eq!(
+        pdu.encrypted_premaster_secret,
+        expected_license_ciphertext(&reference)
+    );
+}
+
+#[test]
+fn proprietary_license_certificate_uses_wire_endianness() {
+    let mut request = license_request_without_certificate();
+    request.server_certificate = Some(proprietary_certificate_from_v1_fixture());
+
+    let (pdu, _) = ClientNewLicenseRequest::from_server_license_request(
+        &request,
+        &CLIENT_RANDOM,
+        &PREMASTER_SECRET,
+        "tester",
+        "HOST",
+    )
+    .expect("client new license request");
+
+    let reference = encrypt_client_random(V1_CERT, &PREMASTER_SECRET).unwrap();
+    assert_eq!(
+        pdu.encrypted_premaster_secret,
+        expected_license_ciphertext(&reference)
+    );
 }
