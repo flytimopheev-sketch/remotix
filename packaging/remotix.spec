@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.7.1
+Version:        1.7.2
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
@@ -67,6 +67,16 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Thu Nov 12 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.2
+- RDP: перепаковка bitmap-строк с padding (xrdp) — без диагональных полос
+- RDP: правильный порядок каналов BGRA для cairo (ARgb32)
+- RDP: диалог учётных данных, ранняя проверка логина, без дублей ошибок
+- RDP: NLA через HYBRID без HYBRID_EX (совместимость с xrdp/РЕД ОС)
+- RDP: маска кнопок мыши, перетаскивание, колесо и фокус клавиатуры
+- RDP: одиночный битый кадр не обрывает сессию (до трёх подряд)
+- Группы: созданная группа сразу видна в боковой панели
+- SSH: запасной терминал без VTE поддерживает полноэкранные приложения
+- Регрессионный тест bitmap-обновлений с дополненной шириной строки
 * Mon Nov 09 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.1
 - RDP: license exchange без сертификата в Server License Request
   (xrdp security_layer=rdp, Windows «Уровень безопасности: RDP»)

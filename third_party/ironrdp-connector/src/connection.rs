@@ -336,9 +336,11 @@ impl Sequence for ClientConnector {
                     // > If this flag is set, then the PROTOCOL_SSL (0x00000001) flag SHOULD also be set
                     // > because Transport Layer Security (TLS) is a subset of CredSSP.
                     // However, crucially, it’s not strictly required (not "MUST").
-                    // In fact, we purposefully choose to not set `PROTOCOL_SSL` unless `enable_winlogon` is `true`.
-                    // This tells the server that we are not going to accept downgrading NLA to TLS security.
-                    security_protocol.insert(nego::SecurityProtocol::HYBRID | nego::SecurityProtocol::HYBRID_EX);
+                    // Remotix advertises plain HYBRID, without HYBRID_EX: some
+                    // xrdp/Red OS builds negotiate HYBRID_EX but then close the
+                    // connection instead of sending Early User Auth Result.
+                    // HYBRID still performs full NLA/CredSSP.
+                    security_protocol.insert(nego::SecurityProtocol::HYBRID);
                 }
 
                 if security_protocol.is_standard_rdp_security() && !self.config.enable_standard_rdp_security {

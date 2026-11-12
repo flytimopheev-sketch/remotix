@@ -13,7 +13,9 @@ use gtk4::prelude::*;
 use gtk4::{cairo, gdk, glib, Box as GtkBox, Button, DrawingArea, Label, Overlay, Spinner};
 
 use crate::models::Profile;
-use crate::protocols::rdp::{RdpConnection, RdpKey};
+use crate::protocols::rdp::{
+    MouseEvent, RdpConnection, RdpKey, MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT,
+};
 use crate::protocols::Connection;
 use crate::ui::SessionState;
 
@@ -38,8 +40,9 @@ enum ToRdp {
     Mouse {
         x: u32,
         y: u32,
+        /// Маска кнопок в порядке RDP (см. `protocols::rdp::MOUSE_*`).
         buttons: u8,
-        is_move: bool,
+        event: MouseEvent,
     },
     Wheel {
         x: u32,
@@ -174,8 +177,8 @@ impl RdpViewer {
                                 x,
                                 y,
                                 buttons,
-                                is_move,
-                            } => conn.send_mouse(x, y, buttons, is_move),
+                                event,
+                            } => conn.send_mouse(x, y, buttons, event),
                             ToRdp::Wheel { x, y, delta } => conn.send_wheel(x, y, delta),
                             ToRdp::CtrlAltDel => conn.send_ctrl_alt_del(),
                         }
@@ -226,8 +229,9 @@ impl RdpViewer {
                             pixels,
                         }) => {
                             remote_size.set((width, height));
-                            // Кадр приходит в формате RGBA32; для cairo это
-                            // ARGB32 (альфа непрозрачная, так что разницы нет).
+                            // Кадр приходит в формате BGRA32 (BgrA32) — это
+                            // нативный порядок байтов cairo ARgb32, поэтому
+                            // буфер отдаётся в ImageSurface без конвертации.
                             let surface = cairo::ImageSurface::create_for_data(
                                 pixels,
                                 cairo::Format::ARgb32,
@@ -253,6 +257,13 @@ impl RdpViewer {
                             match &state {
                                 SessionState::Connected => {
                                     spinner.set_spinning(false);
+                                    // После подключения сразу отдаём фокус
+                                    // экрану, чтобы клавиатура работала без
+                                    // обязательного первого клика.
+                                    let area = area.clone();
+                                    glib::idle_add_local_once(move || {
+                                        area.grab_focus();
+                                    });
                                 }
                                 SessionState::Failed(e) => {
                                     spinner.set_spinning(false);
@@ -293,22 +304,35 @@ impl RdpViewer {
         }
 
         // ---------------- Мышь ----------------
+        // DrawingArea по умолчанию не получает фокус клавиатуры; без этого
+        // клавиши после клика уходили в никуда. Запоминаем и позицию курсора:
+        // событие колеса не содержит координат, а раньше они всегда были (0,0).
+        area.set_focusable(true);
+        area.set_can_focus(true);
+        let pressed = Rc::new(Cell::new(0u8));
+        let pointer = Rc::new(Cell::new((0.0f64, 0.0f64)));
+
         {
             let tx = tx_rdp.clone();
             let area_ref = area.clone();
             let remote_size = remote_size.clone();
+            let pressed = pressed.clone();
+            let pointer = pointer.clone();
             let controller = gtk4::EventControllerMotion::new();
             controller.connect_motion(move |_, x, y| {
+                pointer.set((x, y));
                 let (rw, rh) = remote_size.get();
                 if rw == 0 || rh == 0 {
                     return;
                 }
                 let (rx, ry) = map_coordinates(&area_ref, x, y, rw, rh);
+                // Движение с зажатой кнопкой — это drag: маска кнопок должна
+                // оставаться в событии, иначе сервер не тянет окно/выделение.
                 let _ = tx.send(ToRdp::Mouse {
                     x: rx,
                     y: ry,
-                    buttons: 0,
-                    is_move: true,
+                    buttons: pressed.get(),
+                    event: MouseEvent::Move,
                 });
             });
             area.add_controller(controller);
@@ -318,26 +342,60 @@ impl RdpViewer {
             let tx = tx_rdp.clone();
             let area_ref = area.clone();
             let remote_size = remote_size.clone();
+            let pressed = pressed.clone();
+            let pointer = pointer.clone();
             let controller = gtk4::GestureClick::new();
             controller.set_button(0); // любая кнопка мыши
+            let tx_release = tx.clone();
+            let area_release = area_ref.clone();
+            let remote_release = remote_size.clone();
+            let pressed_release = pressed.clone();
             controller.connect_pressed(move |_, button, x, y| {
+                // Клик по удалённому экрану одновременно возвращает фокус
+                // клавиатуре: иначе после переключения вкладки клавиши не шли.
+                area_ref.grab_focus();
+                pointer.set((x, y));
+                let bit = match button {
+                    1 => MOUSE_LEFT,
+                    2 => MOUSE_MIDDLE,
+                    3 => MOUSE_RIGHT,
+                    _ => return,
+                };
                 let (rw, rh) = remote_size.get();
                 if rw == 0 || rh == 0 {
                     return;
                 }
                 let (rx, ry) = map_coordinates(&area_ref, x, y, rw, rh);
-                let buttons = match button {
-                    1 => 1u8,
-                    2 => 2,
-                    3 => 3,
-                    _ => 0,
-                };
+                pressed.set(pressed.get() | bit);
                 let _ = tx.send(ToRdp::Mouse {
                     x: rx,
                     y: ry,
-                    buttons,
-                    is_move: false,
+                    buttons: pressed.get(),
+                    event: MouseEvent::ButtonDown,
                 });
+            });
+            controller.connect_released(move |_, button, x, y| {
+                let bit = match button {
+                    1 => MOUSE_LEFT,
+                    2 => MOUSE_MIDDLE,
+                    3 => MOUSE_RIGHT,
+                    _ => return,
+                };
+                let (rw, rh) = remote_release.get();
+                if rw == 0 || rh == 0 {
+                    return;
+                }
+                let (rx, ry) = map_coordinates(&area_release, x, y, rw, rh);
+                // В событии отпускания кнопка должна остаться в маске, но без
+                // DOWN — именно так RDP понимает button-up.
+                let released = pressed_release.get() | bit;
+                let _ = tx_release.send(ToRdp::Mouse {
+                    x: rx,
+                    y: ry,
+                    buttons: released,
+                    event: MouseEvent::ButtonUp,
+                });
+                pressed_release.set(pressed_release.get() & !bit);
             });
             area.add_controller(controller);
         }
@@ -346,6 +404,7 @@ impl RdpViewer {
             let tx = tx_rdp.clone();
             let area_ref = area.clone();
             let remote_size = remote_size.clone();
+            let pointer = pointer.clone();
             let controller = gtk4::EventControllerScroll::new(
                 gtk4::EventControllerScrollFlags::VERTICAL
                     | gtk4::EventControllerScrollFlags::DISCRETE,
@@ -355,7 +414,8 @@ impl RdpViewer {
                 if rw == 0 || rh == 0 {
                     return glib::Propagation::Proceed;
                 }
-                let (rx, ry) = map_coordinates(&area_ref, 0.0, 0.0, rw, rh);
+                let (px, py) = pointer.get();
+                let (rx, ry) = map_coordinates(&area_ref, px, py, rw, rh);
                 let _ = tx.send(ToRdp::Wheel {
                     x: rx,
                     y: ry,
@@ -485,4 +545,67 @@ fn scancode_for(key: gdk::Key) -> Option<(u8, bool)> {
         _ => return None,
     };
     Some((code, extended))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Живой smoke-тест RDP-просмотрщика: X11 + xrdp на 127.0.0.1:3389.
+    ///
+    /// Запускается вручную (`--ignored`) под Xvfb. Окно висит 5 минут,
+    /// чтобы можно было проверить мышь/клавиатуру через xdotool и снять
+    /// скриншоты.
+    #[test]
+    #[ignore = "требует X11 и xrdp на 127.0.0.1:3389"]
+    fn live_rdp_ui_smoke() {
+        use crate::models::profile::{Profile, RdpOptions, SshOptions, VncOptions};
+        use crate::models::Protocol;
+        use secrecy::SecretString;
+
+        if gtk4::init().is_err() {
+            return;
+        }
+
+        let profile = Profile {
+            id: 0,
+            name: "live-rdp".to_string(),
+            protocol: Protocol::Rdp,
+            host: "127.0.0.1".to_string(),
+            port: 3389,
+            username: Some("tester".to_string()),
+            password: Some(SecretString::from("secret".to_string())),
+            ssh_key_path: None,
+            ssh_key_passphrase: None,
+            root_password: None,
+            group_id: None,
+            bastion_profile_id: None,
+            tags: vec![],
+            icon: None,
+            notes: None,
+            mac_address: None,
+            rdp_options: RdpOptions::default(),
+            vnc_options: VncOptions::default(),
+            ssh_options: SshOptions::default(),
+            created_at: 0,
+            updated_at: 0,
+            last_connected_at: None,
+        };
+
+        let window = gtk4::Window::new();
+        window.set_title(Some("remotix-live-rdp"));
+        window.set_default_size(1000, 700);
+        let on_state: Rc<dyn Fn(SessionState)> = Rc::new(|_| {});
+        let viewer = RdpViewer::new(profile, on_state);
+        window.set_child(Some(&viewer.root));
+        window.present();
+
+        let main_loop = glib::MainLoop::new(None, false);
+        let quit = main_loop.clone();
+        glib::timeout_add_seconds_local(300, move || {
+            quit.quit();
+            glib::ControlFlow::Break
+        });
+        main_loop.run();
+    }
 }

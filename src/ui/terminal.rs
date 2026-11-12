@@ -7,7 +7,7 @@
 //! терминал на `GtkTextView`: вывод команд, ввод с клавиатуры,
 //! копирование/вставка, масштаб шрифта.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Sender};
 use std::time::Duration;
@@ -15,18 +15,78 @@ use std::time::Duration;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::{
-    Box as GtkBox, Button, CssProvider, EventControllerKey, Label, MenuButton, Popover,
-    ScrolledWindow, TextView,
+    pango, Box as GtkBox, Button, CssProvider, DrawingArea, EventControllerKey,
+    EventControllerMotion, EventControllerScroll, EventControllerScrollFlags, GestureClick, Label,
+    MenuButton, Popover, PropagationPhase, ScrolledWindow, Stack, TextView,
 };
 use secrecy::ExposeSecret;
 
 use crate::protocols::ssh::{HostKeyConfig, HostKeyPrompt, SshConnection};
 use crate::ui::palette::{self, Palette};
 
+mod alt_screen;
+
+/// Отрисовка `PangoLayout` в `cairo::Context`.
+///
+/// В `pango`-крейте нет cairo-интеграции, а `pangocairo` уже является
+/// зависимостью GTK4. Небольшой extern-вызов дешевле, чем тащить ещё один
+/// Rust-крейт и пересобирать vendor.tar.
+mod pango_cairo {
+    #![allow(unsafe_code)]
+
+    use gtk4::cairo;
+    use gtk4::glib::translate::ToGlibPtr;
+    use gtk4::pango;
+
+    #[link(name = "pangocairo-1.0")]
+    extern "C" {
+        fn pango_cairo_show_layout(
+            cr: *mut cairo::ffi::cairo_t,
+            layout: *mut pango::ffi::PangoLayout,
+        );
+    }
+
+    pub fn show_layout(cr: &cairo::Context, layout: &pango::Layout) {
+        // SAFETY: оба указателя получены из живых объектов; вызов только
+        // рисует layout и не сохраняет указатели.
+        unsafe {
+            pango_cairo_show_layout(cr.to_glib_none().0, layout.to_glib_none().0);
+        }
+    }
+}
+
 const PROMPT_MS: u64 = 10;
 const BASE_FONT_PX: f64 = 12.0;
 const FONT_SCALE_MIN: f64 = 0.3;
 const FONT_SCALE_MAX: f64 = 4.0;
+
+/// Режим передачи мыши, включённый приложением через xterm mouse reporting.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum MouseMode {
+    /// Приложение мышь не запрашивало — работает выделение текста.
+    #[default]
+    Off,
+    /// X10: только нажатия кнопок.
+    X10,
+    /// 1000: нажатия и отпускания.
+    Normal,
+    /// 1002: плюс движение с зажатой кнопкой.
+    Button,
+    /// 1003: любое движение.
+    Any,
+}
+
+/// Состояние терминальных режимов, которые влияют на ввод.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct TerminalModes {
+    /// DECCKM: стрелки в режиме приложения (`ESC O A`, а не `ESC [ A`).
+    app_cursor: bool,
+    mouse: MouseMode,
+    /// 1006: SGR-кодирование координат мыши.
+    sgr_mouse: bool,
+    /// 2004: вставка обрамляется `ESC[200~` / `ESC[201~`.
+    bracketed_paste: bool,
+}
 
 /// Вкладка SSH-терминала.
 pub struct TerminalTab {
@@ -266,13 +326,17 @@ mod vte_dynamic {
 struct TerminalView {
     widget: gtk4::Widget,
     kind: Kind,
-    scale: std::cell::Cell<f64>,
+    scale: Rc<Cell<f64>>,
     /// Базовый размер шрифта терминала (в пунктах) — из настроек.
     base_font_px: f64,
     /// Текущее оформление вывода (цвет и начертание) для запасного терминала.
     ansi: std::cell::Cell<AnsiState>,
     /// Палитра фона, текста и ANSI-цветов.
     palette: Palette,
+    /// Режимы DECCKM/mouse/bracketed paste, разобранные из вывода.
+    modes: Cell<TerminalModes>,
+    /// Маршрутизатор вывода: обычный TextView или полноэкранная сетка.
+    router: RefCell<alt_screen::OutputRouter>,
 }
 
 /// Оформление вывода терминала: цвет символов и жирное начертание.
@@ -282,6 +346,9 @@ pub struct AnsiState {
     pub color: Option<(u16, u16, u16)>,
     /// Жирное начертание.
     pub bold: bool,
+    /// Предыдущий chunk закончился символом `\r`. Нужен, чтобы отличить
+    /// конец строки CRLF от возврата каретки для перерисовки строки.
+    pub pending_cr: bool,
 }
 
 /// Фрагмент вывода: текст и его оформление.
@@ -293,6 +360,10 @@ pub struct Segment {
     pub color: Option<(u16, u16, u16)>,
     /// Жирное начертание.
     pub bold: bool,
+    /// Текст начинается после возврата каретки: перед вставкой нужно
+    /// удалить текущую строку TextView (`readline` и `top` перерисовывают её
+    /// через `\r`, а не через CRLF).
+    pub clear_line: bool,
 }
 
 /// Переводит 8-битный цвет в 16-битный.
@@ -329,7 +400,11 @@ fn apply_sgr(mut state: AnsiState, params: &str, palette: &Palette) -> AnsiState
     while i < parts.len() {
         let code: u32 = parts[i].parse().unwrap_or(0);
         match code {
-            0 => state = AnsiState::default(),
+            0 => {
+                let pending_cr = state.pending_cr;
+                state = AnsiState::default();
+                state.pending_cr = pending_cr;
+            }
             1 => state.bold = true,
             22 => state.bold = false,
             30..=37 => state.color = Some(ansi_color(code - 30, false, palette)),
@@ -410,8 +485,29 @@ fn parse_ansi_with_palette(data: &[u8], state: &mut AnsiState, palette: &Palette
     let mut segments: Vec<Segment> = Vec::new();
     let mut text: Vec<u8> = Vec::with_capacity(data.len());
     let mut iter = data.iter().copied().peekable();
+    // `\r` в конце chunk не даёт понять, будет ли дальше `\n` (CRLF) или
+    // перерисовка строки. Храним его в состоянии до следующего байта.
+    let mut pending_cr = state.pending_cr;
+    state.pending_cr = false;
+    let mut clear_next = false;
 
     while let Some(byte) = iter.next() {
+        if pending_cr {
+            match byte {
+                b'\n' => pending_cr = false,
+                0x1b | 0x0d => {}
+                b'\t' | 0x08 => {
+                    clear_next = true;
+                    pending_cr = false;
+                }
+                b if b >= 0x20 => {
+                    clear_next = true;
+                    pending_cr = false;
+                }
+                _ => pending_cr = false,
+            }
+        }
+
         match byte {
             0x1b => {
                 if iter.peek() == Some(&b'[') {
@@ -425,7 +521,9 @@ fn parse_ansi_with_palette(data: &[u8], state: &mut AnsiState, palette: &Palette
                         }
                         params.push(b as char);
                     }
-                    push_segment(&mut segments, &mut text, *state);
+                    if push_segment(&mut segments, &mut text, *state, clear_next) {
+                        clear_next = false;
+                    }
                     *state = apply_sgr(*state, &params, palette);
                     continue;
                 }
@@ -444,14 +542,32 @@ fn parse_ansi_with_palette(data: &[u8], state: &mut AnsiState, palette: &Palette
                     }
                     continue;
                 }
-                // Прочие escape-последовательности — игнорируем.
-                iter.next();
+                // Двухбайтовые обозначения набора символов: ESC ( B,
+                // ESC ) 0 и т.п. Второй байт — не текст, а выбор charset.
+                match iter.peek().copied() {
+                    Some(b'(' | b')' | b'*' | b'+' | b'-' | b'.' | b'/' | b'#' | b'%') => {
+                        iter.next();
+                        iter.next();
+                    }
+                    // Прочие escape-последовательности — игнорируем.
+                    Some(_) => {
+                        iter.next();
+                    }
+                    None => {}
+                }
             }
-            0x0d => push_segment(&mut segments, &mut text, *state),
+            0x0d => {
+                if push_segment(&mut segments, &mut text, *state, clear_next) {
+                    clear_next = false;
+                }
+                pending_cr = true;
+            }
             0x07 => {}
             0x08 => {
                 // Забой — удаляем предыдущий символ.
-                push_segment(&mut segments, &mut text, *state);
+                if push_segment(&mut segments, &mut text, *state, clear_next) {
+                    clear_next = false;
+                }
                 if let Some(last) = segments.last_mut() {
                     let mut chars: Vec<char> = last.text.chars().collect();
                     chars.pop();
@@ -464,14 +580,22 @@ fn parse_ansi_with_palette(data: &[u8], state: &mut AnsiState, palette: &Palette
         }
     }
 
-    push_segment(&mut segments, &mut text, *state);
+    let _ = push_segment(&mut segments, &mut text, *state, clear_next);
+    state.pending_cr = pending_cr;
     segments
 }
 
 /// Добавляет накопленный текст в список сегментов.
-fn push_segment(segments: &mut Vec<Segment>, text: &mut Vec<u8>, state: AnsiState) {
+///
+/// Возвращает `true`, если сегмент был добавлен.
+fn push_segment(
+    segments: &mut Vec<Segment>,
+    text: &mut Vec<u8>,
+    state: AnsiState,
+    clear_line: bool,
+) -> bool {
     if text.is_empty() {
-        return;
+        return false;
     }
     let content = String::from_utf8_lossy(text).into_owned();
     text.clear();
@@ -479,7 +603,9 @@ fn push_segment(segments: &mut Vec<Segment>, text: &mut Vec<u8>, state: AnsiStat
         text: content,
         color: state.color,
         bold: state.bold,
+        clear_line,
     });
+    true
 }
 
 /// Разбирает поток с ANSI-последовательностями и выводит текст с цветами.
@@ -489,9 +615,12 @@ fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>, p
     state.set(current);
 
     let buffer = view.buffer();
-    let mut end = buffer.end_iter();
 
     for segment in segments {
+        if segment.clear_line {
+            truncate_current_line(&buffer);
+        }
+        let mut end = buffer.end_iter();
         let escaped = segment
             .text
             .replace('&', "&amp;")
@@ -516,7 +645,20 @@ fn feed_ansi(view: &TextView, data: &[u8], state: &std::cell::Cell<AnsiState>, p
         buffer.insert_markup(&mut end, &markup);
     }
 
+    let mut end = buffer.end_iter();
     view.scroll_to_iter(&mut end, 0.0, false, 0.0, 1.0);
+}
+
+/// Удаляет текущую (последнюю) строку TextView перед перерисовкой через `\r`.
+fn truncate_current_line(buffer: &gtk4::TextBuffer) {
+    let mut end = buffer.end_iter();
+    let mut start = end;
+    while !start.starts_line() {
+        if !start.backward_char() {
+            break;
+        }
+    }
+    buffer.delete(&mut start, &mut end);
 }
 
 enum Kind {
@@ -524,6 +666,10 @@ enum Kind {
     Text {
         view: TextView,
         provider: CssProvider,
+        /// Обычный TextView и полноэкранная сетка лежат в Stack.
+        stack: Stack,
+        draw: DrawingArea,
+        screen: Rc<RefCell<alt_screen::Screen>>,
     },
 }
 
@@ -532,7 +678,8 @@ impl TerminalView {
     fn new(scroll: &ScrolledWindow, font_size: i64, palette: Palette) -> Self {
         let base_font_px = (font_size.clamp(8, 32) as f64).max(8.0);
         // Масштаб VTE приводим к базовому размеру шрифта.
-        let scale = (base_font_px / BASE_FONT_PX).clamp(0.5, 3.0);
+        let scale_value = (base_font_px / BASE_FONT_PX).clamp(0.5, 3.0);
+        let scale = Rc::new(Cell::new(scale_value));
         if let Some(vte) = vte_dynamic::Terminal::new() {
             vte.set_colors(&palette);
             let widget = vte.widget().clone();
@@ -540,31 +687,70 @@ impl TerminalView {
             return Self {
                 widget,
                 kind: Kind::Vte(vte),
-                scale: std::cell::Cell::new(scale),
+                scale,
                 base_font_px,
-                ansi: std::cell::Cell::new(AnsiState::default()),
+                ansi: Cell::new(AnsiState::default()),
                 palette,
+                modes: Cell::new(TerminalModes::default()),
+                router: RefCell::new(alt_screen::OutputRouter::new()),
             };
         }
 
-        // Запасной вариант: простой терминал на GtkTextView.
+        // Запасной вариант: TextView для обычного вывода + DrawingArea для
+        // полноэкранных приложений (mc/vim/top). Без второй страницы
+        // TextView не умеет cursor addressing и `mc` выглядит «мёртвым».
         let view = TextView::new();
         view.set_editable(false);
         view.set_cursor_visible(false);
         view.set_monospace(true);
+        view.set_focusable(true);
+        view.set_can_focus(true);
         view.add_css_class("remotix-terminal");
         view.set_wrap_mode(gtk4::WrapMode::Char);
         let provider = CssProvider::new();
         apply_text_style(&view, &provider, 1.0, base_font_px, &palette);
-        scroll.set_child(Some(&view));
-        let widget = view.clone().upcast::<gtk4::Widget>();
+
+        let screen = Rc::new(RefCell::new(alt_screen::Screen::new(80, 24)));
+        let draw = DrawingArea::new();
+        draw.set_hexpand(true);
+        draw.set_vexpand(true);
+        draw.set_focusable(true);
+        draw.set_can_focus(true);
+        draw.add_css_class("remotix-terminal-alt");
+
+        {
+            let screen = screen.clone();
+            let scale = scale.clone();
+            draw.set_draw_func(move |area, cr, width, height| {
+                let screen = screen.borrow();
+                let font_px = base_font_px * scale.get();
+                render_alt_screen(area, cr, width, height, &screen, &palette, font_px);
+            });
+        }
+
+        let stack = Stack::new();
+        stack.set_hexpand(true);
+        stack.set_vexpand(true);
+        stack.add_named(&view, Some("text"));
+        stack.add_named(&draw, Some("alt"));
+        stack.set_visible_child_name("text");
+        scroll.set_child(Some(&stack));
+        let widget = stack.clone().upcast::<gtk4::Widget>();
         Self {
             widget,
-            kind: Kind::Text { view, provider },
-            scale: std::cell::Cell::new(1.0),
+            kind: Kind::Text {
+                view,
+                provider,
+                stack,
+                draw,
+                screen,
+            },
+            scale,
             base_font_px,
-            ansi: std::cell::Cell::new(AnsiState::default()),
+            ansi: Cell::new(AnsiState::default()),
             palette,
+            modes: Cell::new(TerminalModes::default()),
+            router: RefCell::new(alt_screen::OutputRouter::new()),
         }
     }
 
@@ -578,13 +764,61 @@ impl TerminalView {
     }
 
     /// Выводит данные, полученные от удалённой стороны.
-    fn feed(&self, data: &[u8]) {
+    ///
+    /// Возвращает ответы терминала (например, CPR `ESC[row;colR`), которые
+    /// нужно отправить в SSH-канал. Ответы нужны полноэкранным приложениям:
+    /// без них `mc` не может определить позицию курсора.
+    fn feed(&self, data: &[u8]) -> Vec<u8> {
         match &self.kind {
-            Kind::Vte(term) => term.feed(data),
-            Kind::Text { view, .. } => {
-                // ANSI-последовательности разбираются и превращаются в цвет
-                // и начертание символов.
-                feed_ansi(view, data, &self.ansi, &self.palette);
+            Kind::Vte(term) => {
+                // VTE сам разбирает альтернативный экран, но режимы (DECCKM,
+                // mouse reporting, bracketed paste) нам нужны для ввода.
+                let _ = self.router.borrow_mut().route(data);
+                self.modes.set(self.router.borrow().modes());
+                term.feed(data);
+                Vec::new()
+            }
+            Kind::Text {
+                view,
+                stack,
+                draw,
+                screen,
+                ..
+            } => {
+                let chunks = self.router.borrow_mut().route(data);
+                self.modes.set(self.router.borrow().modes());
+                let mut responses = Vec::new();
+                let mut visible_alt = stack.visible_child_name().as_deref() == Some("alt");
+
+                for chunk in chunks {
+                    if chunk.alt != visible_alt {
+                        visible_alt = chunk.alt;
+                        if visible_alt {
+                            // Входим в полноэкранный режим: старый текст
+                            // остаётся в TextView, сетка начинается с чистого
+                            // экрана (как ?1049).
+                            screen.borrow_mut().reset();
+                            stack.set_visible_child_name("alt");
+                            draw.grab_focus();
+                        } else {
+                            stack.set_visible_child_name("text");
+                            view.grab_focus();
+                        }
+                    }
+
+                    if chunk.alt {
+                        let mut screen = screen.borrow_mut();
+                        screen.feed(&chunk.data);
+                        responses.extend_from_slice(&screen.take_responses());
+                        drop(screen);
+                        draw.queue_draw();
+                    } else {
+                        // ANSI-последовательности разбираются и превращаются
+                        // в цвет и начертание символов обычного вывода.
+                        feed_ansi(view, &chunk.data, &self.ansi, &self.palette);
+                    }
+                }
+                responses
             }
         }
     }
@@ -595,9 +829,15 @@ impl TerminalView {
         self.scale.set(next);
         match &self.kind {
             Kind::Vte(term) => term.set_font_scale(next),
-            Kind::Text { view, provider } => {
+            Kind::Text {
+                view,
+                provider,
+                draw,
+                ..
+            } => {
                 let base = self.base_font_px;
-                apply_text_style(view, provider, next, base, &self.palette)
+                apply_text_style(view, provider, next, base, &self.palette);
+                draw.queue_draw();
             }
         }
     }
@@ -606,10 +846,19 @@ impl TerminalView {
     fn copy_clipboard(&self) {
         match &self.kind {
             Kind::Vte(term) => term.copy_clipboard_text(),
-            Kind::Text { view, .. } => {
-                let buffer = view.buffer();
-                let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
-                self.widget.clipboard().set_text(&text);
+            Kind::Text {
+                view,
+                stack,
+                screen,
+                ..
+            } => {
+                if stack.visible_child_name().as_deref() == Some("alt") {
+                    self.widget.clipboard().set_text(&screen.borrow().text());
+                } else {
+                    let buffer = view.buffer();
+                    let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
+                    self.widget.clipboard().set_text(&text);
+                }
             }
         }
     }
@@ -617,11 +866,28 @@ impl TerminalView {
     /// Вставляет текст из буфера обмена в удалённую сессию.
     fn paste_clipboard(&self, tx: Sender<ToThread>) {
         let clipboard = self.widget.clipboard();
+        let bracketed = self.modes.get().bracketed_paste;
         glib::spawn_future_local(async move {
             if let Ok(Some(text)) = clipboard.read_text_future().await {
-                let _ = tx.send(ToThread::Data(text.replace('\n', "\r").into_bytes()));
+                let text = text.replace('\n', "\r");
+                let bytes = if bracketed {
+                    format!("\x1b[200~{text}\x1b[201~").into_bytes()
+                } else {
+                    text.into_bytes()
+                };
+                let _ = tx.send(ToThread::Data(bytes));
             }
         });
+    }
+
+    /// Подгоняет сетку полноэкранного терминала под размер PTY.
+    fn resize(&self, cols: u32, rows: u32) {
+        if let Kind::Text { screen, draw, .. } = &self.kind {
+            screen
+                .borrow_mut()
+                .resize(cols.max(2) as usize, rows.max(2) as usize);
+            draw.queue_draw();
+        }
     }
 
     /// Размер символа в пикселях — для расчёта колонок и строк PTY.
@@ -631,14 +897,195 @@ impl TerminalView {
                 let (w, h) = term.char_size();
                 (w.max(1), h.max(1))
             }
-            // Для TextView размер оценивается по кеглю моноширинного шрифта.
             Kind::Text { .. } => {
-                let scale = self.scale.get();
-                let base = self.base_font_px;
-                let w = (base * 0.6 * scale).round() as i32;
-                let h = (base * 1.3 * scale).round() as i32;
-                (w.max(1), h.max(1))
+                let font_px = self.base_font_px * self.scale.get();
+                measure_char(self.widget(), font_px)
             }
+        }
+    }
+
+    /// Передаёт фокус активной странице терминала.
+    fn focus(&self) {
+        match &self.kind {
+            Kind::Vte(term) => {
+                term.widget().grab_focus();
+            }
+            Kind::Text {
+                view, stack, draw, ..
+            } => {
+                if stack.visible_child_name().as_deref() == Some("alt") {
+                    draw.grab_focus();
+                } else {
+                    view.grab_focus();
+                }
+            }
+        }
+    }
+}
+
+/// Размер моноширинного символа в пикселях через Pango.
+fn measure_char(widget: &gtk4::Widget, font_px: f64) -> (i32, i32) {
+    let layout = widget.create_pango_layout(Some("MMMMMMMMMM"));
+    let mut desc = pango::FontDescription::from_string("monospace");
+    desc.set_absolute_size(font_px * f64::from(pango::SCALE));
+    layout.set_font_description(Some(&desc));
+    let (width, height) = layout.pixel_size();
+    ((width / 10).max(1), height.max(1))
+}
+
+/// Цвет ячейки в RGBA (0..1).
+fn cell_color(
+    color: alt_screen::Color,
+    palette: &Palette,
+    default: (u8, u8, u8),
+) -> (f64, f64, f64) {
+    match color {
+        alt_screen::Color::Default => (
+            f64::from(default.0) / 255.0,
+            f64::from(default.1) / 255.0,
+            f64::from(default.2) / 255.0,
+        ),
+        alt_screen::Color::Indexed(index) => {
+            let (r, g, b) = xterm256(index, palette);
+            (
+                f64::from(r) / 65535.0,
+                f64::from(g) / 65535.0,
+                f64::from(b) / 65535.0,
+            )
+        }
+        alt_screen::Color::Rgb(r, g, b) => (
+            f64::from(r) / 255.0,
+            f64::from(g) / 255.0,
+            f64::from(b) / 255.0,
+        ),
+    }
+}
+
+/// Рисует полноэкранную сетку (альтернативный экран) в `DrawingArea`.
+fn render_alt_screen(
+    area: &DrawingArea,
+    cr: &gtk4::cairo::Context,
+    width: i32,
+    height: i32,
+    screen: &alt_screen::Screen,
+    palette: &Palette,
+    font_px: f64,
+) {
+    let (char_w, char_h) = measure_char(area.upcast_ref(), font_px);
+    let (char_w, char_h) = (char_w.max(1) as f64, char_h.max(1) as f64);
+    let (br, bg, bb) = palette.background;
+    cr.set_source_rgb(
+        f64::from(br) / 255.0,
+        f64::from(bg) / 255.0,
+        f64::from(bb) / 255.0,
+    );
+    cr.rectangle(0.0, 0.0, f64::from(width), f64::from(height));
+    let _ = cr.fill();
+
+    let mut desc = pango::FontDescription::from_string("monospace");
+    desc.set_absolute_size(font_px * f64::from(pango::SCALE));
+
+    for y in 0..screen.rows() {
+        for x in 0..screen.cols() {
+            let cell = screen.cell(x, y);
+            if cell.ch == '\0' {
+                continue;
+            }
+            let style = cell.style;
+            let (_, bg_color) = if style.reverse {
+                (style.bg, style.fg)
+            } else {
+                (style.fg, style.bg)
+            };
+            let (bg_r, bg_g, bg_b) = cell_color(bg_color, palette, palette.background);
+            let default_bg = !style.reverse && bg_color == alt_screen::Color::Default;
+            if !default_bg {
+                cr.set_source_rgb(bg_r, bg_g, bg_b);
+                cr.rectangle(x as f64 * char_w, y as f64 * char_h, char_w, char_h);
+                let _ = cr.fill();
+            }
+        }
+    }
+
+    // Текстовые прогоны: рисуем подряд идущие ячейки с одинаковым стилем
+    // одним PangoLayout, чтобы не создавать layout на каждый символ.
+    for y in 0..screen.rows() {
+        let mut x = 0;
+        while x < screen.cols() {
+            let first = screen.cell(x, y);
+            if first.ch == '\0' {
+                x += 1;
+                continue;
+            }
+            let style = first.style;
+            let mut run = String::new();
+            let mut width_cells = 0;
+            while x + width_cells < screen.cols() {
+                let cell = screen.cell(x + width_cells, y);
+                if cell.ch == '\0' {
+                    width_cells += 1;
+                    continue;
+                }
+                if cell.style != style {
+                    break;
+                }
+                run.push(cell.ch);
+                width_cells += 1;
+            }
+            if run.is_empty() {
+                x += width_cells.max(1);
+                continue;
+            }
+
+            let (fg, bg) = if style.reverse {
+                (style.bg, style.fg)
+            } else {
+                (style.fg, style.bg)
+            };
+            let (fr, fg_g, fb) = cell_color(fg, palette, palette.foreground);
+            let (br, bg_g, bb) = cell_color(bg, palette, palette.background);
+            if style.reverse {
+                cr.set_source_rgb(br, bg_g, bb);
+                cr.rectangle(
+                    x as f64 * char_w,
+                    y as f64 * char_h,
+                    width_cells as f64 * char_w,
+                    char_h,
+                );
+                let _ = cr.fill();
+            }
+
+            let layout = area.create_pango_layout(Some(&run));
+            let mut desc = desc.clone();
+            if style.bold {
+                desc.set_weight(pango::Weight::Bold);
+            }
+            layout.set_font_description(Some(&desc));
+            cr.set_source_rgb(fr, fg_g, fb);
+            cr.move_to(x as f64 * char_w, y as f64 * char_h);
+            pango_cairo::show_layout(cr, &layout);
+            if style.underline {
+                let underline_y = (y as f64 + 1.0) * char_h - 1.0;
+                cr.set_line_width(1.0);
+                cr.move_to(x as f64 * char_w, underline_y);
+                cr.line_to((x + width_cells) as f64 * char_w, underline_y);
+                let _ = cr.stroke();
+            }
+            x += width_cells.max(1);
+        }
+    }
+
+    if screen.cursor_visible() {
+        let (cx, cy) = screen.cursor();
+        if cx < screen.cols() && cy < screen.rows() {
+            let (fr, fg, fb) = palette.foreground;
+            cr.set_source_rgb(
+                f64::from(fr) / 255.0,
+                f64::from(fg) / 255.0,
+                f64::from(fb) / 255.0,
+            );
+            cr.rectangle(cx as f64 * char_w, cy as f64 * char_h, char_w, char_h);
+            let _ = cr.fill();
         }
     }
 }
@@ -1012,6 +1459,7 @@ impl TerminalTab {
 
         // Опрос вывода канала (главный поток) → кормим терминал.
         let term_out = term.clone();
+        let tx_responses = tx_in.clone();
         let status = Label::new(None);
         status.set_halign(gtk4::Align::Start);
         let status_out = status.clone();
@@ -1026,7 +1474,12 @@ impl TerminalTab {
         glib::timeout_add_local(Duration::from_millis(PROMPT_MS), move || {
             loop {
                 match rx_out.try_recv() {
-                    Ok(ToUi::Out(data)) => term_out.feed(&data),
+                    Ok(ToUi::Out(data)) => {
+                        let responses = term_out.feed(&data);
+                        if !responses.is_empty() {
+                            let _ = tx_responses.send(ToThread::Data(responses));
+                        }
+                    }
                     Ok(ToUi::Metrics(m)) => {
                         if let Some(cpu) = m.cpu_percent {
                             metrics_bar_out.set_value(cpu.clamp(0.0, 100.0));
@@ -1115,6 +1568,10 @@ impl TerminalTab {
         }
 
         setup_input(&term, &scroll, tx_in);
+        // Вкладка создаётся до показа в окне; фокус выдаём, когда виджет
+        // уже прикреплён к окну, иначе клавиатура не работает до клика.
+        let term_focus = term.clone();
+        glib::idle_add_local_once(move || term_focus.focus());
         Ok(Self {
             root,
             title: title.to_string(),
@@ -1122,88 +1579,236 @@ impl TerminalTab {
     }
 }
 
-/// Ввод с клавиатуры: буквы/символы → UTF-8, служебные клавиши → escape-
-/// последовательности, Ctrl+буква → управляющий байт. Плюс горячие клавиши
-/// терминала: Ctrl+Shift+C/V (копия/вставка), Ctrl+«+»/«-» (масштаб шрифта).
-fn setup_input(term: &Rc<TerminalView>, scroll: &ScrolledWindow, tx_in: Sender<ToThread>) {
-    use gtk4::gdk::ModifierType;
+/// Управляющий байт для Ctrl+символ.
+fn ctrl_byte(ch: char) -> Option<u8> {
+    let ch = ch.to_ascii_lowercase();
+    match ch {
+        'a'..='z' => Some(ch as u8 - b'a' + 1),
+        '[' => Some(0x1b),
+        '\\' => Some(0x1c),
+        ']' => Some(0x1d),
+        '^' => Some(0x1e),
+        '_' => Some(0x1f),
+        '@' | ' ' => Some(0x00),
+        '?' => Some(0x7f),
+        _ => None,
+    }
+}
 
-    let controller = EventControllerKey::new();
-    let term_ref = term.clone();
-    let tx_key = tx_in.clone();
-    controller.connect_key_pressed(move |_, keyval, _code, state| {
-        let ctrl = state.contains(ModifierType::CONTROL_MASK);
-        let shift = state.contains(ModifierType::SHIFT_MASK);
+/// Кодирует клавишу в байты для удалённого PTY.
+///
+/// `name` — имя GDK (`Up`, `F5`, `Return`…), `unicode` — печатный символ.
+/// Функция не зависит от GTK, поэтому покрыта обычными unit-тестами.
+fn encode_key_parts(
+    name: Option<&str>,
+    unicode: Option<char>,
+    ctrl: bool,
+    alt: bool,
+    shift: bool,
+    modes: TerminalModes,
+) -> Option<Vec<u8>> {
+    // AltGr в X11 часто приходит как Ctrl+Alt. Если при этом есть печатный
+    // символ, это не Ctrl+Alt+буква, а обычный ввод (например, «@»).
+    let altgr_text = ctrl && alt && unicode.map(|ch| !ch.is_ascii_control()).unwrap_or(false);
+    let (ctrl, alt) = if altgr_text {
+        (false, false)
+    } else {
+        (ctrl, alt)
+    };
 
-        if ctrl && shift {
-            match keyval.name().as_deref() {
-                Some("c") => {
-                    term_ref.copy_clipboard();
-                    return glib::Propagation::Stop;
-                }
-                Some("v") => {
-                    term_ref.paste_clipboard(tx_key.clone());
-                    return glib::Propagation::Stop;
-                }
-                _ => {}
-            }
+    let modifier =
+        1 + if shift { 1 } else { 0 } + if alt { 2 } else { 0 } + if ctrl { 4 } else { 0 };
+    let modified = |base: &str, final_byte: char| -> Vec<u8> {
+        if modifier == 1 {
+            base.as_bytes().to_vec()
+        } else {
+            format!("\x1b[1;{modifier}{final_byte}").into_bytes()
         }
-        if ctrl && !shift {
-            match keyval.name().as_deref() {
-                Some("plus") | Some("equal") => {
-                    term_ref.zoom(1.1);
-                    return glib::Propagation::Stop;
-                }
-                Some("minus") => {
-                    term_ref.zoom(1.0 / 1.1);
-                    return glib::Propagation::Stop;
-                }
-                _ => {}
-            }
-        }
+    };
 
-        let bytes: Vec<u8> = match keyval.name().as_deref() {
-            Some("Return") | Some("KP_Enter") => b"\r".to_vec(),
-            Some("BackSpace") => b"\x7f".to_vec(),
-            Some("Tab") | Some("ISO_Left_Tab") => b"\t".to_vec(),
-            Some("Escape") => b"\x1b".to_vec(),
-            Some("Up") => b"\x1b[A".to_vec(),
-            Some("Down") => b"\x1b[B".to_vec(),
-            Some("Right") => b"\x1b[C".to_vec(),
-            Some("Left") => b"\x1b[D".to_vec(),
-            Some("Home") => b"\x1b[H".to_vec(),
-            Some("End") => b"\x1b[F".to_vec(),
-            Some("Delete") => b"\x1b[3~".to_vec(),
-            _ => {
-                if ctrl {
-                    // Ctrl+буква → управляющий символ (Ctrl+C = 0x03 и т.д.)
-                    keyval
-                        .to_unicode()
-                        .filter(|c| c.is_ascii_alphabetic())
-                        .map(|c| vec![c.to_ascii_uppercase() as u8 - b'A' + 1])
-                        .unwrap_or_default()
-                } else {
-                    keyval
-                        .to_unicode()
-                        .map(|c| c.to_string().into_bytes())
-                        .unwrap_or_default()
-                }
-            }
-        };
-        if bytes.is_empty() {
-            return glib::Propagation::Proceed;
-        }
-        let _ = tx_key.send(ToThread::Data(bytes));
-        glib::Propagation::Stop
-    });
-    term.widget().add_controller(controller);
+    let special = match name {
+        Some("Return") | Some("KP_Enter") => Some(if alt {
+            b"\x1b\r".to_vec()
+        } else {
+            b"\r".to_vec()
+        }),
+        Some("BackSpace") => Some(if ctrl {
+            b"\x08".to_vec()
+        } else {
+            b"\x7f".to_vec()
+        }),
+        Some("Tab") => Some(if shift {
+            b"\x1b[Z".to_vec()
+        } else if alt {
+            b"\x1b\t".to_vec()
+        } else {
+            b"\t".to_vec()
+        }),
+        Some("ISO_Left_Tab") => Some(b"\x1b[Z".to_vec()),
+        Some("Escape") => Some(if alt {
+            b"\x1b\x1b".to_vec()
+        } else {
+            b"\x1b".to_vec()
+        }),
+        Some("Up") => Some(if modifier == 1 && modes.app_cursor {
+            b"\x1bOA".to_vec()
+        } else {
+            modified("\x1b[A", 'A')
+        }),
+        Some("Down") => Some(if modifier == 1 && modes.app_cursor {
+            b"\x1bOB".to_vec()
+        } else {
+            modified("\x1b[B", 'B')
+        }),
+        Some("Right") => Some(if modifier == 1 && modes.app_cursor {
+            b"\x1bOC".to_vec()
+        } else {
+            modified("\x1b[C", 'C')
+        }),
+        Some("Left") => Some(if modifier == 1 && modes.app_cursor {
+            b"\x1bOD".to_vec()
+        } else {
+            modified("\x1b[D", 'D')
+        }),
+        Some("Home") => Some(if modifier == 1 && modes.app_cursor {
+            b"\x1bOH".to_vec()
+        } else {
+            modified("\x1b[H", 'H')
+        }),
+        Some("End") => Some(if modifier == 1 && modes.app_cursor {
+            b"\x1bOF".to_vec()
+        } else {
+            modified("\x1b[F", 'F')
+        }),
+        Some("Insert") => Some(if modifier == 1 {
+            b"\x1b[2~".to_vec()
+        } else {
+            format!("\x1b[2;{modifier}~").into_bytes()
+        }),
+        Some("Delete") => Some(if modifier == 1 {
+            b"\x1b[3~".to_vec()
+        } else {
+            format!("\x1b[3;{modifier}~").into_bytes()
+        }),
+        Some("Prior") | Some("Page_Up") => Some(if modifier == 1 {
+            b"\x1b[5~".to_vec()
+        } else {
+            format!("\x1b[5;{modifier}~").into_bytes()
+        }),
+        Some("Next") | Some("Page_Down") => Some(if modifier == 1 {
+            b"\x1b[6~".to_vec()
+        } else {
+            format!("\x1b[6;{modifier}~").into_bytes()
+        }),
+        Some("F1") => Some(f_key(1, modifier)),
+        Some("F2") => Some(f_key(2, modifier)),
+        Some("F3") => Some(f_key(3, modifier)),
+        Some("F4") => Some(f_key(4, modifier)),
+        Some("F5") => Some(f_key(5, modifier)),
+        Some("F6") => Some(f_key(6, modifier)),
+        Some("F7") => Some(f_key(7, modifier)),
+        Some("F8") => Some(f_key(8, modifier)),
+        Some("F9") => Some(f_key(9, modifier)),
+        Some("F10") => Some(f_key(10, modifier)),
+        Some("F11") => Some(f_key(11, modifier)),
+        Some("F12") => Some(f_key(12, modifier)),
+        _ => None,
+    };
+    if special.is_some() {
+        return special;
+    }
 
-    // Размер PTY при изменении размеров терминала: опрос по таймеру —
-    // сигнала size-allocate в gtk4-rs 0.9 нет, а это работает на любых
-    // версиях GTK (окно терминала меняется редко, 500 мс достаточно).
+    let ch = unicode?;
+    if ctrl {
+        if let Some(byte) = ctrl_byte(ch) {
+            return Some(if alt { vec![0x1b, byte] } else { vec![byte] });
+        }
+    }
+    let mut bytes = ch.to_string().into_bytes();
+    if alt {
+        bytes.insert(0, 0x1b);
+    }
+    Some(bytes)
+}
+
+/// Escape-последовательность функциональной клавиши F1..F12.
+fn f_key(number: u8, modifier: u32) -> Vec<u8> {
+    // F1..F4 — SS3 без модификаторов, F5..F12 — CSI.
+    let code = match number {
+        1..=4 => b"PQRS"[usize::from(number - 1)] as char,
+        _ => {
+            let code = match number {
+                5 => 15,
+                6 => 17,
+                7 => 18,
+                8 => 19,
+                9 => 20,
+                10 => 21,
+                11 => 23,
+                12 => 24,
+                _ => return Vec::new(),
+            };
+            if modifier == 1 {
+                return format!("\x1b[{code}~").into_bytes();
+            }
+            return format!("\x1b[{code};{modifier}~").into_bytes();
+        }
+    };
+    if modifier == 1 {
+        format!("\x1bO{code}").into_bytes()
+    } else {
+        format!("\x1b[1;{modifier}{code}").into_bytes()
+    }
+}
+
+/// Кодирует xterm mouse-report. `button`: 0 — левая, 1 — средняя, 2 — правая,
+/// 64/65 — колесо вверх/вниз (и 66/67 — горизонтальное).
+fn mouse_sequence(
+    button: u8,
+    col: u32,
+    row: u32,
+    release: bool,
+    motion: bool,
+    modes: TerminalModes,
+) -> Option<Vec<u8>> {
+    if modes.mouse == MouseMode::Off {
+        return None;
+    }
+    // X10 передаёт только нажатия.
+    if modes.mouse == MouseMode::X10 && (release || motion) {
+        return None;
+    }
+    // 1000 не передаёт движение; 1002 — только с зажатой кнопкой (это
+    // проверяет вызывающая сторона), 1003 — любое.
+    if motion && matches!(modes.mouse, MouseMode::Normal) {
+        return None;
+    }
+
+    if modes.sgr_mouse {
+        let mut code = u16::from(button);
+        if motion {
+            code += 32;
+        }
+        if release {
+            Some(format!("\x1b[<{code};{};{}m", col + 1, row + 1).into_bytes())
+        } else {
+            Some(format!("\x1b[<{code};{};{}M", col + 1, row + 1).into_bytes())
+        }
+    } else {
+        let code = if release { 3 } else { button } + 32;
+        let x = (col + 33).min(255) as u8;
+        let y = (row + 33).min(255) as u8;
+        Some(vec![0x1b, b'[', b'M', code, x, y])
+    }
+}
+
+/// Размер PTY при изменении размеров терминала: опрос по таймеру —
+/// сигнала size-allocate в gtk4-rs 0.9 нет, а это работает на любых
+/// версиях GTK (окно терминала меняется редко, 500 мс достаточно).
+fn setup_resize_timer(term: &Rc<TerminalView>, scroll: &ScrolledWindow, tx_in: &Sender<ToThread>) {
     let term_resize = term.clone();
-    let tx_resize = tx_in;
-    let last = std::cell::Cell::new((0u32, 0u32));
+    let tx_resize = tx_in.clone();
+    let last = Cell::new((0u32, 0u32));
     let scroll_w = scroll.clone();
     glib::timeout_add_local(Duration::from_millis(500), move || {
         let w = scroll_w.width().max(1);
@@ -1214,10 +1819,222 @@ fn setup_input(term: &Rc<TerminalView>, scroll: &ScrolledWindow, tx_in: Sender<T
         let key = (cols, rows);
         if key != last.get() && cols > 1 && rows > 1 {
             last.set(key);
+            term_resize.resize(cols, rows);
             let _ = tx_resize.send(ToThread::Resize(cols.max(2), rows.max(2)));
         }
         glib::ControlFlow::Continue
     });
+}
+
+/// Ввод с клавиатуры/мыши: буквы и служебные клавиши → байты PTY,
+/// xterm mouse reporting для полноэкранных приложений (`mc`, `vim`).
+fn setup_input(term: &Rc<TerminalView>, scroll: &ScrolledWindow, tx_in: Sender<ToThread>) {
+    use gtk4::gdk::ModifierType;
+
+    let targets: Vec<gtk4::Widget> = match &term.kind {
+        Kind::Vte(vte) => vec![vte.widget().clone()],
+        Kind::Text { view, draw, .. } => vec![
+            view.clone().upcast::<gtk4::Widget>(),
+            draw.clone().upcast::<gtk4::Widget>(),
+        ],
+    };
+    // Мышь подключаем только к VTE и к полноэкранной сетке: на обычном
+    // TextView жесты не должны мешать выделению текста.
+    let mouse_targets: Vec<gtk4::Widget> = match &term.kind {
+        Kind::Vte(vte) => vec![vte.widget().clone()],
+        Kind::Text { draw, .. } => vec![draw.clone().upcast::<gtk4::Widget>()],
+    };
+
+    for target in &targets {
+        let controller = EventControllerKey::new();
+        controller.set_propagation_phase(PropagationPhase::Capture);
+        let term_key = term.clone();
+        let tx_key = tx_in.clone();
+        controller.connect_key_pressed(move |_, keyval, _code, state| {
+            let ctrl = state.contains(ModifierType::CONTROL_MASK);
+            let shift = state.contains(ModifierType::SHIFT_MASK);
+            let alt = state.contains(ModifierType::ALT_MASK);
+            let name = keyval.name();
+            let name = name.as_deref();
+
+            if ctrl && shift {
+                match name.map(str::to_ascii_lowercase).as_deref() {
+                    Some("c") => {
+                        term_key.copy_clipboard();
+                        return glib::Propagation::Stop;
+                    }
+                    Some("v") => {
+                        term_key.paste_clipboard(tx_key.clone());
+                        return glib::Propagation::Stop;
+                    }
+                    _ => {}
+                }
+            }
+            if ctrl && !alt {
+                match name {
+                    Some("plus") | Some("equal") => {
+                        term_key.zoom(1.1);
+                        return glib::Propagation::Stop;
+                    }
+                    Some("minus") => {
+                        term_key.zoom(1.0 / 1.1);
+                        return glib::Propagation::Stop;
+                    }
+                    _ => {}
+                }
+            }
+
+            let bytes = encode_key_parts(
+                name,
+                keyval.to_unicode(),
+                ctrl,
+                alt,
+                shift,
+                term_key.modes.get(),
+            );
+            match bytes {
+                Some(bytes) if !bytes.is_empty() => {
+                    let _ = tx_key.send(ToThread::Data(bytes));
+                    glib::Propagation::Stop
+                }
+                _ => glib::Propagation::Proceed,
+            }
+        });
+        target.add_controller(controller);
+    }
+
+    // Общее для всех страниц состояние мыши.
+    let pressed = Rc::new(Cell::new(0u32));
+    let pointer = Rc::new(Cell::new((0.0f64, 0.0f64)));
+
+    let send_at = {
+        let term = term.clone();
+        let tx = tx_in.clone();
+        move |x: f64, y: f64, button: u8, release: bool, motion: bool, pressed: &Rc<Cell<u32>>| {
+            let modes = term.modes.get();
+            if modes.mouse == MouseMode::Off {
+                return false;
+            }
+            let (char_w, char_h) = term.char_size();
+            let col = (x.max(0.0) / f64::from(char_w.max(1))).floor() as u32;
+            let row = (y.max(0.0) / f64::from(char_h.max(1))).floor() as u32;
+            // Для 1002/1003 движение несёт код зажатой кнопки (или 3, если
+            // кнопок нет).
+            let button = if motion && pressed.get() != 0 {
+                match pressed.get() {
+                    1 => 0,
+                    2 => 1,
+                    3 => 2,
+                    _ => 3,
+                }
+            } else {
+                button
+            };
+            if let Some(bytes) = mouse_sequence(button, col, row, release, motion, modes) {
+                let _ = tx.send(ToThread::Data(bytes));
+                true
+            } else {
+                false
+            }
+        }
+    };
+
+    for target in &mouse_targets {
+        let term_click = term.clone();
+        let send_click = send_at.clone();
+        let pressed_click = pressed.clone();
+        let pointer_click = pointer.clone();
+        let click = GestureClick::new();
+        click.set_button(0);
+        click.set_propagation_phase(PropagationPhase::Capture);
+        click.connect_pressed(move |_, button, x, y| {
+            // Фокус нужен и без mouse-reporting: клавиатура должна работать.
+            term_click.focus();
+            if term_click.modes.get().mouse == MouseMode::Off {
+                return;
+            }
+            pointer_click.set((x, y));
+            let code = match button {
+                1 => 0,
+                2 => 1,
+                3 => 2,
+                _ => return,
+            };
+            pressed_click.set(button.max(0) as u32);
+            if send_click(x, y, code, false, false, &pressed_click) {
+                term_click.focus();
+            }
+        });
+        let send_release = send_at.clone();
+        let term_release = term.clone();
+        let pressed_release = pressed.clone();
+        let pointer_release = pointer.clone();
+        click.connect_released(move |_, button, x, y| {
+            if term_release.modes.get().mouse == MouseMode::Off {
+                return;
+            }
+            pointer_release.set((x, y));
+            let code = match button {
+                1 => 0,
+                2 => 1,
+                3 => 2,
+                _ => return,
+            };
+            let _ = send_release(x, y, code, true, false, &pressed_release);
+            pressed_release.set(0);
+        });
+        target.add_controller(click);
+
+        let term_motion = term.clone();
+        let send_motion = send_at.clone();
+        let pressed_motion = pressed.clone();
+        let pointer_motion = pointer.clone();
+        let motion = EventControllerMotion::new();
+        motion.set_propagation_phase(PropagationPhase::Capture);
+        motion.connect_motion(move |_, x, y| {
+            pointer_motion.set((x, y));
+            let modes = term_motion.modes.get();
+            let dragging = pressed_motion.get() != 0;
+            if matches!(modes.mouse, MouseMode::Button | MouseMode::Any)
+                && (modes.mouse == MouseMode::Any || dragging)
+            {
+                let _ = send_motion(x, y, 3, false, true, &pressed_motion);
+            }
+        });
+        target.add_controller(motion);
+
+        let term_scroll = term.clone();
+        let send_scroll = send_at.clone();
+        let pressed_scroll = pressed.clone();
+        let pointer_scroll = pointer.clone();
+        let scroll = EventControllerScroll::new(
+            EventControllerScrollFlags::VERTICAL
+                | EventControllerScrollFlags::HORIZONTAL
+                | EventControllerScrollFlags::DISCRETE,
+        );
+        scroll.set_propagation_phase(PropagationPhase::Capture);
+        scroll.connect_scroll(move |_, dx, dy| {
+            if term_scroll.modes.get().mouse == MouseMode::Off {
+                return glib::Propagation::Proceed;
+            }
+            let (x, y) = pointer_scroll.get();
+            let (button, delta) = if dy.abs() >= dx.abs() && dy != 0.0 {
+                (if dy < 0.0 { 64 } else { 65 }, dy.abs())
+            } else if dx != 0.0 {
+                (if dx < 0.0 { 66 } else { 67 }, dx.abs())
+            } else {
+                return glib::Propagation::Proceed;
+            };
+            if delta > 0.0 && send_scroll(x, y, button, false, false, &pressed_scroll) {
+                glib::Propagation::Stop
+            } else {
+                glib::Propagation::Proceed
+            }
+        });
+        target.add_controller(scroll);
+    }
+
+    setup_resize_timer(term, scroll, &tx_in);
 }
 
 /// Ожидание prompt "Password:" и ответ паролем root.
@@ -1338,5 +2155,283 @@ mod tests {
         let (segs, _) = segments(b"line\r\n");
         assert_eq!(segs[0].text, "line");
         assert_eq!(segs[1].text, "\n");
+    }
+
+    #[test]
+    fn bare_carriage_return_marks_line_for_redraw() {
+        let (segs, _) = segments(b"old prompt\rnew prompt");
+        assert_eq!(segs[0].text, "old prompt");
+        assert_eq!(segs[1].text, "new prompt");
+        assert!(segs[1].clear_line);
+    }
+
+    #[test]
+    fn crlf_split_between_chunks_is_not_redraw() {
+        let mut state = AnsiState::default();
+        let first = parse_ansi(b"line\r", &mut state);
+        assert_eq!(first[0].text, "line");
+        assert!(state.pending_cr);
+        let second = parse_ansi(b"\n", &mut state);
+        assert_eq!(second[0].text, "\n");
+        assert!(!second[0].clear_line);
+        assert!(!state.pending_cr);
+    }
+
+    #[test]
+    fn charset_designator_does_not_print_final_byte() {
+        // top/vi часто шлют ESC(B перед каждым цветовым сегментом.
+        let (segs, _) = segments(b"\x1b(Bafter");
+        assert_eq!(segs.len(), 1);
+        assert_eq!(segs[0].text, "after");
+    }
+
+    #[test]
+    fn ctrl_keys_are_control_bytes() {
+        let modes = TerminalModes::default();
+        assert_eq!(
+            encode_key_parts(Some("c"), Some('c'), true, false, false, modes),
+            Some(vec![0x03])
+        );
+        assert_eq!(
+            encode_key_parts(None, Some('['), true, false, false, modes),
+            Some(vec![0x1b])
+        );
+        assert_eq!(
+            encode_key_parts(None, Some(' '), true, false, false, modes),
+            Some(vec![0x00])
+        );
+    }
+
+    #[test]
+    fn arrows_respect_application_cursor_mode() {
+        let normal = TerminalModes::default();
+        let app = TerminalModes {
+            app_cursor: true,
+            ..TerminalModes::default()
+        };
+        assert_eq!(
+            encode_key_parts(Some("Up"), None, false, false, false, normal),
+            Some(b"\x1b[A".to_vec())
+        );
+        assert_eq!(
+            encode_key_parts(Some("Up"), None, false, false, false, app),
+            Some(b"\x1bOA".to_vec())
+        );
+        assert_eq!(
+            encode_key_parts(Some("Left"), None, false, false, true, normal),
+            Some(b"\x1b[1;2D".to_vec())
+        );
+    }
+
+    #[test]
+    fn function_keys_use_xterm_sequences() {
+        let modes = TerminalModes::default();
+        assert_eq!(
+            encode_key_parts(Some("F1"), None, false, false, false, modes),
+            Some(b"\x1bOP".to_vec())
+        );
+        assert_eq!(
+            encode_key_parts(Some("F5"), None, false, false, false, modes),
+            Some(b"\x1b[15~".to_vec())
+        );
+        assert_eq!(
+            encode_key_parts(Some("F12"), None, false, false, false, modes),
+            Some(b"\x1b[24~".to_vec())
+        );
+    }
+
+    #[test]
+    fn shift_tab_and_alt_text_are_encoded() {
+        let modes = TerminalModes::default();
+        assert_eq!(
+            encode_key_parts(Some("ISO_Left_Tab"), None, false, false, true, modes),
+            Some(b"\x1b[Z".to_vec())
+        );
+        assert_eq!(
+            encode_key_parts(None, Some('x'), false, true, false, modes),
+            Some(b"\x1bx".to_vec())
+        );
+    }
+
+    #[test]
+    fn sgr_mouse_reports_release_with_lowercase_m() {
+        let modes = TerminalModes {
+            mouse: MouseMode::Normal,
+            sgr_mouse: true,
+            ..TerminalModes::default()
+        };
+        let press = mouse_sequence(0, 4, 2, false, false, modes).unwrap();
+        assert_eq!(press, b"\x1b[<0;5;3M");
+        let release = mouse_sequence(0, 4, 2, true, false, modes).unwrap();
+        assert_eq!(release, b"\x1b[<0;5;3m");
+    }
+
+    #[test]
+    fn classic_mouse_release_uses_button_3() {
+        let modes = TerminalModes {
+            mouse: MouseMode::Normal,
+            ..TerminalModes::default()
+        };
+        let release = mouse_sequence(0, 0, 0, true, false, modes).unwrap();
+        assert_eq!(release, vec![0x1b, b'[', b'M', 35, 33, 33]);
+    }
+
+    #[test]
+    fn output_router_splits_alternate_screen_across_chunks() {
+        let mut router = alt_screen::OutputRouter::new();
+        let chunks = router.route(b"before\x1b[?1049h");
+        assert_eq!(chunks.len(), 1);
+        assert!(!chunks[0].alt);
+        assert!(router.alt());
+
+        let chunks = router.route(b"fullscreen\x1b[?1049l");
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].alt);
+        assert!(!router.alt());
+
+        let chunks = router.route(b"after");
+        assert_eq!(chunks.len(), 1);
+        assert!(!chunks[0].alt);
+        assert!(!router.alt());
+        assert_eq!(chunks[0].data, b"after");
+    }
+
+    #[test]
+    fn output_router_uses_hidden_cursor_as_fullscreen_for_top() {
+        let mut router = alt_screen::OutputRouter::new();
+        let chunks = router.route(b"\x1b[?1h\x1b[?25l\x1b[H\x1b[2J");
+        assert!(router.alt());
+        assert!(!chunks[0].alt);
+        assert!(chunks.last().is_some_and(|chunk| chunk.alt));
+
+        let chunks = router.route(b"\x1b[?25h");
+        assert!(!router.alt());
+        assert!(chunks.iter().all(|chunk| chunk.alt));
+    }
+
+    #[test]
+    fn output_router_does_not_leave_explicit_alt_on_cursor_show() {
+        let mut router = alt_screen::OutputRouter::new();
+        let _ = router.route(b"\x1b[?1049h");
+        assert!(router.alt());
+        let chunks = router.route(b"\x1b[?25l\x1b[?25h");
+        assert!(router.alt());
+        assert!(chunks.iter().all(|chunk| chunk.alt));
+        let _ = router.route(b"\x1b[?1049l");
+        assert!(!router.alt());
+    }
+
+    #[test]
+    fn output_router_tracks_mouse_and_paste_modes() {
+        let mut router = alt_screen::OutputRouter::new();
+        let _ = router.route(b"\x1b[?1h\x1b[?1002h\x1b[?1006h\x1b[?2004h");
+        let modes = router.modes();
+        assert!(modes.app_cursor);
+        assert_eq!(modes.mouse, MouseMode::Button);
+        assert!(modes.sgr_mouse);
+        assert!(modes.bracketed_paste);
+
+        let _ = router.route(b"\x1b[?1002l\x1b[?2004l");
+        let modes = router.modes();
+        assert_eq!(modes.mouse, MouseMode::Off);
+        assert!(!modes.bracketed_paste);
+    }
+
+    #[test]
+    fn alt_screen_handles_cursor_addressing_and_clear() {
+        let mut screen = alt_screen::Screen::new(10, 3);
+        screen.feed(b"hello\x1b[2;3HX");
+        assert_eq!(screen.cell(0, 0).ch, 'h');
+        assert_eq!(screen.cell(2, 1).ch, 'X');
+        screen.feed(b"\x1b[2J");
+        assert_eq!(screen.cell(2, 1).ch, ' ');
+        assert_eq!(screen.cell(0, 0).ch, ' ');
+    }
+
+    #[test]
+    fn alt_screen_handles_scroll_and_utf8() {
+        let mut screen = alt_screen::Screen::new(8, 2);
+        screen.feed("Привет".as_bytes());
+        assert_eq!(screen.cell(0, 0).ch, 'П');
+        assert_eq!(screen.cell(1, 0).ch, 'р');
+    }
+
+    /// Живой smoke-тест fallback-терминала: X11 + SSH на 127.0.0.1:2222.
+    ///
+    /// Запускается вручную (`--ignored`) под Xvfb. Окно висит 5 минут,
+    /// чтобы можно было набрать `top`/`vi` через xdotool и снять скриншот.
+    #[test]
+    #[ignore = "требует X11 и SSH-сервер на 127.0.0.1:2222"]
+    fn live_fallback_ui_smoke() {
+        use crate::models::profile::{Profile, RdpOptions, SshOptions, VncOptions};
+        use crate::models::Protocol;
+        use secrecy::SecretString;
+
+        if gtk4::init().is_err() {
+            return;
+        }
+
+        let profile = Profile {
+            id: 0,
+            name: "live".to_string(),
+            protocol: Protocol::Ssh,
+            host: "127.0.0.1".to_string(),
+            port: 2222,
+            username: Some("tester".to_string()),
+            password: Some(SecretString::from("secret".to_string())),
+            ssh_key_path: None,
+            ssh_key_passphrase: None,
+            root_password: None,
+            group_id: None,
+            bastion_profile_id: None,
+            tags: vec![],
+            icon: None,
+            notes: None,
+            mac_address: None,
+            rdp_options: RdpOptions::default(),
+            vnc_options: VncOptions::default(),
+            ssh_options: SshOptions::default(),
+            created_at: 0,
+            updated_at: 0,
+            last_connected_at: None,
+        };
+        // Тот же known_hosts, что использует new_ssh(): предварительное
+        // подключение добавит ключ тестового сервера, и вкладка не покажет
+        // диалог подтверждения.
+        let mut conn = SshConnection::new(profile.clone());
+        conn.connect_with(&HostKeyConfig {
+            known_hosts: crate::protocols::ssh::default_known_hosts_path(),
+            accept_new: true,
+            verifier: None,
+        })
+        .expect("SSH-подключение к тестовому серверу");
+
+        let window = gtk4::Window::new();
+        window.set_title(Some("remotix-live-terminal"));
+        window.set_default_size(1000, 700);
+        let tab = TerminalTab::new_ssh(
+            "live",
+            conn,
+            Rc::new(|_| {}),
+            14,
+            false,
+            false,
+            TerminalExtras {
+                expect_rules: vec![],
+                snippets: vec![],
+                palette: palette::DARK,
+            },
+        )
+        .expect("создание вкладки терминала");
+        window.set_child(Some(&tab.root));
+        window.present();
+
+        let main_loop = glib::MainLoop::new(None, false);
+        let quit = main_loop.clone();
+        glib::timeout_add_seconds_local(300, move || {
+            quit.quit();
+            glib::ControlFlow::Break
+        });
+        main_loop.run();
     }
 }

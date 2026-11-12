@@ -508,7 +508,12 @@ impl MainWindow {
         self.tag_updating.set(false);
 
         let groups = self.state.db.list_groups().unwrap_or_default();
-        self.rebuild_sidebar(&groups, &visible, filter.is_empty() && tag.is_none());
+        // Дерево групп показываем всегда, когда группы есть. Раньше «плоский»
+        // режим включался при пустом фильтре, поэтому созданная (и вообще
+        // любая) группа не отображалась, пока пользователь что-нибудь не
+        // введёт в поиск.
+        let filtered = !filter.is_empty() || tag.is_some();
+        self.rebuild_sidebar(&groups, &visible, filtered);
 
         // Восстанавливаем выделение прежнего профиля.
         if let Some(id) = selected_id {
@@ -570,34 +575,46 @@ impl MainWindow {
 
     /// Строит строки боковой панели: дерево групп + плоский список профилей
     /// без группы. Если групп нет вовсе — прежний плоский список.
+    ///
+    /// `filtered` означает, что задан поиск/тег. В этом случае пустые группы
+    /// не показываем и при отсутствии совпадений выводим «Ничего не найдено».
+    /// Без фильтра дерево строится даже для пустых групп: иначе только что
+    /// созданная группа выглядит как «не создалась».
     fn rebuild_sidebar(
         &self,
         groups: &[(i64, String, Option<i64>)],
         visible: &[Profile],
-        flat: bool,
+        filtered: bool,
     ) {
         self.clear_sidebar();
 
         let mut rows = self.rows.borrow_mut();
         rows.clear();
 
-        if flat {
-            // Группы не заданы — прежний плоский список.
-            for profile in visible {
-                let row = self.build_profile_row(profile, 0);
-                self.sidebar.append(&row);
-                rows.push(SideRow::Profile(Box::new(profile.clone())));
-            }
-            return;
-        }
-
-        if visible.is_empty() {
+        let show_empty = || {
             let empty = Label::new(Some("Ничего не найдено."));
             empty.set_justify(gtk4::Justification::Center);
             empty.set_margin_top(18);
             empty.set_margin_bottom(12);
             empty.add_css_class("remotix-empty");
             self.sidebar.append(&empty);
+        };
+
+        if groups.is_empty() {
+            // Группы не заданы — прежний плоский список.
+            for profile in visible {
+                let row = self.build_profile_row(profile, 0);
+                self.sidebar.append(&row);
+                rows.push(SideRow::Profile(Box::new(profile.clone())));
+            }
+            if filtered && visible.is_empty() {
+                show_empty();
+            }
+            return;
+        }
+
+        if filtered && visible.is_empty() {
+            show_empty();
             return;
         }
 
@@ -1728,6 +1745,15 @@ impl MainWindow {
             return;
         }
 
+        // Профиль без учётных данных (создан вручную, импортирован из .rdp
+        // или восстановлен при запуске) раньше доходил до сервера и падал
+        // с «не указан логин» уже после открытия сокета. Спрашиваем
+        // недостающее заранее — до создания вкладки.
+        if rdp_credentials_missing(&profile) {
+            self.prompt_rdp_credentials(profile);
+            return;
+        }
+
         let on_state = {
             let win = self.clone();
             let title = title.clone();
@@ -1743,6 +1769,110 @@ impl MainWindow {
         self.append_session(&title, "computer-symbolic", viewer.root());
         self.track_tab(&title, restore_id, RestoreKind::Rdp);
         self.set_status(&format!("{title}: подключение…"));
+    }
+
+    /// Запрашивает у пользователя недостающие учётные данные RDP.
+    ///
+    /// Введённые значения действуют только для текущего подключения и не
+    /// записываются в профиль: сохранение секретов — отдельное осознанное
+    /// действие в редакторе профиля.
+    fn prompt_rdp_credentials(&self, profile: Profile) {
+        let dialog = gtk4::Dialog::builder()
+            .modal(true)
+            .title("Учётные данные RDP")
+            .build();
+        dialog.set_transient_for(self.window().as_ref());
+        dialog.add_button("Отмена", gtk4::ResponseType::Cancel);
+        dialog.add_button("Подключиться", gtk4::ResponseType::Accept);
+        dialog.set_default_response(gtk4::ResponseType::Accept);
+
+        let mut missing: Vec<&str> = Vec::new();
+        if username_missing(&profile) {
+            missing.push("логин");
+        }
+        if profile.password.is_none() {
+            missing.push("пароль");
+        }
+        let text = format!(
+            "Для подключения к {} не указан {}. Данные используются только для \
+             этой сессии и не сохраняются в профиле.",
+            profile.host,
+            missing.join(" и ")
+        );
+        let hint = Label::new(Some(&text));
+        hint.set_wrap(true);
+        hint.set_xalign(0.0);
+
+        let username = Entry::new();
+        username.set_text(profile.username.as_deref().unwrap_or(""));
+        username.set_placeholder_text(Some("Имя пользователя"));
+
+        let password = gtk4::PasswordEntry::new();
+        password.set_show_peek_icon(true);
+        password.set_activates_default(true);
+        if let Some(existing) = &profile.password {
+            use secrecy::ExposeSecret as _;
+            password.set_text(existing.expose_secret());
+        }
+
+        let domain = Entry::new();
+        domain.set_text(&profile.rdp_options.domain);
+        domain.set_placeholder_text(Some("Домен (необязательно)"));
+
+        let error = Label::new(None);
+        error.add_css_class("error");
+        error.set_visible(false);
+        error.set_xalign(0.0);
+
+        let grid = gtk4::Grid::builder()
+            .row_spacing(8)
+            .column_spacing(12)
+            .margin_top(12)
+            .margin_bottom(12)
+            .margin_start(12)
+            .margin_end(12)
+            .build();
+        grid.attach(&hint, 0, 0, 2, 1);
+        grid.attach(&Label::new(Some("Пользователь:")), 0, 1, 1, 1);
+        grid.attach(&username, 1, 1, 1, 1);
+        grid.attach(&Label::new(Some("Пароль:")), 0, 2, 1, 1);
+        grid.attach(&password, 1, 2, 1, 1);
+        grid.attach(&Label::new(Some("Домен:")), 0, 3, 1, 1);
+        grid.attach(&domain, 1, 3, 1, 1);
+        grid.attach(&error, 0, 4, 2, 1);
+        dialog.content_area().append(&grid);
+
+        let win = self.clone();
+        let host = profile.host.clone();
+        let username_entry = username.clone();
+        dialog.connect_response(move |dialog, response| {
+            if response != gtk4::ResponseType::Accept {
+                dialog.destroy();
+                win.set_status(&format!("RDP {host}: подключение отменено"));
+                return;
+            }
+
+            let name = username_entry.text().trim().to_string();
+            if name.is_empty() {
+                error.set_text("Укажите имя пользователя");
+                error.set_visible(true);
+                username_entry.grab_focus();
+                return;
+            }
+
+            let mut updated = profile.clone();
+            updated.username = Some(name);
+            let secret = password.text().to_string();
+            // Пустой пароль — осознанный выбор пользователя (некоторые
+            // серверы его допускают), поэтому сохраняем именно Some(""):
+            // иначе повторная проверка снова открыла бы этот диалог.
+            updated.password = Some(secrecy::SecretString::from(secret));
+            updated.rdp_options.domain = domain.text().trim().to_string();
+            dialog.destroy();
+            win.open_rdp_session(updated);
+        });
+        dialog.present();
+        username.grab_focus();
     }
 
     /// Страница уже открытой сессии с таким заголовком.
@@ -2203,6 +2333,24 @@ fn quick_profile(text: &str) -> Option<Profile> {
     })
 }
 
+/// Признак пустого (или отсутствующего) логина.
+fn username_missing(profile: &Profile) -> bool {
+    profile
+        .username
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or_default()
+        .is_empty()
+}
+
+/// Профилю RDP не хватает учётных данных для подключения.
+///
+/// Пароль `Some("")` считается заданным: пользователь мог осознанно
+/// подтвердить пустой пароль в диалоге подключения.
+fn rdp_credentials_missing(profile: &Profile) -> bool {
+    profile.protocol == Protocol::Rdp && (username_missing(profile) || profile.password.is_none())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2225,5 +2373,33 @@ mod tests {
         for kind in [RestoreKind::Ssh, RestoreKind::Sftp, RestoreKind::Rdp] {
             assert_eq!(RestoreKind::parse(kind.key()), Some(kind));
         }
+    }
+
+    #[test]
+    fn rdp_credentials_prompt_only_for_missing_values() {
+        let mut profile = quick_profile("host").expect("профиль быстрого подключения");
+        profile.protocol = Protocol::Rdp;
+        assert!(
+            rdp_credentials_missing(&profile),
+            "нет ни логина, ни пароля"
+        );
+
+        profile.username = Some("   ".to_string());
+        assert!(rdp_credentials_missing(&profile), "логин из пробелов пуст");
+
+        profile.username = Some("user".to_string());
+        assert!(rdp_credentials_missing(&profile), "не хватает пароля");
+
+        profile.password = Some(secrecy::SecretString::from(String::new()));
+        assert!(
+            !rdp_credentials_missing(&profile),
+            "пустой пароль подтверждён"
+        );
+
+        profile.protocol = Protocol::Ssh;
+        assert!(
+            !rdp_credentials_missing(&profile),
+            "SSH не требует RDP-диалога"
+        );
     }
 }

@@ -285,6 +285,25 @@ pub enum RdpKey {
     Char(char),
 }
 
+/// Действие с кнопкой мыши в RDP fast-path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseEvent {
+    /// Перемещение курсора (с зажатыми кнопками или без них).
+    Move,
+    /// Нажатие кнопки (в RDP — флаг DOWN).
+    ButtonDown,
+    /// Отпускание кнопки: кнопка остаётся в маске, но DOWN уже нет.
+    ButtonUp,
+}
+
+/// Маска кнопок мыши: 1 — левая, 2 — правая, 4 — средняя.
+///
+/// Это порядок битов RDP (`BUTTON1`, `BUTTON2`, `BUTTON3`), а не порядок
+/// кнопок GDK (1 — левая, 2 — средняя, 3 — правая).
+pub const MOUSE_LEFT: u8 = 0x01;
+pub const MOUSE_RIGHT: u8 = 0x02;
+pub const MOUSE_MIDDLE: u8 = 0x04;
+
 /// Верификатор TLS-сертификата, принимающий любой сертификат (аналог поведения
 /// большинства RDP-клиентов — проверка отпечатка/отзыва делается отдельно).
 #[derive(Debug)]
@@ -360,6 +379,10 @@ pub struct RdpConnection {
     stage: Option<RdpStage>,
     /// Декодированное изображение рабочего стола для отрисовки.
     image: Option<RdpImage>,
+    /// Сколько подряд кадров не удалось декодировать. Единичный битый
+    /// графический/pointer-update не должен обрывать всю сессию, но
+    /// бесконечный поток ошибок — повод остановиться.
+    decode_errors: u32,
 }
 
 impl RdpConnection {
@@ -372,6 +395,7 @@ impl RdpConnection {
             framed: None,
             stage: None,
             image: None,
+            decode_errors: 0,
         }
     }
 
@@ -397,8 +421,11 @@ impl RdpConnection {
     /// буфер декодированного изображения рабочего стола.
     pub fn setup_active_stage(&mut self, connection_result: ironrdp_connector::ConnectionResult) {
         let desktop_size = connection_result.desktop_size;
+        // BgrA32 = байтовый порядок BGRA, совместимый с cairo ARgb32
+        // (на little-endian): просмотрщик отдаёт буфер в ImageSurface без
+        // конвертации. RgbA32 здесь приводил бы к перепутанным R/B.
         self.image = Some(ironrdp_session::image::DecodedImage::new(
-            ironrdp_graphics::image_processing::PixelFormat::RgbA32,
+            ironrdp_graphics::image_processing::PixelFormat::BgrA32,
             desktop_size.width,
             desktop_size.height,
         ));
@@ -428,12 +455,13 @@ impl RdpConnection {
     /// Возвращает `Ok(true)`, пока сессия активна, `Ok(false)` — когда данных
     /// ещё нет (would-block, вызывайте снова), и `Err` при ошибке/разрыве.
     pub fn run(&mut self) -> Result<bool, String> {
-        let (framed, stage, image) = match (
+        let (framed, stage, image, decode_errors) = match (
             self.framed.as_mut(),
             self.stage.as_mut(),
             self.image.as_mut(),
+            &mut self.decode_errors,
         ) {
-            (Some(f), Some(s), Some(i)) => (f, s, i),
+            (Some(f), Some(s), Some(i), errors) => (f, s, i, errors),
             _ => return Err("RDP-сессия не инициализирована (нет framed/stage/image)".to_string()),
         };
 
@@ -447,9 +475,29 @@ impl RdpConnection {
             Err(e) => return Err(format!("ошибка чтения рамки: {e}")),
         };
 
-        let outputs = stage
-            .process(image, action, &payload)
-            .map_err(|e| format!("ошибка обработки рамки: {e}"))?;
+        let outputs = match stage.process(image, action, &payload) {
+            Ok(outputs) => {
+                *decode_errors = 0;
+                outputs
+            }
+            Err(e) => {
+                let text = e.to_string();
+                if text.to_ascii_lowercase().contains("decode") {
+                    *decode_errors += 1;
+                    crate::logging::warn(&format!(
+                        "кадр RDP ({} байт) не декодирован ({} подряд): {text}",
+                        payload.len(),
+                        *decode_errors
+                    ));
+                    if *decode_errors <= 3 {
+                        // Рамка уже прочитана целиком, поток не рассинхронизирован.
+                        // Пропускаем битый графический/pointer-update и живём дальше.
+                        return Ok(true);
+                    }
+                }
+                return Err(format!("ошибка обработки рамки: {e}"));
+            }
+        };
 
         for out in outputs {
             match out {
@@ -473,8 +521,20 @@ impl Connection for RdpConnection {
     }
 
     fn connect(&mut self) -> Result<(), String> {
-        // Порядок попыток: сначала NLA (CredSSP) — так требуют Windows 10/11
-        // и RDS; затем NLA+TLS; затем только TLS — для серверов без NLA.
+        // Проверяем логин до сетевых попыток. Иначе «не указан логин»
+        // возвращался из каждого режима безопасности (2–3 раза подряд),
+        // а вслед за ним показывались подсказки про RC4/NLA — хотя
+        // проблема была не в сервере, а в профиле.
+        if profile_username(&self.profile).is_none() {
+            return Err("не указан логин RDP: укажите имя пользователя в свойствах \
+                 профиля или введите его в диалоге подключения"
+                .to_string());
+        }
+
+        // Порядок попыток: сначала NLA+TLS (CredSSP) — так требуют Windows
+        // 10/11, RDS и серверы с NLA. Затем только TLS — для серверов без
+        // NLA. Последний NLA-вариант без флага SSL оставлен для редких
+        // серверов, которые не принимают SSL в паре с HYBRID.
         // Standard RDP Security (RC4 без TLS) пробуем только при явном
         // разрешении в профиле: молчаливый откат на устаревший режим
         // недопустим (нет проверки сервера, слабое шифрование).
@@ -508,7 +568,7 @@ impl Connection for RdpConnection {
         }
         let standard_security_error = errors
             .iter()
-            .any(|e| e.contains("standard RDP security") || e.contains("Standard RDP Security"));
+            .any(|e| e.to_lowercase().contains("standard rdp security"));
         if standard_security_error && allow_legacy {
             message.push_str(
                 "Сервер работает только со Standard RDP Security (шифр RC4), и подключиться \
@@ -516,7 +576,7 @@ impl Connection for RdpConnection {
                  в xrdp — security_layer=rdp и права пользователя; в Windows — «Уровень \
                  безопасности: RDP» и членство в группе удалённых рабочих столов. ",
             );
-        } else if !allow_legacy && (standard_security_error || banner.is_none()) {
+        } else if !allow_legacy && standard_security_error {
             message.push_str(
                 "Если сервер поддерживает только Standard RDP Security (устаревший RC4 \
                  без TLS), включите в свойствах профиля «Разрешить незащищённый RDP (RC4)». \
@@ -525,8 +585,16 @@ impl Connection for RdpConnection {
             );
         }
         // Ошибки соединяем в одну строку: в строке состояния переносы
-        // растягивали бы её на несколько строк.
-        message.push_str(&errors.join(" · "));
+        // растягивали бы её на несколько строк. Одинаковые причины
+        // (например, reset соединения) повторяются для каждого режима
+        // безопасности — оставляем по одному разу.
+        let mut unique_errors: Vec<&str> = Vec::new();
+        for error in &errors {
+            if !unique_errors.contains(&error.as_str()) {
+                unique_errors.push(error);
+            }
+        }
+        message.push_str(&unique_errors.join(" · "));
         if banner.is_none() {
             message.push_str(
                 " Проверьте порт (по умолчанию 3389), адрес узла и требования \
@@ -566,19 +634,45 @@ fn probe_rdp_banner(host: &str, port: u16) -> Option<String> {
     }
 }
 
+/// Логин RDP из профиля; `None`, если он пуст или состоит из пробелов.
+fn profile_username(profile: &Profile) -> Option<&str> {
+    profile
+        .username
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+}
+
 /// Режимы безопасности RDP в порядке попыток.
 ///
 /// Standard RDP Security (RC4) попадает в список только при явном разрешении:
 /// иначе даже последняя попытка остаётся с TLS/NLA.
+/// Разрешение экрана RDP для коннектора.
+///
+/// `0x0` («разрешение не задано») превращаем в `1024x768`: 1x1 рендерить
+/// нельзя, а серверу нужен конкретный размер.
+fn effective_desktop_size(width: u32, height: u32) -> (u32, u32) {
+    if width == 0 || height == 0 {
+        (1024, 768)
+    } else {
+        (width, height)
+    }
+}
+
 fn security_modes(nla: bool, allow_legacy: bool) -> Vec<(bool, bool, bool)> {
     let mut modes = if nla {
         vec![
-            (true, false, false),
+            // Обычный NLA: TLS + CredSSP.
             (true, true, false),
+            // NLA без явного SSL — совместимость с серверами, которые
+            // отвергают SSL в паре с HYBRID. Транспорт всё равно TLS.
+            (true, false, false),
+            // TLS без NLA: графический вход.
             (false, true, false),
         ]
     } else {
-        vec![(false, true, false), (true, true, false)]
+        // Если пользователь выключил NLA, CredSSP не пробуем вообще.
+        vec![(false, true, false)]
     };
     if allow_legacy {
         modes.push((false, false, true));
@@ -663,7 +757,7 @@ impl RdpConnection {
         let mut framed = ironrdp_blocking::Framed::new(tcp_stream);
 
         // 3. Формируем конфигурацию коннектора IronRDP
-        let username = self.profile.username.as_deref().ok_or("не указан логин")?;
+        let username = profile_username(&self.profile).ok_or("не указан логин")?;
         let password = self
             .profile
             .password
@@ -675,11 +769,15 @@ impl RdpConnection {
         } else {
             Some(opts.domain.clone())
         };
+        // 0x0 = «разрешение не задано» (быстрое подключение или старый
+        // профиль). Раньше такое превращалось в 1x1 и рендер падал, теперь
+        // используем разумное разрешение по умолчанию.
+        let (width, height) = effective_desktop_size(opts.width, opts.height);
 
         let connector_config = ironrdp_connector::Config {
             desktop_size: ironrdp_connector::DesktopSize {
-                width: opts.width.max(1) as u16,
-                height: opts.height.max(1) as u16,
+                width: width as u16,
+                height: height as u16,
             },
             desktop_scale_factor: 0,
             enable_tls: tls,
@@ -890,19 +988,14 @@ impl RdpConnection {
     }
 
     /// Отправить движение/клик мыши (fast-path Mouse-событие).
-    /// `buttons`: 1 — левая, 2 — правая, 3 — средняя кнопка.
-    pub fn send_mouse(&mut self, x: u32, y: u32, buttons: u8, is_move: bool) {
+    ///
+    /// `buttons` — маска [`MOUSE_LEFT`]/[`MOUSE_RIGHT`]/[`MOUSE_MIDDLE`].
+    /// При отпускании кнопки маска должна содержать отпускаемую кнопку, а
+    /// `event` — быть [`MouseEvent::ButtonUp`]: RDP узнаёт отпускание по
+    /// отсутствию флага DOWN у события с флагом кнопки.
+    pub fn send_mouse(&mut self, x: u32, y: u32, buttons: u8, event: MouseEvent) {
         use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
-        let mut flags = ironrdp_pdu::input::mouse::PointerFlags::MOVE;
-        if !is_move {
-            flags |= ironrdp_pdu::input::mouse::PointerFlags::DOWN;
-            match buttons {
-                1 => flags |= ironrdp_pdu::input::mouse::PointerFlags::LEFT_BUTTON,
-                2 => flags |= ironrdp_pdu::input::mouse::PointerFlags::RIGHT_BUTTON,
-                3 => flags |= ironrdp_pdu::input::mouse::PointerFlags::MIDDLE_BUTTON_OR_WHEEL,
-                _ => {}
-            }
-        }
+        let flags = Self::mouse_flags(buttons, event);
         let pdu = ironrdp_pdu::input::MousePdu {
             flags,
             number_of_wheel_rotation_units: 0,
@@ -911,6 +1004,29 @@ impl RdpConnection {
         };
         let fp = FastPathInput::single(FastPathInputEvent::MouseEvent(pdu));
         self.write_input_frame(ironrdp_pdu::encode_vec(&fp).unwrap_or_default());
+    }
+
+    /// Флаги fast-path mouse для маски кнопок и действия.
+    ///
+    /// Вынесено отдельно, чтобы проверять кодирование в unit-тестах без
+    /// сетевого соединения.
+    fn mouse_flags(buttons: u8, event: MouseEvent) -> ironrdp_pdu::input::mouse::PointerFlags {
+        use ironrdp_pdu::input::mouse::PointerFlags;
+
+        let mut flags = PointerFlags::MOVE;
+        if buttons & MOUSE_LEFT != 0 {
+            flags |= PointerFlags::LEFT_BUTTON;
+        }
+        if buttons & MOUSE_RIGHT != 0 {
+            flags |= PointerFlags::RIGHT_BUTTON;
+        }
+        if buttons & MOUSE_MIDDLE != 0 {
+            flags |= PointerFlags::MIDDLE_BUTTON_OR_WHEEL;
+        }
+        if event == MouseEvent::ButtonDown {
+            flags |= PointerFlags::DOWN;
+        }
+        flags
     }
 
     /// Отправить колесо мыши (fast-path Mouse-событие с вертикальным колесом).
@@ -987,6 +1103,61 @@ mod tests {
     }
 
     #[test]
+    fn zero_resolution_uses_sensible_default() {
+        assert_eq!(effective_desktop_size(0, 0), (1024, 768));
+        assert_eq!(effective_desktop_size(1920, 1080), (1920, 1080));
+        assert_eq!(effective_desktop_size(1280, 0), (1024, 768));
+    }
+
+    #[test]
+    fn blank_username_is_rejected_before_connecting() {
+        let mut profile = test_profile();
+        assert_eq!(profile_username(&profile), Some("tester"));
+
+        profile.username = Some("  tester  ".to_string());
+        assert_eq!(profile_username(&profile), Some("tester"));
+
+        profile.username = None;
+        assert_eq!(profile_username(&profile), None);
+
+        profile.username = Some("   ".to_string());
+        assert_eq!(profile_username(&profile), None, "пробелы — не логин");
+    }
+
+    #[test]
+    fn mouse_release_has_button_without_down_flag() {
+        use ironrdp_pdu::input::mouse::PointerFlags;
+
+        let press = RdpConnection::mouse_flags(MOUSE_LEFT, MouseEvent::ButtonDown);
+        assert!(press.contains(PointerFlags::LEFT_BUTTON));
+        assert!(press.contains(PointerFlags::DOWN));
+        assert!(press.contains(PointerFlags::MOVE));
+
+        let release = RdpConnection::mouse_flags(MOUSE_LEFT, MouseEvent::ButtonUp);
+        assert!(release.contains(PointerFlags::LEFT_BUTTON));
+        assert!(!release.contains(PointerFlags::DOWN));
+        assert!(release.contains(PointerFlags::MOVE));
+
+        // Перетаскивание: движение с зажатой кнопкой должно нести её флаг.
+        let drag = RdpConnection::mouse_flags(MOUSE_LEFT, MouseEvent::Move);
+        assert!(drag.contains(PointerFlags::LEFT_BUTTON));
+        assert!(!drag.contains(PointerFlags::DOWN));
+    }
+
+    #[test]
+    fn mouse_button_bits_are_rdp_order_not_gdk_order() {
+        use ironrdp_pdu::input::mouse::PointerFlags;
+
+        let middle = RdpConnection::mouse_flags(MOUSE_MIDDLE, MouseEvent::ButtonDown);
+        assert!(middle.contains(PointerFlags::MIDDLE_BUTTON_OR_WHEEL));
+        assert!(!middle.contains(PointerFlags::RIGHT_BUTTON));
+
+        let right = RdpConnection::mouse_flags(MOUSE_RIGHT, MouseEvent::ButtonDown);
+        assert!(right.contains(PointerFlags::RIGHT_BUTTON));
+        assert!(!right.contains(PointerFlags::MIDDLE_BUTTON_OR_WHEEL));
+    }
+
+    #[test]
     fn legacy_security_requires_explicit_opt_in() {
         for nla in [true, false] {
             let modes = security_modes(nla, false);
@@ -1048,7 +1219,9 @@ mod tests {
         // Обратное направление: события мыши уходят fast-path'ом в том же
         // RC4-потоке (Standard RDP Security). Сервер не должен разорвать
         // сессию из-за неверного шифрования ввода.
-        conn.send_mouse(10, 10, 0, true);
+        conn.send_mouse(10, 10, 0, MouseEvent::Move);
+        conn.send_mouse(10, 10, MOUSE_LEFT, MouseEvent::ButtonDown);
+        conn.send_mouse(10, 10, MOUSE_LEFT, MouseEvent::ButtonUp);
         for _ in 0..20 {
             match conn.run() {
                 Ok(_) => std::thread::sleep(Duration::from_millis(50)),

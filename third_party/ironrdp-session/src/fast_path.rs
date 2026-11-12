@@ -252,16 +252,27 @@ impl Processor {
 
                 let bpp = usize::from(update.bits_per_pixel);
                 let width = usize::from(update.width);
+                let rect_width = usize::from(update.rectangle.width());
                 let bytes_per_pixel = bpp.div_ceil(8);
                 let row_bytes = width * bytes_per_pixel;
                 let padded_row_bytes = (row_bytes + 3) & !3;
+                // Сколько байт строки копировать в приёмник. Сервер вправе
+                // объявить ширину больше прямоугольника назначения: xrdp
+                // дополняет строку до кратности 4 пикселям и включает это
+                // дополнение в `width` (TS_BITMAP_DATA), тогда как destination
+                // rectangle остаётся уже. Приёмники (`apply_*`) ожидают плотно
+                // упакованные строки ровно по ширине прямоугольника, поэтому
+                // лишние пиксели строки нужно отрезать.
+                let copy_row_bytes = rect_width
+                    .saturating_mul(bytes_per_pixel)
+                    .min(row_bytes.min(padded_row_bytes));
 
-                if padded_row_bytes != row_bytes {
+                if padded_row_bytes != row_bytes || copy_row_bytes != row_bytes {
                     // Strip per-row padding before passing to the bitmap apply functions,
                     // which expect tightly packed pixel data.
                     buf.clear();
                     for row in update.bitmap_data.chunks(padded_row_bytes) {
-                        let end = row_bytes.min(row.len());
+                        let end = copy_row_bytes.min(row.len());
                         buf.extend_from_slice(&row[..end]);
                     }
 
