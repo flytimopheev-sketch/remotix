@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.7.2
+Version:        1.7.3
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
@@ -67,6 +67,15 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Mon Nov 16 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.3
+- Смена мастер-пароля: перешифровка сниппетов и expect-правил, одна транзакция,
+  ошибка вместо паники на повреждённом шифротексте
+- Терминал без VTE: CSI r сбрасывает область прокрутки (семантика xterm)
+- RDP: serde-дефолты буфера обмена совпадают с Default (старые профили)
+- Экспорт журнала в CSV: экранирование «;», кавычек и переводов строк
+- Санитайзер логов: маскирование кириллических ключей в верхнем регистре
+- 60+ новых unit-тестов: эмулятор терминала, настройки, XDG-пути, смена пароля
+- Объявлен MSRV: rust-version = 1.88
 * Thu Nov 12 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.2
 - RDP: перепаковка bitmap-строк с padding (xrdp) — без диагональных полос
 - RDP: правильный порядок каналов BGRA для cairo (ARgb32)

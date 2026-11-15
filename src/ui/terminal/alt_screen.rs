@@ -344,8 +344,13 @@ impl Screen {
             b'T' => self.scroll_down(first()),
             b'm' => self.apply_sgr(&values),
             b'r' => {
+                // DECSTBM: CSI r — сброс региона на весь экран; пропущенный
+                // второй параметр означает последнюю строку (семантика xterm).
                 let top = first().saturating_sub(1);
-                let bottom = second().saturating_sub(1).min(self.rows - 1);
+                let bottom = match values.get(1).copied().unwrap_or(0) {
+                    0 => self.rows - 1,
+                    n => (n - 1).min(self.rows - 1),
+                };
                 if top < bottom {
                     self.scroll_top = top;
                     self.scroll_bottom = bottom;
@@ -855,5 +860,405 @@ impl OutputRouter {
         }
 
         alt
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::terminal::MouseMode;
+
+    fn screen(cols: usize, rows: usize, data: &[u8]) -> Screen {
+        let mut s = Screen::new(cols, rows);
+        s.feed(data);
+        s
+    }
+
+    #[test]
+    fn prints_ascii_and_wraps() {
+        let s = screen(5, 3, b"abcdeX");
+        assert_eq!(s.text(), "abcde\nX\n");
+        assert_eq!(s.cursor(), (1, 1));
+    }
+
+    #[test]
+    fn wrap_is_deferred_and_cr_cancels_it() {
+        let mut s = screen(5, 3, b"abcde");
+        assert_eq!(s.cursor(), (4, 0), "курсор остаётся в последней колонке");
+        s.feed(b"\rZ");
+        assert_eq!(s.text(), "Zbcde\n\n");
+    }
+
+    #[test]
+    fn autowrap_off_overwrites_last_column() {
+        let s = screen(5, 3, b"\x1b[?7labcdeXY");
+        assert_eq!(s.text(), "abcdY\n\n");
+    }
+
+    #[test]
+    fn tab_and_backspace() {
+        let s = screen(20, 2, b"ab\tc");
+        assert_eq!(s.cursor(), (9, 0));
+        assert_eq!(s.cell(8, 0).ch, 'c');
+        let s = screen(5, 2, b"abc\x08Z");
+        assert_eq!(s.text(), "abZ\n");
+    }
+
+    #[test]
+    fn linefeed_keeps_column() {
+        let s = screen(5, 3, b"ab\ncd");
+        assert_eq!(s.text(), "ab\n  cd\n");
+        assert_eq!(s.cursor(), (4, 1));
+    }
+
+    #[test]
+    fn cursor_movement_and_clamping() {
+        let mut s = screen(10, 5, b"\x1b[3;4H");
+        assert_eq!(s.cursor(), (3, 2));
+        s.feed(b"\x1b[H");
+        assert_eq!(s.cursor(), (0, 0));
+        s.feed(b"\x1b[2A");
+        assert_eq!(s.cursor(), (0, 0), "CUU не уходит за верх");
+        s.feed(b"\x1b[99B\x1b[99C");
+        assert_eq!(s.cursor(), (9, 4), "CUD/CUF ограничены экраном");
+        s.feed(b"\x1b[2;3H\x1b[G");
+        assert_eq!(s.cursor(), (0, 1), "CHA без параметра — колонка 1");
+        s.feed(b"\x1b[4d");
+        assert_eq!(s.cursor(), (0, 3), "VPA — строка 4");
+    }
+
+    #[test]
+    fn save_restore_cursor() {
+        let s = screen(8, 4, b"\x1b[3;5H\x1b7\x1b[H\x1b8");
+        assert_eq!(s.cursor(), (4, 2), "DECSC/DECRC");
+        let s = screen(8, 4, b"\x1b[2;3H\x1b[s\x1b[H\x1b[u");
+        assert_eq!(s.cursor(), (2, 1), "SCP/RCP");
+        let s = screen(4, 2, b"\x1b[2;2H\x1b8");
+        assert_eq!(s.cursor(), (0, 0), "DECRC без DECSC — домой");
+    }
+
+    #[test]
+    fn erase_line_modes() {
+        assert_eq!(screen(5, 2, b"abcde\x1b[1;3H\x1b[K").text(), "ab\n");
+        assert_eq!(screen(5, 2, b"abcde\x1b[1;3H\x1b[1K").text(), "   de\n");
+        assert_eq!(screen(5, 2, b"abcde\x1b[2K").text(), "\n");
+    }
+
+    #[test]
+    fn erase_display_modes() {
+        assert_eq!(
+            screen(5, 2, b"abcde\r\nfghij\x1b[2;2H\x1b[1J").text(),
+            "\n  hij"
+        );
+        assert_eq!(
+            screen(5, 2, b"abcde\r\nfghij\x1b[2;2H\x1b[0J").text(),
+            "abcde\nf"
+        );
+        assert_eq!(screen(5, 2, b"abcde\r\nfghij\x1b[2J").text(), "\n");
+        assert_eq!(
+            screen(4, 2, b"abcd\x1b[2;2H\x1b[J").text(),
+            "abcd\n",
+            "J без параметра = ED0"
+        );
+    }
+
+    #[test]
+    fn insert_delete_and_erase_chars() {
+        assert_eq!(screen(6, 2, b"abcdef\x1b[1;3H\x1b[2@").text(), "ab  cd\n");
+        assert_eq!(screen(6, 2, b"abcdef\x1b[1;3H\x1b[2P").text(), "abef\n");
+        assert_eq!(
+            screen(4, 3, b"aaaa\r\nbbb\r\nccc\x1b[1;2H\x1b[2X").text(),
+            "a  a\nbbb\nccc"
+        );
+    }
+
+    #[test]
+    fn insert_and_delete_lines() {
+        assert_eq!(
+            screen(4, 3, b"aaa\r\nbbb\r\nccc\x1b[2;1H\x1b[1L").text(),
+            "aaa\n\nbbb"
+        );
+        assert_eq!(
+            screen(4, 3, b"aaa\r\nbbb\r\nccc\x1b[1;1H\x1b[1M").text(),
+            "bbb\nccc\n"
+        );
+    }
+
+    #[test]
+    fn insert_mode_shifts_line() {
+        let s = screen(6, 2, b"abcd\x1b[1;2H\x1b[4hXY\x1b[4l");
+        assert_eq!(s.text(), "aXYbcd\n");
+    }
+
+    #[test]
+    fn scroll_up_and_down() {
+        assert_eq!(
+            screen(3, 3, b"aaa\r\nbbb\r\nccc\x1b[1S").text(),
+            "bbb\nccc\n"
+        );
+        assert_eq!(
+            screen(3, 3, b"aaa\r\nbbb\r\nccc\x1b[1T").text(),
+            "\naaa\nbbb"
+        );
+    }
+
+    #[test]
+    fn scroll_region_set_and_scrolls_inside() {
+        let s = screen(4, 5, b"\x1b[2;4r");
+        assert_eq!((s.scroll_top, s.scroll_bottom), (1, 3));
+        assert_eq!(s.cursor(), (0, 0));
+        let s = screen(4, 5, b"1\r\n2\r\n3\r\n4\r\n5\x1b[2;4r\x1b[4;1H\r\n");
+        assert_eq!(s.text(), "1\n3\n4\n\n5", "строки вне региона не двигаются");
+    }
+
+    #[test]
+    fn scroll_region_invalid_is_ignored() {
+        let s = screen(4, 5, b"\x1b[4;2r");
+        assert_eq!((s.scroll_top, s.scroll_bottom), (0, 4));
+    }
+
+    /// РЕГРЕССИЯ: CSI r обязан сбрасывать регион на весь экран.
+    #[test]
+    fn csi_r_resets_scroll_region() {
+        let s = screen(4, 5, b"\x1b[2;4r\x1b[r");
+        assert_eq!((s.scroll_top, s.scroll_bottom), (0, 4));
+        assert_eq!(s.cursor(), (0, 0));
+    }
+
+    /// РЕГРЕССИЯ: один параметр — регион «до низа экрана» (семантика xterm).
+    #[test]
+    fn csi_r_single_param_means_to_bottom() {
+        let s = screen(4, 5, b"\x1b[3r");
+        assert_eq!((s.scroll_top, s.scroll_bottom), (2, 4));
+    }
+
+    /// РЕГРЕССИЯ: после выхода из полноэкранного приложения прокрутка
+    /// снова охватывает весь экран.
+    #[test]
+    fn fullscreen_app_restores_full_scrolling() {
+        let mut s = Screen::new(4, 4);
+        s.feed(b"\x1b[1;3r");
+        s.feed(b"\x1b[r");
+        s.feed(b"a\r\nb\r\nc\r\nd\r\ne");
+        assert_eq!(s.text(), "b\nc\nd\ne");
+    }
+
+    #[test]
+    fn sgr_basic_colors_and_reset() {
+        let mut s = screen(4, 2, b"\x1b[1;31mA");
+        assert_eq!(s.cell(0, 0).style.fg, Color::Indexed(1));
+        assert!(s.cell(0, 0).style.bold);
+        s.feed(b"\x1b[0mB");
+        assert_eq!(s.cell(1, 0).style, Style::default());
+    }
+
+    #[test]
+    fn sgr_256_rgb_and_bright() {
+        let s = screen(4, 2, b"\x1b[38;5;208mX");
+        assert_eq!(s.cell(0, 0).style.fg, Color::Indexed(208));
+        let s = screen(4, 2, b"\x1b[38;2;10;20;30mX");
+        assert_eq!(s.cell(0, 0).style.fg, Color::Rgb(10, 20, 30));
+        let s = screen(4, 2, b"\x1b[91mX");
+        assert_eq!(s.cell(0, 0).style.fg, Color::Indexed(9));
+        let s = screen(4, 2, b"\x1b[44mX");
+        assert_eq!(s.cell(0, 0).style.bg, Color::Indexed(4));
+        let s = screen(4, 2, b"\x1b[38;2;10mX");
+        assert_eq!(
+            s.cell(0, 0).style.fg,
+            Color::Rgb(10, 0, 0),
+            "обрезанный RGB не паникует"
+        );
+    }
+
+    #[test]
+    fn wide_char_occupies_two_cells() {
+        let s = screen(6, 2, "界".as_bytes());
+        assert_eq!(s.cell(0, 0).ch, '界');
+        assert_eq!(s.cell(1, 0).ch, '\0');
+        assert_eq!(s.cursor(), (2, 0));
+    }
+
+    #[test]
+    fn wide_char_wraps_at_last_column() {
+        let mut s = screen(4, 2, b"abcd");
+        s.feed("界".as_bytes());
+        assert_eq!(s.cell(0, 1).ch, '界');
+        assert_eq!(s.cursor(), (2, 1));
+    }
+
+    #[test]
+    fn combining_mark_is_ignored() {
+        let s = screen(4, 2, "a\u{0301}".as_bytes());
+        assert_eq!(s.text(), "a\n");
+        assert_eq!(s.cursor(), (1, 0));
+    }
+
+    #[test]
+    fn utf8_split_between_feeds() {
+        let mut s = Screen::new(6, 2);
+        let data = "Ж".as_bytes();
+        s.feed(&data[..1]);
+        s.feed(&data[1..]);
+        assert_eq!(s.cell(0, 0).ch, 'Ж');
+        let s = screen(6, 2, "Привет".as_bytes());
+        assert_eq!(s.text(), "Привет\n");
+    }
+
+    #[test]
+    fn resize_keeps_content_and_clamps_cursor() {
+        let mut s = screen(6, 3, b"abcdef\x1b[3;6H");
+        s.resize(4, 2);
+        assert_eq!(s.cursor(), (3, 1));
+        assert_eq!(s.text(), "abcd\n");
+    }
+
+    #[test]
+    fn device_status_reports() {
+        let mut s = screen(10, 5, b"\x1b[2;3H\x1b[6n");
+        assert_eq!(s.take_responses(), b"\x1b[2;3R");
+        s.feed(b"\x1b[5n");
+        assert_eq!(s.take_responses(), b"\x1b[0n");
+        s.feed(b"\x1b[c");
+        assert_eq!(s.take_responses(), b"\x1b[?1;2c");
+        assert!(s.take_responses().is_empty(), "буфер ответов очищается");
+    }
+
+    #[test]
+    fn osc_and_charset_sequences_are_skipped() {
+        assert_eq!(
+            screen(6, 2, b"\x1b]0;title\x07ok").text(),
+            "ok\n",
+            "OSC + BEL"
+        );
+        assert_eq!(screen(6, 2, b"\x1b]0;t\x1b\\ok").text(), "ok\n", "OSC + ST");
+        assert_eq!(
+            screen(6, 2, b"\x1b(Bok").text(),
+            "ok\n",
+            "выбор набора символов"
+        );
+    }
+
+    #[test]
+    fn nel_reverse_index_and_ris() {
+        let s = screen(4, 3, b"abc\x1bE");
+        assert_eq!(s.cursor(), (0, 1), "NEL: новая строка с колонки 0");
+        let s = screen(4, 3, b"abc\x1bM");
+        assert_eq!(s.text(), "\nabc\n", "RI на верхней строке скроллит вниз");
+        let s = screen(4, 3, b"xy\x1b[2;3r\x1bc");
+        assert_eq!(s.cursor(), (0, 0));
+        assert_eq!(s.text(), "\n\n");
+        assert_eq!(
+            (s.scroll_top, s.scroll_bottom),
+            (0, 2),
+            "RIS сбрасывает регион"
+        );
+    }
+
+    #[test]
+    fn cursor_visibility_modes() {
+        let mut s = screen(4, 2, b"\x1b[?25l");
+        assert!(!s.cursor_visible());
+        s.feed(b"\x1b[?25h");
+        assert!(s.cursor_visible());
+    }
+
+    fn chunks(rs: &[RoutedChunk]) -> Vec<(bool, Vec<u8>)> {
+        rs.iter().map(|c| (c.alt, c.data.clone())).collect()
+    }
+
+    #[test]
+    fn router_splits_on_alt_screen_switch() {
+        let mut r = OutputRouter::new();
+        let out = r.route(b"hello\x1b[?1049hworld");
+        assert_eq!(
+            chunks(&out),
+            vec![
+                (false, b"hello\x1b[?1049h".to_vec()),
+                (true, b"world".to_vec()),
+            ]
+        );
+        assert!(r.alt());
+        let out = r.route(b"\x1b[?1049lbye");
+        assert_eq!(
+            chunks(&out),
+            vec![(true, b"\x1b[?1049l".to_vec()), (false, b"bye".to_vec()),]
+        );
+        assert!(!r.alt());
+    }
+
+    #[test]
+    fn router_handles_csi_split_between_calls() {
+        let mut r = OutputRouter::new();
+        let out = r.route(b"a\x1b[?10");
+        assert_eq!(chunks(&out), vec![(false, b"a".to_vec())]);
+        let out = r.route(b"49hB");
+        assert_eq!(
+            chunks(&out),
+            vec![(false, b"\x1b[?1049h".to_vec()), (true, b"B".to_vec()),]
+        );
+    }
+
+    #[test]
+    fn router_cursor_hidden_heuristic() {
+        let mut r = OutputRouter::new();
+        r.route(b"\x1b[?25l");
+        assert!(r.alt(), "скрытый курсор — признак экрана top");
+        let out = r.route(b"x\x1b[?25h");
+        assert_eq!(chunks(&out), vec![(true, b"x\x1b[?25h".to_vec())]);
+        assert!(!r.alt());
+    }
+
+    #[test]
+    fn router_cursor_hide_inside_real_alt_does_not_switch() {
+        let mut r = OutputRouter::new();
+        r.route(b"\x1b[?1049h");
+        let out = r.route(b"\x1b[?25lq\x1b[?25h");
+        assert_eq!(chunks(&out), vec![(true, b"\x1b[?25lq\x1b[?25h".to_vec())]);
+        assert!(r.alt());
+    }
+
+    #[test]
+    fn router_tracks_input_modes() {
+        let mut r = OutputRouter::new();
+        r.route(b"\x1b[?1h\x1b[?1000h\x1b[?1006h\x1b[?2004h");
+        let m = r.modes();
+        assert!(m.app_cursor && m.sgr_mouse && m.bracketed_paste);
+        assert_eq!(m.mouse, MouseMode::Normal);
+        r.route(b"\x1b[?1002h");
+        assert_eq!(r.modes().mouse, MouseMode::Button);
+        r.route(b"\x1b[?1003h");
+        assert_eq!(r.modes().mouse, MouseMode::Any);
+        r.route(b"\x1b[?1003l");
+        assert_eq!(r.modes().mouse, MouseMode::Off);
+    }
+
+    #[test]
+    fn router_osc_pending_and_st() {
+        let mut r = OutputRouter::new();
+        assert!(r.route(b"\x1b]0;tit").is_empty(), "неполный OSC копится");
+        let out = r.route(b"le\x1b\\X");
+        assert_eq!(chunks(&out), vec![(false, b"\x1b]0;title\x1b\\X".to_vec())]);
+    }
+
+    #[test]
+    fn router_trailing_esc_and_plain_data() {
+        let mut r = OutputRouter::new();
+        let out = r.route(b"ab\x1b");
+        assert_eq!(chunks(&out), vec![(false, b"ab".to_vec())]);
+        let out = r.route(b"M");
+        assert_eq!(chunks(&out), vec![(false, b"\x1bM".to_vec())]);
+        let out = r.route(b"plain");
+        assert_eq!(chunks(&out), vec![(false, b"plain".to_vec())]);
+    }
+
+    #[test]
+    fn router_47_and_1047_also_switch() {
+        let mut r = OutputRouter::new();
+        r.route(b"\x1b[?47h");
+        assert!(r.alt());
+        r.route(b"\x1b[?47l");
+        assert!(!r.alt());
+        r.route(b"\x1b[?1047h");
+        assert!(r.alt());
     }
 }

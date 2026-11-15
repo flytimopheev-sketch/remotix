@@ -115,9 +115,7 @@ const SENSITIVE_KEYS: &[&str] = &[
     "private_key",
     "authorization",
     "пароль",
-    "Пароль",
     "токен",
-    "Токен",
 ];
 
 /// Строки, содержащие секретное поле в формате `key=value` или `key: value`,
@@ -135,8 +133,25 @@ fn redact_sensitive_values(text: &str) -> String {
     out
 }
 
+/// Нижний регистр для поиска ключей: ASCII + базовая кириллица.
+/// В отличие от str::to_lowercase длина в байтах не меняется, поэтому
+/// индексы совпадают с исходной строкой.
+fn fold_lower(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    for ch in line.chars() {
+        if ch.is_ascii() {
+            out.push(ch.to_ascii_lowercase());
+        } else if matches!(ch, 'А'..='Я' | 'Ё') {
+            out.push(char::from_u32(ch as u32 + 0x20).unwrap_or(ch));
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
 fn redact_line(line: &str) -> String {
-    let lower = line.to_ascii_lowercase();
+    let lower = fold_lower(line);
     let bytes = lower.as_bytes();
 
     for key in SENSITIVE_KEYS {
@@ -249,5 +264,44 @@ mod tests {
         let clean = sanitize_with("root-secret и ещё немного текста", &config);
         assert!(!clean.contains("root-secret"));
         assert!(clean.contains("обрезано"));
+    }
+}
+
+#[cfg(test)]
+mod extra_tests {
+    use super::*;
+
+    /// РЕГРЕССИЯ: кириллические ключи в верхнем регистре.
+    #[test]
+    fn redacts_uppercase_cyrillic_keys() {
+        let clean = sanitize("ПАРОЛЬ: hunter2\nТОКЕН=abc123");
+        assert!(!clean.contains("hunter2"), "ПАРОЛЬ не замаскирован");
+        assert!(!clean.contains("abc123"), "ТОКЕН не замаскирован");
+    }
+
+    #[test]
+    fn identifier_boundaries_are_respected() {
+        assert_eq!(sanitize("mypasswordx=12345"), "mypasswordx=12345");
+        assert_eq!(sanitize("passwords: list"), "passwords: list");
+    }
+
+    #[test]
+    fn truncation_is_char_safe() {
+        let config = SanitizeConfig {
+            secrets: vec![],
+            max_len: 5,
+        };
+        let clean = sanitize_with(&"ю".repeat(20), &config);
+        assert!(clean.starts_with("ююююю"));
+        assert!(clean.contains("обрезано"));
+    }
+
+    #[test]
+    fn short_config_secrets_are_ignored() {
+        let config = SanitizeConfig {
+            secrets: vec!["abc".into()],
+            max_len: 8192,
+        };
+        assert_eq!(sanitize_with("abc def", &config), "abc def");
     }
 }

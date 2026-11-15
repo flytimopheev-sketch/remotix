@@ -368,4 +368,26 @@ mod tests {
         let mut e2 = ExpectEngine::new(vec![rule("x", "y", false)]);
         assert!(e2.on_output(b"").is_empty());
     }
+
+    #[test]
+    fn prompt_split_between_chunks_fires_once() {
+        let mut e = ExpectEngine::new(vec![rule("Password:", "secret", false)]);
+        assert!(e.on_output(b"Pass").is_empty());
+        assert_eq!(e.on_output(b"word: "), vec![b"secret\r".to_vec()]);
+    }
+
+    #[test]
+    fn send_ending_with_cr_gets_no_extra_enter() {
+        let mut e = ExpectEngine::new(vec![rule("x", "cmd\r", false)]);
+        assert_eq!(e.on_output(b"x"), vec![b"cmd\r".to_vec()]);
+    }
+
+    #[test]
+    fn pattern_longer_than_window_never_fires() {
+        let pattern = "X".repeat(WINDOW_BYTES + 1);
+        let mut e = ExpectEngine::new(vec![rule(&pattern, "y", false)]);
+        let chunk = vec![b'X'; WINDOW_BYTES];
+        assert!(e.on_output(&chunk).is_empty());
+        assert!(e.on_output(&chunk).is_empty());
+    }
 }

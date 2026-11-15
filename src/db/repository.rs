@@ -15,6 +15,16 @@ pub fn now() -> i64 {
         .unwrap_or(0)
 }
 
+/// Экранирует поле CSV (RFC 4180): кавычки удваиваются, поле с «;»,
+/// кавычкой или переводом строки берётся в кавычки.
+fn csv_field(value: &str) -> String {
+    if value.contains([';', '"', '\n', '\r']) {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
+}
+
 /// Читает «зашифрованную» колонку, tolerая к типу значения.
 ///
 /// SQLite хранит данные динамически, поэтому в BLOB-колонке может оказаться
@@ -155,12 +165,32 @@ impl Database {
     // PART2
 
     /// Смена мастер-пароля: перешифровка всех учётных данных.
+    ///
+    /// Перешифровываются профили, expect-правила и сниппеты — они шифруются
+    /// одним ключом. Всё выполняется в одной транзакции: при любой ошибке
+    /// (в т.ч. повреждённом шифротексте) база целиком остаётся на старом ключе.
     pub fn change_master_password(&self, old: &str, new: &str) -> Result<(), String> {
         let old_key = Zeroizing::new(self.unlock(old)?);
         let new_salt = crypto::new_salt();
         let new_params = crypto::Argon2Params::default();
         let new_key = Zeroizing::new(crypto::derive_key(new, &new_salt, &new_params));
         let verifier = crypto::encrypt(&new_key, b"remotix-verifier");
+
+        let reencrypt = |blob: Option<Vec<u8>>, what: &str| -> Result<Option<Vec<u8>>, String> {
+            match blob {
+                Some(b) => {
+                    let plain =
+                        crypto::decrypt(&old_key, &b).map_err(|e| format!("{what}: {e}"))?;
+                    Ok(Some(crypto::encrypt(&new_key, &plain)))
+                }
+                None => Ok(None),
+            }
+        };
+
+        let tx = self
+            .conn()
+            .unchecked_transaction()
+            .map_err(|e| e.to_string())?;
 
         let mut stmt = self
             .conn()
@@ -175,17 +205,55 @@ impl Database {
             .map_err(|e| e.to_string())?
             .collect::<Result<_, _>>()
             .map_err(|e| e.to_string())?;
-
+        drop(stmt);
         for (id, username, password, passphrase, root_password) in rows {
-            let enc = |blob: &Option<Vec<u8>>| -> Option<Vec<u8>> {
-                blob.as_ref().map(|b| {
-                    let plain = crypto::decrypt(&old_key, b).expect("перешифровка");
-                    crypto::encrypt(&new_key, &plain)
-                })
-            };
-            self.conn().execute(
+            tx.execute(
                 "UPDATE profiles SET username = ?1, password = ?2, ssh_key_passphrase = ?3, root_password = ?4 WHERE id = ?5",
-                params![enc(&username), enc(&password), enc(&passphrase), enc(&root_password), id],
+                params![
+                    reencrypt(username, &format!("профиль {id}: логин"))?,
+                    reencrypt(password, &format!("профиль {id}: пароль"))?,
+                    reencrypt(passphrase, &format!("профиль {id}: пароль ключа"))?,
+                    reencrypt(root_password, &format!("профиль {id}: пароль root"))?,
+                    id
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        // Expect-правила и сниппеты шифруются тем же ключом — без их
+        // перешифровки они молча пропадут после смены мастер-пароля.
+        let mut stmt = self
+            .conn()
+            .prepare("SELECT id, send FROM expect_rules")
+            .map_err(|e| e.to_string())?;
+        let rules: Vec<(i64, Option<Vec<u8>>)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<_, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
+        for (id, send) in rules {
+            tx.execute(
+                "UPDATE expect_rules SET send = ?1 WHERE id = ?2",
+                params![reencrypt(send, &format!("expect-правило {id}"))?, id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        let mut stmt = self
+            .conn()
+            .prepare("SELECT id, command FROM snippets")
+            .map_err(|e| e.to_string())?;
+        let snippets: Vec<(i64, Option<Vec<u8>>)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<_, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
+        for (id, command) in snippets {
+            tx.execute(
+                "UPDATE snippets SET command = ?1 WHERE id = ?2",
+                params![reencrypt(command, &format!("сниппет {id}"))?, id],
             )
             .map_err(|e| e.to_string())?;
         }
@@ -199,6 +267,8 @@ impl Database {
         .map_err(|e| e.to_string())?;
         self.meta_set("verifier", &verifier)
             .map_err(|e| e.to_string())?;
+
+        tx.commit().map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -938,12 +1008,14 @@ impl Database {
             csv.push_str(&format!(
                 "{};{};{};{};{};{};{}\n",
                 h.id,
-                h.profile_name,
+                csv_field(&h.profile_name),
                 h.started_at,
                 h.ended_at.map(|v| v.to_string()).unwrap_or_default(),
-                h.status,
-                h.error_code.clone().unwrap_or_default(),
-                crate::logging::sanitize(h.error_message.as_deref().unwrap_or_default())
+                csv_field(&h.status),
+                csv_field(h.error_code.as_deref().unwrap_or_default()),
+                csv_field(&crate::logging::sanitize(
+                    h.error_message.as_deref().unwrap_or_default()
+                ))
             ));
         }
         std::fs::write(path, csv).map_err(|e| e.to_string())?;
@@ -1420,5 +1492,210 @@ mod tests {
 
         db.delete_snippet(id).expect("удаление сниппета");
         assert!(db.list_snippets(&key).expect("чтение").is_empty());
+    }
+}
+
+#[cfg(test)]
+mod master_change_tests {
+    use super::*;
+    use crate::models::NewProfile;
+    use secrecy::{ExposeSecret, SecretString};
+
+    fn opened() -> (Database, [u8; 32]) {
+        let db = Database::open(":memory:").expect("БД");
+        db.init_master("master").expect("мастер-пароль");
+        let key = db.unlock("master").expect("разблокировка");
+        (db, key)
+    }
+
+    fn sample(name: &str) -> NewProfile {
+        NewProfile {
+            name: name.to_string(),
+            protocol: Some(Protocol::Ssh),
+            host: "example.org".to_string(),
+            port: 22,
+            username: Some("user".to_string()),
+            password: Some(SecretString::from("secret".to_string())),
+            ssh_key_passphrase: Some(SecretString::from("phrase".to_string())),
+            root_password: Some(SecretString::from("root-secret".to_string())),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn change_master_password_reencrypts_all_profile_secrets() {
+        let (db, key) = opened();
+        db.add_profile(&key, &sample("Сервер")).expect("профиль");
+        db.change_master_password("master", "new-master")
+            .expect("смена");
+        assert!(
+            db.unlock("master").is_err(),
+            "старый пароль больше не подходит"
+        );
+        let new_key = db.unlock("new-master").expect("новый пароль");
+        let p = &db.list_profiles(&new_key).expect("чтение")[0];
+        assert_eq!(p.username.as_deref(), Some("user"));
+        assert_eq!(
+            p.password.as_ref().map(|s| s.expose_secret()),
+            Some("secret")
+        );
+        assert_eq!(
+            p.ssh_key_passphrase.as_ref().map(|s| s.expose_secret()),
+            Some("phrase")
+        );
+        assert_eq!(
+            p.root_password.as_ref().map(|s| s.expose_secret()),
+            Some("root-secret")
+        );
+    }
+
+    /// РЕГРЕССИЯ: сниппеты и expect-правила шифруются тем же ключом и обязаны
+    /// перешифровываться при смене мастер-пароля.
+    #[test]
+    fn change_master_password_keeps_snippets_and_expect_rules() {
+        let (db, key) = opened();
+        db.add_snippet(&key, "Диск", "df -h").expect("сниппет");
+        db.add_expect_rule(
+            &key,
+            "Password:",
+            &SecretString::from("hunter2".to_string()),
+            true,
+            true,
+        )
+        .expect("правило");
+        db.change_master_password("master", "new-master")
+            .expect("смена");
+        let new_key = db.unlock("new-master").expect("новый пароль");
+        let snippets = db.list_snippets(&new_key).expect("сниппеты");
+        assert_eq!(
+            snippets.len(),
+            1,
+            "сниппеты не должны пропадать после смены пароля"
+        );
+        assert_eq!(snippets[0].command, "df -h");
+        let rules = db.list_expect_rules(&new_key).expect("правила");
+        assert_eq!(rules.len(), 1, "expect-правила не должны пропадать");
+        assert_eq!(rules[0].send.expose_secret(), "hunter2");
+    }
+
+    /// РЕГРЕССИЯ: повреждённый шифротекст — ошибка, а не паника; хранилище
+    /// целиком остаётся на старом ключе (транзакция).
+    #[test]
+    fn change_master_password_with_corrupted_blob_is_error_not_panic() {
+        let (db, key) = opened();
+        let good = db.add_profile(&key, &sample("Целый")).expect("профиль");
+        let bad = db.add_profile(&key, &sample("Битый")).expect("профиль");
+        db.conn()
+            .execute(
+                "UPDATE profiles SET password = ?1 WHERE id = ?2",
+                params![vec![0u8; 40], bad],
+            )
+            .expect("порча BLOB");
+
+        assert!(db.change_master_password("master", "new-master").is_err());
+
+        let old_key = db.unlock("master").expect("старый пароль всё ещё работает");
+        let profiles = db.list_profiles(&old_key).expect("чтение");
+        let intact = profiles
+            .iter()
+            .find(|p| p.id == good)
+            .expect("целый профиль");
+        assert_eq!(
+            intact.password.as_ref().map(|s| s.expose_secret()),
+            Some("secret"),
+            "неповреждённые данные не должны быть перешифрованы наполовину"
+        );
+    }
+
+    /// РЕГРЕССИЯ: «;», кавычки и переводы строк не ломают структуру CSV.
+    #[test]
+    fn history_csv_escapes_delimiters_and_newlines() {
+        let (db, key) = opened();
+        let id = db.add_profile(&key, &sample("a;b\"c")).expect("профиль");
+        db.add_history(
+            id,
+            100,
+            Some(200),
+            "error",
+            Some(("E_X".to_string(), "line1\nline2".to_string())),
+        )
+        .expect("журнал");
+
+        let path =
+            std::env::temp_dir().join(format!("remotix-csv-{}-{}.csv", std::process::id(), now()));
+        db.export_history_csv(&path).expect("экспорт");
+        let text = std::fs::read_to_string(&path).expect("чтение");
+        let _ = std::fs::remove_file(&path);
+
+        let rows = parse_csv(&text, ';');
+        assert_eq!(
+            rows.len(),
+            2,
+            "перевод строки внутри поля не создаёт новую запись"
+        );
+        assert_eq!(rows[1][1], "a;b\"c");
+        assert_eq!(rows[1][6], "line1\nline2");
+    }
+
+    #[test]
+    fn history_filters_by_profile_and_status() {
+        let (db, key) = opened();
+        let a = db.add_profile(&key, &sample("A")).expect("A");
+        let b = db.add_profile(&key, &sample("B")).expect("B");
+        db.add_history(a, 100, Some(101), "success", None).unwrap();
+        db.add_history(b, 200, Some(201), "error", Some(("E".into(), "x".into())))
+            .unwrap();
+        assert_eq!(db.history(Some(a), None).unwrap().len(), 1);
+        assert_eq!(db.history(None, Some("error")).unwrap().len(), 1);
+        assert_eq!(db.history(Some(a), Some("error")).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn settings_roundtrip_and_reset() {
+        let (db, _key) = opened();
+        assert_eq!(db.get_setting("theme"), None);
+        db.set_setting("theme", "cosmic").unwrap();
+        assert_eq!(db.get_setting("theme").as_deref(), Some("cosmic"));
+        db.set_setting("theme", "dark").unwrap();
+        assert_eq!(db.get_setting("theme").as_deref(), Some("dark"));
+        db.reset_setting("theme").unwrap();
+        assert_eq!(db.get_setting("theme"), None);
+    }
+
+    /// Мини-парсер CSV (RFC 4180) для проверки экранирования.
+    fn parse_csv(text: &str, delim: char) -> Vec<Vec<String>> {
+        let mut rows = Vec::new();
+        let mut row = Vec::new();
+        let mut field = String::new();
+        let mut quoted = false;
+        let mut chars = text.chars().peekable();
+        while let Some(c) = chars.next() {
+            if quoted {
+                if c == '"' {
+                    if chars.peek() == Some(&'"') {
+                        chars.next();
+                        field.push('"');
+                    } else {
+                        quoted = false;
+                    }
+                } else {
+                    field.push(c);
+                }
+            } else if c == '"' {
+                quoted = true;
+            } else if c == delim {
+                row.push(std::mem::take(&mut field));
+            } else if c == '\n' {
+                row.push(std::mem::take(&mut field));
+                rows.push(std::mem::take(&mut row));
+            } else if c != '\r' {
+                field.push(c);
+            }
+        }
+        if !field.is_empty() || !row.is_empty() {
+            row.push(field);
+            rows.push(row);
+        }
+        rows
     }
 }

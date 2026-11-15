@@ -183,3 +183,98 @@ impl Settings {
         self.flag("rdp.send_ctrl_alt_del", true)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::repository::Database;
+
+    fn settings() -> Settings {
+        Settings::new(Rc::new(Database::open(":memory:").expect("БД")))
+    }
+
+    #[test]
+    fn defaults_are_sane() {
+        let s = settings();
+        assert_eq!(s.terminal_font(), "Monospace");
+        assert_eq!(s.terminal_font_size(), 12);
+        assert!(s.terminal_cursor_blink());
+        assert_eq!(s.terminal_color_scheme(), "dark");
+        assert!(s.terminal_metrics());
+        assert!(
+            !s.terminal_recording(),
+            "запись сессий по умолчанию выключена"
+        );
+        assert!(s.session_restore());
+        assert_eq!(s.session_tabs(), "");
+        assert_eq!(s.rdp_resolution(), "1024x768");
+        assert!(s.rdp_nla());
+        assert_eq!(s.rdp_color_depth(), 32);
+        assert_eq!(s.theme(), crate::ui::theme::DEFAULT_THEME);
+    }
+
+    #[test]
+    fn text_number_flag_roundtrip() {
+        let s = settings();
+        s.set("x.text", &Value::Text("привет".into())).unwrap();
+        s.set("x.num", &Value::Number(-7)).unwrap();
+        s.set("x.flag", &Value::Flag(true)).unwrap();
+        assert_eq!(s.text("x.text", ""), "привет");
+        assert_eq!(s.number("x.num", 0), -7);
+        assert!(s.flag("x.flag", false));
+    }
+
+    #[test]
+    fn font_size_is_clamped() {
+        let s = settings();
+        s.set("terminal.font_size", &Value::Number(100)).unwrap();
+        assert_eq!(s.terminal_font_size(), 32);
+        s.set("terminal.font_size", &Value::Number(2)).unwrap();
+        assert_eq!(s.terminal_font_size(), 8);
+    }
+
+    #[test]
+    fn broken_number_falls_back_to_default() {
+        let s = settings();
+        s.set("terminal.font_size", &Value::Text("abc".into()))
+            .unwrap();
+        assert_eq!(s.terminal_font_size(), 12);
+    }
+
+    #[test]
+    fn flag_accepts_one_and_true_only() {
+        let s = settings();
+        for v in ["1", "true"] {
+            s.set("x", &Value::Text(v.into())).unwrap();
+            assert!(s.flag("x", false), "{v} должно быть true");
+        }
+        s.set("x", &Value::Text("no".into())).unwrap();
+        assert!(!s.flag("x", true));
+    }
+
+    #[test]
+    fn color_depth_is_clamped() {
+        let s = settings();
+        s.set("rdp.color_depth", &Value::Number(8)).unwrap();
+        assert_eq!(s.rdp_color_depth(), 16);
+        s.set("rdp.color_depth", &Value::Number(64)).unwrap();
+        assert_eq!(s.rdp_color_depth(), 32);
+    }
+
+    #[test]
+    fn session_tabs_roundtrip() {
+        let s = settings();
+        s.set_session_tabs("ssh:12,sftp:3").unwrap();
+        assert_eq!(s.session_tabs(), "ssh:12,sftp:3");
+    }
+
+    #[test]
+    fn value_conversions() {
+        assert_eq!(Value::Text("42".into()).as_number(), 42);
+        assert_eq!(Value::Text("oops".into()).as_number(), 0);
+        assert_eq!(Value::Flag(true).as_text(), "true");
+        assert!(Value::Number(2).as_flag());
+        assert!(!Value::Number(0).as_flag());
+        assert!(Value::Text("1".into()).as_flag());
+    }
+}

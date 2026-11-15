@@ -564,4 +564,25 @@ mod tests {
         let preview = parse_text(text, "test.csv");
         assert_eq!(preview.candidates[0].profile.name, "Он сказал \"привет\"");
     }
+
+    #[test]
+    fn tab_delimiter_is_detected() {
+        let preview = parse_text("host\tname\tport\na.org\tOne\t2222\n", "test.tsv");
+        assert_eq!(hosts(&preview), vec!["a.org".to_string()]);
+        assert_eq!(preview.candidates[0].profile.port, 2222);
+    }
+
+    #[test]
+    fn header_only_file_imports_nothing() {
+        let preview = parse_text("host,name\n", "empty.csv");
+        assert_eq!(preview.imported(), 0);
+        assert_eq!(preview.skipped_count(), 0);
+    }
+
+    #[test]
+    fn empty_file_reports_missing_header() {
+        let preview = parse_text("", "empty.csv");
+        assert_eq!(preview.imported(), 0);
+        assert!(preview.skipped[0].reason.contains("заголовка"));
+    }
 }

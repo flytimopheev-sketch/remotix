@@ -51,9 +51,9 @@ pub struct RdpOptions {
     /// Двунаправленный буфер обмена: локальный <-> удалённый (канал cliprdr).
     #[serde(default = "default_true")]
     pub clipboard: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub clipboard_to_remote: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub clipboard_from_remote: bool,
     /// Аутентификация NLA (CredSSP). Современные серверы Windows требуют её.
     #[serde(default = "default_true")]
@@ -92,7 +92,7 @@ impl Default for RdpOptions {
 }
 
 /// Дополнительные параметры VNC.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VncOptions {
     #[serde(default)]
     pub view_only: bool,
@@ -100,6 +100,16 @@ pub struct VncOptions {
     pub compression_quality: u32,
     #[serde(default)]
     pub via_ssh_tunnel: bool,
+}
+
+impl Default for VncOptions {
+    fn default() -> Self {
+        Self {
+            view_only: false,
+            compression_quality: default_quality(),
+            via_ssh_tunnel: false,
+        }
+    }
 }
 
 fn default_quality() -> u32 {
@@ -346,5 +356,33 @@ mod tests {
         let text = format!("{profile:?}");
         assert!(!text.contains("password-secret"));
         assert!(!text.contains("root-secret"));
+    }
+}
+
+#[cfg(test)]
+mod defaults_regression_tests {
+    use super::*;
+
+    /// РЕГРЕССИЯ: старый JSON без новых полей не должен выключать двусторонний
+    /// буфер обмена — serde-дефолты обязаны совпадать с Default.
+    #[test]
+    fn rdp_options_serde_defaults_match_default_impl() {
+        let parsed: RdpOptions = serde_json::from_str("{}").expect("пустой JSON");
+        let d = RdpOptions::default();
+        assert_eq!(parsed.clipboard, d.clipboard);
+        assert_eq!(parsed.clipboard_to_remote, d.clipboard_to_remote);
+        assert_eq!(parsed.clipboard_from_remote, d.clipboard_from_remote);
+        assert_eq!(parsed.color_depth, d.color_depth);
+        assert_eq!(parsed.nla, d.nla);
+    }
+
+    /// РЕГРЕССИЯ: качество VNC в Default и в serde — одно и то же.
+    #[test]
+    fn vnc_options_default_quality_matches_serde() {
+        let parsed: VncOptions = serde_json::from_str("{}").expect("пустой JSON");
+        assert_eq!(
+            VncOptions::default().compression_quality,
+            parsed.compression_quality
+        );
     }
 }
