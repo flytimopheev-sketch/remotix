@@ -75,6 +75,9 @@ impl RdpViewer {
         // Размер удалённого экрана (нужен для пересчёта координат мыши).
         let remote_size = Rc::new(Cell::new((0u32, 0u32)));
 
+        // Режим масштаба удалённого экрана: вписать / 1:1 / растянуть.
+        let scale_mode = Rc::new(Cell::new(crate::rdp_screen::ScaleMode::default()));
+
         // Последний полученный кадр.
         let frame: Rc<RefCell<Option<cairo::ImageSurface>>> = Rc::new(RefCell::new(None));
 
@@ -101,6 +104,39 @@ impl RdpViewer {
         panel.set_valign(gtk4::Align::Start);
         panel.set_margin_top(8);
         panel.set_margin_end(8);
+        let scale_btn = Button::with_label(scale_mode.get().label());
+        scale_btn.set_tooltip_text(Some("Масштаб экрана: вписать / 1:1 / растянуть"));
+        {
+            let mode = scale_mode.clone();
+            let area_sc = area.clone();
+            let btn = scale_btn.clone();
+            scale_btn.connect_clicked(move |_| {
+                let next = mode.get().next();
+                mode.set(next);
+                btn.set_label(next.label());
+                area_sc.queue_draw();
+            });
+        }
+
+        let fs_btn = Button::with_label("⛶");
+        fs_btn.set_tooltip_text(Some("Полный экран"));
+        {
+            let area_fs = area.clone();
+            fs_btn.connect_clicked(move |_| {
+                if let Some(root) = area_fs.root() {
+                    if let Ok(win) = root.downcast::<gtk4::Window>() {
+                        if win.is_fullscreen() {
+                            win.unfullscreen();
+                        } else {
+                            win.fullscreen();
+                        }
+                    }
+                }
+            });
+        }
+
+        panel.append(&scale_btn);
+        panel.append(&fs_btn);
         panel.append(&cad);
 
         let overlay = Overlay::new();
@@ -114,6 +150,7 @@ impl RdpViewer {
         {
             let frame = frame.clone();
             let remote_size = remote_size.clone();
+            let mode = scale_mode.clone();
             area.set_draw_func(move |area, cr, _width, _height| {
                 let surface = match frame.borrow().as_ref() {
                     Some(s) => s.clone(),
@@ -128,13 +165,11 @@ impl RdpViewer {
                 if w <= 0.0 || h <= 0.0 {
                     return;
                 }
-                // Масштаб с сохранением пропорций, кадр по центру.
-                let scale = (w / rw as f64).min(h / rh as f64);
-                let dw = rw as f64 * scale;
-                let dh = rh as f64 * scale;
+                // Геометрия зависит от выбранного режима масштаба.
+                let g = crate::rdp_screen::geometry(rw, rh, w, h, mode.get());
                 let _ = cr.save();
-                cr.translate((w - dw) / 2.0, (h - dh) / 2.0);
-                cr.scale(scale, scale);
+                cr.translate(g.off_x, g.off_y);
+                cr.scale(g.scale_x, g.scale_y);
                 let _ = cr.set_source_surface(&surface, 0.0, 0.0);
                 let _ = cr.paint();
                 let _ = cr.restore();
@@ -318,6 +353,7 @@ impl RdpViewer {
             let remote_size = remote_size.clone();
             let pressed = pressed.clone();
             let pointer = pointer.clone();
+            let mode = scale_mode.clone();
             let controller = gtk4::EventControllerMotion::new();
             controller.connect_motion(move |_, x, y| {
                 pointer.set((x, y));
@@ -325,7 +361,7 @@ impl RdpViewer {
                 if rw == 0 || rh == 0 {
                     return;
                 }
-                let (rx, ry) = map_coordinates(&area_ref, x, y, rw, rh);
+                let (rx, ry) = map_coordinates(&area_ref, x, y, rw, rh, mode.get());
                 // Движение с зажатой кнопкой — это drag: маска кнопок должна
                 // оставаться в событии, иначе сервер не тянет окно/выделение.
                 let _ = tx.send(ToRdp::Mouse {
@@ -344,6 +380,7 @@ impl RdpViewer {
             let remote_size = remote_size.clone();
             let pressed = pressed.clone();
             let pointer = pointer.clone();
+            let mode = scale_mode.clone();
             let controller = gtk4::GestureClick::new();
             controller.set_button(0); // любая кнопка мыши
             let tx_release = tx.clone();
@@ -365,7 +402,7 @@ impl RdpViewer {
                 if rw == 0 || rh == 0 {
                     return;
                 }
-                let (rx, ry) = map_coordinates(&area_ref, x, y, rw, rh);
+                let (rx, ry) = map_coordinates(&area_ref, x, y, rw, rh, mode.get());
                 pressed.set(pressed.get() | bit);
                 let _ = tx.send(ToRdp::Mouse {
                     x: rx,
@@ -385,7 +422,7 @@ impl RdpViewer {
                 if rw == 0 || rh == 0 {
                     return;
                 }
-                let (rx, ry) = map_coordinates(&area_release, x, y, rw, rh);
+                let (rx, ry) = map_coordinates(&area_release, x, y, rw, rh, mode.get());
                 // В событии отпускания кнопка должна остаться в маске, но без
                 // DOWN — именно так RDP понимает button-up.
                 let released = pressed_release.get() | bit;
@@ -405,6 +442,7 @@ impl RdpViewer {
             let area_ref = area.clone();
             let remote_size = remote_size.clone();
             let pointer = pointer.clone();
+            let mode = scale_mode.clone();
             let controller = gtk4::EventControllerScroll::new(
                 gtk4::EventControllerScrollFlags::VERTICAL
                     | gtk4::EventControllerScrollFlags::DISCRETE,
@@ -415,7 +453,7 @@ impl RdpViewer {
                     return glib::Propagation::Proceed;
                 }
                 let (px, py) = pointer.get();
-                let (rx, ry) = map_coordinates(&area_ref, px, py, rw, rh);
+                let (rx, ry) = map_coordinates(&area_ref, px, py, rw, rh, mode.get());
                 let _ = tx.send(ToRdp::Wheel {
                     x: rx,
                     y: ry,
@@ -437,23 +475,25 @@ impl RdpViewer {
 
 /// Переводит координаты виджета в координаты удалённого экрана.
 ///
-/// Экран масштабируется под окно с сохранением пропорций и размещается по
-/// центру — как при отрисовке кадра.
-fn map_coordinates(area: &DrawingArea, x: f64, y: f64, remote_w: u32, remote_h: u32) -> (u32, u32) {
-    let widget_w = area.width().max(1) as f64;
-    let widget_h = area.height().max(1) as f64;
-    let scale = (widget_w / remote_w as f64).min(widget_h / remote_h as f64);
-    if scale <= 0.0 {
-        return (0, 0);
-    }
-    let disp_w = remote_w as f64 * scale;
-    let disp_h = remote_h as f64 * scale;
-    let off_x = (widget_w - disp_w) / 2.0;
-    let off_y = (widget_h - disp_h) / 2.0;
-
-    let rx = (((x - off_x) / scale).round()).clamp(0.0, remote_w as f64 - 1.0) as u32;
-    let ry = (((y - off_y) / scale).round()).clamp(0.0, remote_h as f64 - 1.0) as u32;
-    (rx, ry)
+/// Геометрия считается в `rdp_screen` — там же она проверяется unit-тестами
+/// для всех режимов масштаба.
+fn map_coordinates(
+    area: &DrawingArea,
+    x: f64,
+    y: f64,
+    remote_w: u32,
+    remote_h: u32,
+    mode: crate::rdp_screen::ScaleMode,
+) -> (u32, u32) {
+    crate::rdp_screen::map_point(
+        x,
+        y,
+        remote_w,
+        remote_h,
+        area.width().max(1) as f64,
+        area.height().max(1) as f64,
+        mode,
+    )
 }
 
 /// Преобразует клавишу GDK в событие ввода RDP.

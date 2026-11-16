@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.7.4
+Version:        1.8.0
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
@@ -67,6 +67,11 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Mon Nov 16 2026 Remotix Team <flytimopheev@gmail.com> - 1.8.0
+- RDP: режимы масштаба экрана — вписать / 1:1 / растянуть, кнопка в панели
+- RDP: кнопка полного экрана в просмотрщике
+- Геометрия просмотра вынесена в rdp_screen + 9 unit-тестов
+- Координаты мыши считаются по выбранному режиму масштаба
 * Mon Nov 16 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.4
 - RDP: исправлена мышь — клики не доходили до сервера из-за флага PTRFLAGS_MOVE
 - RDP: MOVE ставится только для перемещения (MS-RDPBCGR), клик = BUTTON|DOWN

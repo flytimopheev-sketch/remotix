@@ -31,6 +31,7 @@ mod models;
 mod password;
 mod profiles_io;
 mod protocols;
+mod rdp_screen;
 mod recording;
 mod settings;
 mod ui;
