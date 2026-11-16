@@ -411,7 +411,7 @@ impl RdpViewer {
                     event: MouseEvent::ButtonDown,
                 });
             });
-            let mode_release = mode.clone();
+            let mode_release = scale_mode.clone();
             controller.connect_released(move |_, button, x, y| {
                 let bit = match button {
                     1 => MOUSE_LEFT,
