@@ -557,51 +557,13 @@ impl Connection for RdpConnection {
 
         let addr = format!("{}:{}", self.profile.host, self.profile.port);
         let banner = probe_rdp_banner(&self.profile.host, self.profile.port);
-        // Самое важное — в начало: строка состояния показывает сообщение
-        // обрезанным, и пользователь должен сразу увидеть причину.
-        let mut message = String::new();
-        if let Some(banner) = &banner {
-            message.push_str(&format!(
-                "На порту {addr} отвечает «{banner}», а не RDP-сервер. \
-                 Проверьте порт (по умолчанию 3389) и адрес узла. "
-            ));
-        }
-        let standard_security_error = errors
-            .iter()
-            .any(|e| e.to_lowercase().contains("standard rdp security"));
-        if standard_security_error && allow_legacy {
-            message.push_str(
-                "Сервер работает только со Standard RDP Security (шифр RC4), и подключиться \
-                 в этом режиме не удалось. Проверьте логин/пароль, а также настройки сервера: \
-                 в xrdp — security_layer=rdp и права пользователя; в Windows — «Уровень \
-                 безопасности: RDP» и членство в группе удалённых рабочих столов. ",
-            );
-        } else if !allow_legacy && standard_security_error {
-            message.push_str(
-                "Если сервер поддерживает только Standard RDP Security (устаревший RC4 \
-                 без TLS), включите в свойствах профиля «Разрешить незащищённый RDP (RC4)». \
-                 Этот режим не проверяет подлинность сервера — используйте его только \
-                 в доверенной сети. ",
-            );
-        }
-        // Ошибки соединяем в одну строку: в строке состояния переносы
-        // растягивали бы её на несколько строк. Одинаковые причины
-        // (например, reset соединения) повторяются для каждого режима
-        // безопасности — оставляем по одному разу.
-        let mut unique_errors: Vec<&str> = Vec::new();
-        for error in &errors {
-            if !unique_errors.contains(&error.as_str()) {
-                unique_errors.push(error);
-            }
-        }
-        message.push_str(&unique_errors.join(" · "));
-        if banner.is_none() {
-            message.push_str(
-                " Проверьте порт (по умолчанию 3389), адрес узла и требования \
-                 сервера к NLA.",
-            );
-        }
-        Err(message)
+        Err(connection_error_message(
+            &addr,
+            banner.as_deref(),
+            &errors,
+            allow_legacy,
+            nla,
+        ))
     }
 
     fn disconnect(&mut self) {
@@ -641,6 +603,101 @@ fn profile_username(profile: &Profile) -> Option<&str> {
         .as_deref()
         .map(str::trim)
         .filter(|name| !name.is_empty())
+}
+
+/// Собирает итоговое сообщение об ошибке подключения из ошибок всех режимов
+/// безопасности. Вынесено из `connect()`, чтобы проверять формулировки
+/// unit-тестами без сетевого соединения.
+///
+/// `banner` — ответ порта, если это не RDP-сервер (неверный порт).
+/// `nla` — включён ли NLA в профиле; `allow_legacy` — разрешён ли RC4.
+fn connection_error_message(
+    addr: &str,
+    banner: Option<&str>,
+    errors: &[String],
+    allow_legacy: bool,
+    nla: bool,
+) -> String {
+    // Самое важное — в начало: строка состояния показывает сообщение
+    // обрезанным, и пользователь должен сразу увидеть причину.
+    let mut message = String::new();
+    if let Some(banner) = banner {
+        message.push_str(&format!(
+            "На порту {addr} отвечает «{banner}», а не RDP-сервер. \
+             Проверьте порт (по умолчанию 3389) и адрес узла. "
+        ));
+    }
+
+    let lower: Vec<String> = errors.iter().map(|e| e.to_lowercase()).collect();
+    // Сервер явно требует NLA (CredSSP): откат на TLS/RC4 бессмысленен, а
+    // подсказка про RC4 и «проверьте порт» только уводят в сторону.
+    let requires_credssp = lower.iter().any(|e| {
+        e.contains("requires enhanced rdp security with credssp")
+            || e.contains("requires enhanced rdp security with tls or credssp")
+    });
+    let standard_security_error = lower.iter().any(|e| e.contains("standard rdp security"));
+
+    if requires_credssp {
+        if nla {
+            message.push_str(
+                "Сервер требует NLA (CredSSP), но подключиться с NLA не удалось. \
+                 Проверьте логин/пароль и домен, а также что учётной записи разрешён \
+                 вход по RDP. ",
+            );
+            // Настоящая причина — отказ NLA-попытки, а не «сервер требует CredSSP».
+            if let Some(nla_err) = errors
+                .iter()
+                .find(|e| !e.to_lowercase().contains("requires enhanced rdp security"))
+            {
+                message.push_str(&format!("Причина: {nla_err} "));
+            }
+        } else {
+            message.push_str(
+                "Сервер требует NLA (CredSSP). Включите NLA в свойствах профиля \
+                 и укажите логин/пароль. ",
+            );
+        }
+    } else if standard_security_error && allow_legacy {
+        message.push_str(
+            "Сервер работает только со Standard RDP Security (шифр RC4), и подключиться \
+             в этом режиме не удалось. Проверьте логин/пароль, а также настройки сервера: \
+             в xrdp — security_layer=rdp и права пользователя; в Windows — «Уровень \
+             безопасности: RDP» и членство в группе удалённых рабочих столов. ",
+        );
+    } else if !allow_legacy && standard_security_error {
+        message.push_str(
+            "Если сервер поддерживает только Standard RDP Security (устаревший RC4 \
+             без TLS), включите в свойствах профиля «Разрешить незащищённый RDP (RC4)». \
+             Этот режим не проверяет подлинность сервера — используйте его только \
+             в доверенной сети. ",
+        );
+    }
+
+    // Ошибки соединяем в одну строку: в строке состояния переносы растягивали
+    // бы её на несколько строк. Одинаковые причины повторяются для каждого
+    // режима безопасности — оставляем по одному разу. Требование NLA уже
+    // объяснено выше — не дублируем его в хвосте.
+    let mut unique_errors: Vec<&str> = Vec::new();
+    for error in errors {
+        if requires_credssp
+            && error
+                .to_lowercase()
+                .contains("requires enhanced rdp security")
+        {
+            continue;
+        }
+        if !unique_errors.contains(&error.as_str()) {
+            unique_errors.push(error);
+        }
+    }
+    message.push_str(&unique_errors.join(" · "));
+    if banner.is_none() && !requires_credssp {
+        message.push_str(
+            " Проверьте порт (по умолчанию 3389), адрес узла и требования \
+             сервера к NLA.",
+        );
+    }
+    message
 }
 
 /// Режимы безопасности RDP в порядке попыток.
@@ -1013,7 +1070,16 @@ impl RdpConnection {
     fn mouse_flags(buttons: u8, event: MouseEvent) -> ironrdp_pdu::input::mouse::PointerFlags {
         use ironrdp_pdu::input::mouse::PointerFlags;
 
-        let mut flags = PointerFlags::MOVE;
+        // MS-RDPBCGR 2.2.8.1.1.3.1.1.1: PTRFLAGS_MOVE означает «указатель
+        // перемещён». Если флаг выставлен, сервер трактует событие как
+        // перемещение и ИГНОРИРУЕТ нажатие/отпускание кнопки. Поэтому MOVE
+        // ставится только для движения (в т.ч. drag — движение с зажатой
+        // кнопкой), а для ButtonDown/ButtonUp его быть не должно.
+        let mut flags = match event {
+            MouseEvent::Move => PointerFlags::MOVE,
+            MouseEvent::ButtonDown => PointerFlags::DOWN,
+            MouseEvent::ButtonUp => PointerFlags::empty(),
+        };
         if buttons & MOUSE_LEFT != 0 {
             flags |= PointerFlags::LEFT_BUTTON;
         }
@@ -1022,9 +1088,6 @@ impl RdpConnection {
         }
         if buttons & MOUSE_MIDDLE != 0 {
             flags |= PointerFlags::MIDDLE_BUTTON_OR_WHEEL;
-        }
-        if event == MouseEvent::ButtonDown {
-            flags |= PointerFlags::DOWN;
         }
         flags
     }
@@ -1131,17 +1194,24 @@ mod tests {
         let press = RdpConnection::mouse_flags(MOUSE_LEFT, MouseEvent::ButtonDown);
         assert!(press.contains(PointerFlags::LEFT_BUTTON));
         assert!(press.contains(PointerFlags::DOWN));
-        assert!(press.contains(PointerFlags::MOVE));
+        assert!(
+            !press.contains(PointerFlags::MOVE),
+            "нажатие кнопки — не перемещение"
+        );
 
         let release = RdpConnection::mouse_flags(MOUSE_LEFT, MouseEvent::ButtonUp);
         assert!(release.contains(PointerFlags::LEFT_BUTTON));
         assert!(!release.contains(PointerFlags::DOWN));
-        assert!(release.contains(PointerFlags::MOVE));
+        assert!(
+            !release.contains(PointerFlags::MOVE),
+            "отпускание кнопки — не перемещение"
+        );
 
         // Перетаскивание: движение с зажатой кнопкой должно нести её флаг.
         let drag = RdpConnection::mouse_flags(MOUSE_LEFT, MouseEvent::Move);
         assert!(drag.contains(PointerFlags::LEFT_BUTTON));
         assert!(!drag.contains(PointerFlags::DOWN));
+        assert!(drag.contains(PointerFlags::MOVE), "drag — это перемещение");
     }
 
     #[test]
@@ -1269,6 +1339,126 @@ mod tests {
         assert!(
             size.0 > 0 && size.1 > 0,
             "некорректный размер кадра: {size:?}"
+        );
+    }
+
+    #[test]
+    fn plain_move_has_no_button_flags() {
+        use ironrdp_pdu::input::mouse::PointerFlags;
+        let mv = RdpConnection::mouse_flags(0, MouseEvent::Move);
+        assert!(mv.contains(PointerFlags::MOVE));
+        assert!(!mv.contains(PointerFlags::DOWN));
+        assert!(!mv.contains(PointerFlags::LEFT_BUTTON));
+        assert!(!mv.contains(PointerFlags::RIGHT_BUTTON));
+        assert!(!mv.contains(PointerFlags::MIDDLE_BUTTON_OR_WHEEL));
+    }
+
+    #[test]
+    fn button_events_never_carry_move_flag() {
+        use ironrdp_pdu::input::mouse::PointerFlags;
+        for (bit, flag) in [
+            (MOUSE_LEFT, PointerFlags::LEFT_BUTTON),
+            (MOUSE_RIGHT, PointerFlags::RIGHT_BUTTON),
+            (MOUSE_MIDDLE, PointerFlags::MIDDLE_BUTTON_OR_WHEEL),
+        ] {
+            let down = RdpConnection::mouse_flags(bit, MouseEvent::ButtonDown);
+            assert!(down.contains(flag));
+            assert!(down.contains(PointerFlags::DOWN));
+            assert!(
+                !down.contains(PointerFlags::MOVE),
+                "клик с MOVE сервер игнорирует"
+            );
+
+            let up = RdpConnection::mouse_flags(bit, MouseEvent::ButtonUp);
+            assert!(up.contains(flag));
+            assert!(!up.contains(PointerFlags::DOWN));
+            assert!(!up.contains(PointerFlags::MOVE));
+        }
+    }
+
+    #[test]
+    fn credssp_required_with_nla_points_to_credentials_not_rc4() {
+        let errors = vec![
+            "ошибка завершения RDP-подключения: Соединение разорвано другой стороной (os error 104)"
+                .to_string(),
+            "ошибка начала RDP-подключения: negotiation failure: server requires Enhanced RDP Security with CredSSP"
+                .to_string(),
+        ];
+        let msg = connection_error_message("host:3389", None, &errors, false, true);
+        assert!(msg.contains("требует NLA"), "должно сказать про NLA: {msg}");
+        assert!(
+            msg.contains("логин/пароль"),
+            "должно указать на учётные данные: {msg}"
+        );
+        assert!(
+            msg.contains("os error 104"),
+            "нужна настоящая причина отказа NLA: {msg}"
+        );
+        assert!(
+            !msg.contains("RC4"),
+            "подсказка про RC4 здесь вредна: {msg}"
+        );
+        assert!(
+            !msg.contains("Проверьте порт"),
+            "порт в порядке — сервер требует NLA: {msg}"
+        );
+    }
+
+    #[test]
+    fn credssp_required_without_nla_suggests_enabling_it() {
+        let errors = vec![
+            "negotiation failure: server requires Enhanced RDP Security with CredSSP".to_string(),
+        ];
+        let msg = connection_error_message("host:3389", None, &errors, false, false);
+        assert!(
+            msg.contains("Включите NLA"),
+            "NLA выключен — предложить включить: {msg}"
+        );
+        assert!(!msg.contains("RC4"), "подсказка про RC4 неуместна: {msg}");
+    }
+
+    #[test]
+    fn standard_security_error_suggests_rc4_when_not_allowed() {
+        let errors =
+            vec!["negotiation failure: server only supports Standard RDP Security".to_string()];
+        let msg = connection_error_message("host:3389", None, &errors, false, true);
+        assert!(
+            msg.contains("RC4"),
+            "для Standard RDP Security нужна подсказка про RC4: {msg}"
+        );
+        assert!(!msg.contains("требует NLA"), "это не случай NLA: {msg}");
+    }
+
+    #[test]
+    fn standard_security_with_legacy_allowed_gives_server_hints() {
+        let errors = vec!["server only supports Standard RDP Security".to_string()];
+        let msg = connection_error_message("host:3389", None, &errors, true, true);
+        assert!(
+            msg.contains("security_layer=rdp"),
+            "нужны подсказки по настройке сервера: {msg}"
+        );
+    }
+
+    #[test]
+    fn wrong_port_banner_is_reported_first() {
+        let errors = vec!["не удалось подключиться".to_string()];
+        let msg =
+            connection_error_message("host:22", Some("SSH-2.0-OpenSSH_8.0"), &errors, false, true);
+        assert!(
+            msg.contains("не RDP-сервер"),
+            "баннер чужого протокола — в начало: {msg}"
+        );
+        assert!(msg.contains("SSH-2.0-OpenSSH_8.0"));
+    }
+
+    #[test]
+    fn duplicate_mode_errors_are_joined_once() {
+        let e = "Соединение разорвано другой стороной (os error 104)".to_string();
+        let msg = connection_error_message("host:3389", None, &[e.clone(), e], false, true);
+        assert_eq!(
+            msg.matches("os error 104").count(),
+            1,
+            "одинаковые ошибки — один раз: {msg}"
         );
     }
 }

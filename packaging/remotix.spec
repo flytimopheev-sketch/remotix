@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.7.3
+Version:        1.7.4
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
@@ -67,6 +67,12 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Mon Nov 16 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.4
+- RDP: исправлена мышь — клики не доходили до сервера из-за флага PTRFLAGS_MOVE
+- RDP: MOVE ставится только для перемещения (MS-RDPBCGR), клик = BUTTON|DOWN
+- RDP: точное сообщение при требовании NLA (CredSSP) вместо подсказки про RC4
+- RDP: при выключенном NLA предлагается включить его; видна причина отказа NLA
+- Сборка ошибки RDP вынесена в connection_error_message + unit-тесты
 * Mon Nov 16 2026 Remotix Team <flytimopheev@gmail.com> - 1.7.3
 - Смена мастер-пароля: перешифровка сниппетов и expect-правил, одна транзакция,
   ошибка вместо паники на повреждённом шифротексте
