@@ -411,6 +411,7 @@ impl RdpViewer {
                     event: MouseEvent::ButtonDown,
                 });
             });
+            let mode_release = mode.clone();
             controller.connect_released(move |_, button, x, y| {
                 let bit = match button {
                     1 => MOUSE_LEFT,
@@ -422,7 +423,7 @@ impl RdpViewer {
                 if rw == 0 || rh == 0 {
                     return;
                 }
-                let (rx, ry) = map_coordinates(&area_release, x, y, rw, rh, mode.get());
+                let (rx, ry) = map_coordinates(&area_release, x, y, rw, rh, mode_release.get());
                 // В событии отпускания кнопка должна остаться в маске, но без
                 // DOWN — именно так RDP понимает button-up.
                 let released = pressed_release.get() | bit;
