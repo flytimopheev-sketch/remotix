@@ -1033,8 +1033,11 @@ impl RdpConnection {
         let Some(framed) = framed.as_mut() else {
             return;
         };
+        // Framed не реализует io::Write — пишем в нижележащий поток,
+        // у которого Write есть и который учитывает частичную запись.
+        let (stream, _) = framed.get_inner_mut();
         while !outgoing.is_empty() {
-            match framed.write(outgoing) {
+            match stream.write(outgoing) {
                 Ok(0) => break,
                 Ok(n) => {
                     outgoing.drain(..n);
