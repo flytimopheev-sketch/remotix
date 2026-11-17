@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.8.0
+Version:        1.9.0
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
@@ -67,6 +67,10 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Mon Nov 16 2026 Remotix Team <flytimopheev@gmail.com> - 1.9.0
+- Сниппеты с параметрами {{имя}} и {{имя:по умолчанию}} + 9 тестов
+- Встроенные expect-паки: отпечаток хоста, sudo, парольная фраза, APT + 6 тестов
+- Импорт инвентаря Ansible (INI): группы, :vars, :children + 10 тестов
 * Mon Nov 16 2026 Remotix Team <flytimopheev@gmail.com> - 1.8.0
 - RDP: режимы масштаба экрана — вписать / 1:1 / растянуть, кнопка в панели
 - RDP: кнопка полного экрана в просмотрщике

@@ -24,6 +24,7 @@ mod config;
 mod connect_target;
 mod db;
 mod expect;
+mod expect_packs;
 mod host_check;
 mod import;
 mod logging;
@@ -34,6 +35,7 @@ mod protocols;
 mod rdp_screen;
 mod recording;
 mod settings;
+mod snippets;
 mod ui;
 mod wol;
 

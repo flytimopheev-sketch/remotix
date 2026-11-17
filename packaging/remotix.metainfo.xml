@@ -56,6 +56,16 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.9.0" date="2026-11-16">
+      <description>
+        <p>Автоматизация и импорт инвентаря.</p>
+        <ul>
+          <li>Сниппеты с параметрами и значениями по умолчанию</li>
+          <li>Готовые наборы expect-правил для типовых промптов</li>
+          <li>Импорт инвентаря Ansible с группами и переменными</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.8.0" date="2026-11-16">
       <description>
         <p>Управление отображением удалённого экрана.</p>

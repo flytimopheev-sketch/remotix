@@ -383,6 +383,9 @@ pub struct RdpConnection {
     /// графический/pointer-update не должен обрывать всю сессию, но
     /// бесконечный поток ошибок — повод остановиться.
     decode_errors: u32,
+    /// Неотправленные байты ввода: сокет неблокирующий, запись может
+    /// вернуть WouldBlock — кадр нельзя терять, его дописываем позже.
+    outgoing: Vec<u8>,
 }
 
 impl RdpConnection {
@@ -396,6 +399,7 @@ impl RdpConnection {
             stage: None,
             image: None,
             decode_errors: 0,
+            outgoing: Vec::new(),
         }
     }
 
@@ -455,6 +459,9 @@ impl RdpConnection {
     /// Возвращает `Ok(true)`, пока сессия активна, `Ok(false)` — когда данных
     /// ещё нет (would-block, вызывайте снова), и `Err` при ошибке/разрыве.
     pub fn run(&mut self) -> Result<bool, String> {
+        // Дописываем ввод, который не ушёл из-за WouldBlock.
+        self.flush_outgoing();
+
         let (framed, stage, image, decode_errors) = match (
             self.framed.as_mut(),
             self.stage.as_mut(),
@@ -594,6 +601,23 @@ fn probe_rdp_banner(host: &str, port: u16) -> Option<String> {
     } else {
         Some(text)
     }
+}
+
+/// Предел неотправленного ввода: дальше буфер сбрасывается, чтобы сессия
+/// не копила бесконечную очередь при мёртвом соединении.
+const MAX_PENDING_INPUT: usize = 64 * 1024;
+
+/// Кладёт кадр в очередь ввода. `false` — буфер переполнен и сброшен.
+fn queue_input(queue: &mut Vec<u8>, frame: Vec<u8>) -> bool {
+    if frame.is_empty() {
+        return true;
+    }
+    if queue.len() + frame.len() > MAX_PENDING_INPUT {
+        queue.clear();
+        return false;
+    }
+    queue.extend_from_slice(&frame);
+    true
 }
 
 /// Логин RDP из профиля; `None`, если он пуст или состоит из пробелов.
@@ -990,8 +1014,39 @@ impl RdpConnection {
             None => frame,
         };
 
-        if let Some(framed) = &mut self.framed {
-            let _ = framed.write_all(&frame);
+        if !queue_input(&mut self.outgoing, frame) {
+            crate::logging::warn("очередь ввода RDP переполнена — буфер сброшен");
+        }
+        self.flush_outgoing();
+    }
+
+    /// Дописывает накопленный ввод в сокет.
+    ///
+    /// Сокет неблокирующий: `WouldBlock` — не ошибка, а «попробуй позже»,
+    /// поэтому остаток сохраняется и уходит на следующем шаге цикла.
+    /// Раньше здесь стоял `let _ = framed.write_all(...)`, и кадры ввода
+    /// молча терялись — мышь и клавиатура не доходили до сервера.
+    fn flush_outgoing(&mut self) {
+        let Self {
+            framed, outgoing, ..
+        } = self;
+        let Some(framed) = framed.as_mut() else {
+            return;
+        };
+        while !outgoing.is_empty() {
+            match framed.write(outgoing) {
+                Ok(0) => break,
+                Ok(n) => {
+                    outgoing.drain(..n);
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(e) => {
+                    crate::logging::warn(&format!("не удалось отправить ввод RDP: {e}"));
+                    outgoing.clear();
+                    break;
+                }
+            }
         }
     }
 
@@ -1460,5 +1515,27 @@ mod tests {
             1,
             "одинаковые ошибки — один раз: {msg}"
         );
+    }
+
+    #[test]
+    fn input_queue_accumulates_and_overflows_safely() {
+        let mut q = Vec::new();
+        assert!(queue_input(&mut q, vec![1, 2, 3]));
+        assert!(queue_input(&mut q, vec![4]));
+        assert_eq!(q, vec![1, 2, 3, 4]);
+        assert!(
+            queue_input(&mut q, Vec::new()),
+            "пустой кадр не меняет очередь"
+        );
+        assert_eq!(q.len(), 4);
+        assert!(!queue_input(&mut q, vec![0u8; MAX_PENDING_INPUT + 1]));
+        assert!(q.is_empty(), "после переполнения буфер сброшен");
+    }
+
+    #[test]
+    fn input_queue_accepts_exact_limit() {
+        let mut q = vec![0u8; 10];
+        assert!(queue_input(&mut q, vec![0u8; MAX_PENDING_INPUT - 10]));
+        assert_eq!(q.len(), MAX_PENDING_INPUT);
     }
 }

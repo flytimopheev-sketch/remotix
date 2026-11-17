@@ -16,6 +16,7 @@ pub enum Source {
     Rdp,
     RemotixJson,
     Csv,
+    Ansible,
 }
 
 impl Source {
@@ -27,6 +28,7 @@ impl Source {
             Source::Rdp => "RDP-файл",
             Source::RemotixJson => "JSON Remotix",
             Source::Csv => "CSV",
+            Source::Ansible => "Ansible",
         }
     }
 }
