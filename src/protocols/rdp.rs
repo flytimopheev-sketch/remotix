@@ -386,6 +386,10 @@ pub struct RdpConnection {
     /// Неотправленные байты ввода: сокет неблокирующий, запись может
     /// вернуть WouldBlock — кадр нельзя терять, его дописываем позже.
     outgoing: Vec<u8>,
+    /// Каналы MCS: медленный путь ввода адресуется на I/O-канал от имени
+    /// пользовательского канала.
+    io_channel_id: u16,
+    user_channel_id: u16,
 }
 
 impl RdpConnection {
@@ -400,6 +404,8 @@ impl RdpConnection {
             image: None,
             decode_errors: 0,
             outgoing: Vec::new(),
+            io_channel_id: 0,
+            user_channel_id: 0,
         }
     }
 
@@ -433,6 +439,9 @@ impl RdpConnection {
             desktop_size.width,
             desktop_size.height,
         ));
+
+        self.io_channel_id = connection_result.io_channel_id;
+        self.user_channel_id = connection_result.user_channel_id;
 
         self.stage = Some(
             ironrdp_session::ActiveStageBuilder {
@@ -618,6 +627,47 @@ fn queue_input(queue: &mut Vec<u8>, frame: Vec<u8>) -> bool {
     }
     queue.extend_from_slice(&frame);
     true
+}
+
+/// Собирает кадр медленного пути (TS_INPUT_PDU) с одним событием мыши.
+///
+/// TPKT + X.224 + MCS SendDataRequest, внутри — нулевой `TS_SECURITY_HEADER`
+/// (flags/flagsHi) и `TS_INPUT_PDU_DATA`. Полные 16-битные `pointerFlags`
+/// выражают DOWN и все три кнопки, чего 5-битный `eventFlags` быстрого пути
+/// не умеет.
+fn slow_path_mouse_frame(
+    io_channel_id: u16,
+    user_channel_id: u16,
+    pdu: ironrdp_pdu::input::MousePdu,
+) -> Vec<u8> {
+    use ironrdp_pdu::input::{InputEvent, InputEventPdu};
+    use ironrdp_pdu::mcs::SendDataRequest;
+    use ironrdp_pdu::x224::X224;
+    use std::borrow::Cow;
+
+    let events = InputEventPdu(vec![InputEvent::Mouse(pdu)]);
+    let mut body = Vec::new();
+    body.extend_from_slice(&0u16.to_le_bytes());
+    body.extend_from_slice(&0u16.to_le_bytes());
+    match ironrdp_pdu::encode_vec(&events) {
+        Ok(encoded) => body.extend_from_slice(&encoded),
+        Err(e) => {
+            crate::logging::warn(&format!("не удалось закодировать событие мыши: {e}"));
+            return Vec::new();
+        }
+    }
+    let request = SendDataRequest {
+        initiator_id: user_channel_id,
+        channel_id: io_channel_id,
+        user_data: Cow::Owned(body),
+    };
+    match ironrdp_pdu::encode_vec(&X224(request)) {
+        Ok(frame) => frame,
+        Err(e) => {
+            crate::logging::warn(&format!("не удалось собрать кадр ввода мыши: {e}"));
+            Vec::new()
+        }
+    }
 }
 
 /// Логин RDP из профиля; `None`, если он пуст или состоит из пробелов.
@@ -1109,7 +1159,6 @@ impl RdpConnection {
     /// `event` — быть [`MouseEvent::ButtonUp`]: RDP узнаёт отпускание по
     /// отсутствию флага DOWN у события с флагом кнопки.
     pub fn send_mouse(&mut self, x: u32, y: u32, buttons: u8, event: MouseEvent) {
-        use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
         let flags = Self::mouse_flags(buttons, event);
         let pdu = ironrdp_pdu::input::MousePdu {
             flags,
@@ -1117,8 +1166,14 @@ impl RdpConnection {
             x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
             y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
         };
-        let fp = FastPathInput::single(FastPathInputEvent::MouseEvent(pdu));
-        self.write_input_frame(ironrdp_pdu::encode_vec(&fp).unwrap_or_default());
+        // Медленный путь: в fast-path событии Mouse флаги указателя лежат
+        // в 5-битном eventFlags заголовка (MS-RDPBCGR 2.2.8.1.2.2.3) и не
+        // выражают DOWN/BUTTON2/BUTTON3, а IronRDP кладёт туда тело slow-path
+        // PDU — сервер видел eventFlags=0 и игнорировал событие. TS_INPUT_PDU
+        // несёт полные 16-битные pointerFlags, поэтому клики, drag и колесо
+        // кодируются верно.
+        let frame = slow_path_mouse_frame(self.io_channel_id, self.user_channel_id, pdu);
+        self.write_input_frame(frame);
     }
 
     /// Флаги fast-path mouse для маски кнопок и действия.
@@ -1153,7 +1208,6 @@ impl RdpConnection {
     /// Отправить колесо мыши (fast-path Mouse-событие с вертикальным колесом).
     /// `delta` — условные единицы прокрутки (положительные — вверх).
     pub fn send_wheel(&mut self, x: u32, y: u32, delta: i32) {
-        use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
         let mut flags = ironrdp_pdu::input::mouse::PointerFlags::VERTICAL_WHEEL;
         if delta < 0 {
             flags |= ironrdp_pdu::input::mouse::PointerFlags::WHEEL_NEGATIVE;
@@ -1165,8 +1219,14 @@ impl RdpConnection {
             x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
             y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
         };
-        let fp = FastPathInput::single(FastPathInputEvent::MouseEvent(pdu));
-        self.write_input_frame(ironrdp_pdu::encode_vec(&fp).unwrap_or_default());
+        // Медленный путь: в fast-path событии Mouse флаги указателя лежат
+        // в 5-битном eventFlags заголовка (MS-RDPBCGR 2.2.8.1.2.2.3) и не
+        // выражают DOWN/BUTTON2/BUTTON3, а IronRDP кладёт туда тело slow-path
+        // PDU — сервер видел eventFlags=0 и игнорировал событие. TS_INPUT_PDU
+        // несёт полные 16-битные pointerFlags, поэтому клики, drag и колесо
+        // кодируются верно.
+        let frame = slow_path_mouse_frame(self.io_channel_id, self.user_channel_id, pdu);
+        self.write_input_frame(frame);
     }
 
     /// Загрузить текст в удалённый буфер обмена (уходит на сервер RDP).
@@ -1540,5 +1600,52 @@ mod tests {
         let mut q = vec![0u8; 10];
         assert!(queue_input(&mut q, vec![0u8; MAX_PENDING_INPUT - 10]));
         assert_eq!(q.len(), MAX_PENDING_INPUT);
+    }
+
+    /// Кадр мыши — медленный путь: TPKT, MCS и полные 16-битные pointerFlags.
+    #[test]
+    fn mouse_frame_is_slow_path_with_full_pointer_flags() {
+        use ironrdp_pdu::input::mouse::PointerFlags;
+        let pdu = ironrdp_pdu::input::MousePdu {
+            flags: PointerFlags::LEFT_BUTTON | PointerFlags::DOWN,
+            number_of_wheel_rotation_units: 0,
+            x_position: 0x1234,
+            y_position: 0x0abc,
+        };
+        let frame = slow_path_mouse_frame(1003, 1002, pdu);
+        assert!(frame.len() > 20, "кадр слишком короткий: {}", frame.len());
+        assert_eq!(&frame[..2], &[0x03, 0x00], "TPKT");
+        let len = u16::from_be_bytes([frame[2], frame[3]]) as usize;
+        assert_eq!(len, frame.len(), "длина TPKT совпадает с кадром");
+        let flags = (PointerFlags::LEFT_BUTTON | PointerFlags::DOWN)
+            .bits()
+            .to_le_bytes();
+        assert!(
+            frame.windows(2).any(|w| w == flags),
+            "нет 16-битных pointerFlags"
+        );
+        assert!(frame.windows(2).any(|w| w == [0x34, 0x12]), "нет xPos");
+        assert!(frame.windows(2).any(|w| w == [0xbc, 0x0a]), "нет yPos");
+        assert!(
+            frame.windows(2).any(|w| w == [0x01, 0x80]),
+            "нет типа события INPUT_EVENT_MOUSE"
+        );
+    }
+
+    #[test]
+    fn mouse_frame_encodes_wheel_rotation_in_flags() {
+        use ironrdp_pdu::input::mouse::PointerFlags;
+        let pdu = ironrdp_pdu::input::MousePdu {
+            flags: PointerFlags::VERTICAL_WHEEL,
+            number_of_wheel_rotation_units: 120,
+            x_position: 1,
+            y_position: 2,
+        };
+        let frame = slow_path_mouse_frame(1003, 1002, pdu);
+        let expect = (PointerFlags::VERTICAL_WHEEL.bits() | 120u16).to_le_bytes();
+        assert!(
+            frame.windows(2).any(|w| w == expect),
+            "вращение колеса не упаковано в pointerFlags"
+        );
     }
 }
