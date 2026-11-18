@@ -1679,7 +1679,11 @@ mod tests {
 
         let events: InputEventPdu =
             ironrdp_pdu::decode(req.user_data.as_ref()).expect("не TS_INPUT_PDU_DATA");
-        assert_eq!(events.0.len(), 1, "сервер должен увидеть ровно одно событие");
+        assert_eq!(
+            events.0.len(),
+            1,
+            "сервер должен увидеть ровно одно событие"
+        );
         match &events.0[0] {
             InputEvent::Mouse(m) => {
                 assert_eq!((m.x_position, m.y_position), (640, 480));
