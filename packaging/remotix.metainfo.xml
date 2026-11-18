@@ -56,6 +56,15 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.9.1" date="2026-11-18">
+      <description>
+        <p>Исправлен ввод мыши в RDP-сессиях.</p>
+        <ul>
+          <li>Убран лишний заголовок безопасности из кадра ввода мыши (TLS/NLA)</li>
+          <li>Добавлен строгий тест разбора кадра ввода</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.9.0" date="2026-11-16">
       <description>
         <p>Автоматизация и импорт инвентаря.</p>

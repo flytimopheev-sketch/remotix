@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.9.0
+Version:        1.9.1
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
@@ -67,6 +67,10 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Wed Nov 18 2026 Remotix Team <flytimopheev@gmail.com> - 1.9.1
+- RDP: исправлен ввод мыши по TLS/NLA — убран лишний TS_SECURITY_HEADER
+  из slow-path кадра: сервер читал numEvents=0 и игнорировал события
+- Строгий тест разбора TS_INPUT_PDU_DATA по структуре кадра
 * Mon Nov 16 2026 Remotix Team <flytimopheev@gmail.com> - 1.9.0
 - Сниппеты с параметрами {{имя}} и {{имя:по умолчанию}} + 9 тестов
 - Встроенные expect-паки: отпечаток хоста, sudo, парольная фраза, APT + 6 тестов
