@@ -631,10 +631,14 @@ fn queue_input(queue: &mut Vec<u8>, frame: Vec<u8>) -> bool {
 
 /// Собирает кадр медленного пути (TS_INPUT_PDU) с одним событием мыши.
 ///
-/// TPKT + X.224 + MCS SendDataRequest, внутри — нулевой `TS_SECURITY_HEADER`
-/// (flags/flagsHi) и `TS_INPUT_PDU_DATA`. Полные 16-битные `pointerFlags`
-/// выражают DOWN и все три кнопки, чего 5-битный `eventFlags` быстрого пути
-/// не умеет.
+/// TPKT + X.224 + MCS SendDataRequest, внутри — сразу `TS_INPUT_PDU_DATA`.
+/// Полные 16-битные `pointerFlags` выражают DOWN и все три кнопки, чего
+/// 5-битный `eventFlags` быстрого пути не умеет.
+///
+/// `TS_SECURITY_HEADER` здесь писать нельзя: в Enhanced RDP Security (TLS/NLA)
+/// его нет вовсе, а в Standard RDP Security обёртку добавляет
+/// `ActiveStage::secure_outgoing_frame`. Лишние 4 байта сервер читает как
+/// `numEvents = 0` и молча выбрасывает весь PDU — мышь не работает.
 fn slow_path_mouse_frame(
     io_channel_id: u16,
     user_channel_id: u16,
@@ -647,8 +651,6 @@ fn slow_path_mouse_frame(
 
     let events = InputEventPdu(vec![InputEvent::Mouse(pdu)]);
     let mut body = Vec::new();
-    body.extend_from_slice(&0u16.to_le_bytes());
-    body.extend_from_slice(&0u16.to_le_bytes());
     match ironrdp_pdu::encode_vec(&events) {
         Ok(encoded) => body.extend_from_slice(&encoded),
         Err(e) => {
@@ -1647,5 +1649,43 @@ mod tests {
             frame.windows(2).any(|w| w == expect),
             "вращение колеса не упаковано в pointerFlags"
         );
+    }
+
+    /// Регрессия 1.9.1: кадр ввода мыши не должен содержать `TS_SECURITY_HEADER`.
+    ///
+    /// Разбираем кадр по структуре, а не поиском байтов: при лишнем 4-байтовом
+    /// заголовке сервер читает `numEvents = 0`, и этот тест падает.
+    #[test]
+    fn mouse_frame_has_no_security_header_before_input_pdu() {
+        use ironrdp_pdu::input::mouse::PointerFlags;
+        use ironrdp_pdu::input::{InputEvent, InputEventPdu};
+        use ironrdp_pdu::mcs::McsMessage;
+        use ironrdp_pdu::x224::X224;
+
+        let pdu = ironrdp_pdu::input::MousePdu {
+            flags: PointerFlags::MOVE,
+            number_of_wheel_rotation_units: 0,
+            x_position: 640,
+            y_position: 480,
+        };
+        let frame = slow_path_mouse_frame(1003, 1002, pdu);
+
+        let X224(McsMessage::SendDataRequest(req)) =
+            ironrdp_pdu::decode::<X224<McsMessage<'_>>>(&frame).expect("не SendDataRequest")
+        else {
+            panic!("ожидался MCS SendDataRequest");
+        };
+        assert_eq!(req.channel_id, 1003, "ввод должен идти в I/O-канал");
+
+        let events: InputEventPdu =
+            ironrdp_pdu::decode(req.user_data.as_ref()).expect("не TS_INPUT_PDU_DATA");
+        assert_eq!(events.0.len(), 1, "сервер должен увидеть ровно одно событие");
+        match &events.0[0] {
+            InputEvent::Mouse(m) => {
+                assert_eq!((m.x_position, m.y_position), (640, 480));
+                assert!(m.flags.contains(PointerFlags::MOVE));
+            }
+            other => panic!("ожидалось событие мыши, получено {other:?}"),
+        }
     }
 }
