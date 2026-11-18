@@ -1,6 +1,7 @@
-# Фикстуры для тестов Standard RDP Security
+# Фикстуры для тестов RDP
 
-Используются в `tests/rdpsec.rs` (подключаются через `include_bytes!`).
+Используются в `tests/rdpsec.rs` и unit-тестах `src/protocols/rdp.rs`
+(подключаются через `include_bytes!`).
 
 | Файл | Что это |
 |------|---------|
@@ -8,6 +9,7 @@
 | `rdp_v1_expected.bin` | Шифртекст client random этим сертификатом (64 байта). |
 | `rdp_v2_chain.bin` | Цепочка X.509 (`certChainVersion = 2`, 1598 байт): `dwVersion` (4) + `numCertBlobs` (4) + два блока `[длина (4)][DER]`. Терминальный сертификат — последний. |
 | `rdp_v2_expected.bin` | Шифртекст client random ключом последнего сертификата цепочки (256 байт). |
+| `rsa2048-crt.der` | Самоподписанный X.509-сертификат RSA-2048 (DER, 928 байт) из тестовых данных крейта `x509-cert`. Проверяет извлечение `subjectPublicKey` для CredSSP `pubKeyAuth`. |
 
 Client random для эталонных шифртекстов:
 `030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dc`.
@@ -21,3 +23,5 @@ Client random для эталонных шифртекстов:
   `pow(int.from_bytes(client_random + b"\0" * (mod_len - 32), "little"), 65537, n)`,
   результат — в little-endian. Это та же схема без PKCS#1-паддинга, которую
   использует FreeRDP (`crypto_rsa_common`) и mstsc.
+* `rsa2048-crt.der` скопирован из тестовых данных `x509-cert`; содержит только
+  открытый сертификат, без закрытого ключа.

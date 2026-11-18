@@ -96,15 +96,17 @@ impl<S: Write> Write for PrefixedStream<S> {
 enum SessionStream {
     Plain(TcpStream),
     // В коробке — только большой TLS-поток; Box держит перечисление компактным
-    // (Read/Write работают через авто-разыменование).
-    Tls(Box<PrefixedStream<rustls::StreamOwned<rustls::ClientConnection, TcpStream>>>),
+    // (Read/Write работают через авто-разыменование). `PrefixedStream` лежит
+    // ВНУТРИ TLS: байты, прочитанные вместе с X.224-ответом, должны попасть
+    // в TLS-рукопожатие, а не быть приняты за открытый текст RDP.
+    Tls(Box<rustls::StreamOwned<rustls::ClientConnection, PrefixedStream<TcpStream>>>),
 }
 
 impl SessionStream {
     fn set_nonblocking(&self, nonblocking: bool) -> std::io::Result<()> {
         match self {
             Self::Plain(stream) => stream.set_nonblocking(nonblocking),
-            Self::Tls(stream) => stream.inner.sock.set_nonblocking(nonblocking),
+            Self::Tls(stream) => stream.sock.inner.set_nonblocking(nonblocking),
         }
     }
 }
@@ -134,10 +136,15 @@ impl Write for SessionStream {
     }
 }
 
-/// NetworkClient для NLA (CredSSP): выполняет обмен токенами через HTTP POST
-/// по TLS к серверу RDP и возвращает ответный токен. Вызывается коннектором
-/// в `enable_credssp` режиме (NLA). В режиме PROTOCOL_SSL (только TLS) коннектор
-/// его не использует, но реализация — рабочая, а не заглушка.
+/// Предел ответа KDC/KDC-прокси: защита от бесконечного потока.
+const MAX_KDC_RESPONSE: usize = 4 * 1024 * 1024;
+
+/// NetworkClient для CredSSP: обслуживает запросы SSPI к KDC.
+///
+/// NLA по NTLM выполняется целиком внутри IronRDP и этот клиент не вызывает.
+/// Он нужен для Kerberos: KDC-запросы уходят по TCP/UDP либо через KDC-прокси
+/// (HTTP/HTTPS, MS-KKDCP). В KDC-прокси запрос передаётся **в теле** POST,
+/// а ответ читается из тела; `Authorization: Negotiate` здесь не используется.
 struct RdpNetworkClient;
 
 impl ironrdp_connector::sspi::network_client::NetworkClient for RdpNetworkClient {
@@ -146,134 +153,263 @@ impl ironrdp_connector::sspi::network_client::NetworkClient for RdpNetworkClient
         request: &ironrdp_connector::sspi::generator::NetworkRequest,
     ) -> Result<Vec<u8>, ironrdp_connector::sspi::Error> {
         use ironrdp_connector::sspi as Sspi;
-        use std::io::Read as _;
+        use Sspi::network_client::NetworkProtocol;
 
         let host = request.url.host_str().unwrap_or_default();
-        let port = request.url.port().unwrap_or(3389);
+        let port = request.url.port_or_known_default().unwrap_or(88);
 
-        // 1. Поднимаем отдельное TLS-соединение к серверу RDP для NLA.
-        let tcp = TcpStream::connect(format!("{host}:{port}")).map_err(|e| {
-            Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}"))
-        })?;
+        let result = match request.protocol {
+            NetworkProtocol::Tcp => send_kdc_tcp(host, port, &request.data),
+            NetworkProtocol::Udp => send_kdc_udp(host, port, &request.data),
+            NetworkProtocol::Http | NetworkProtocol::Https => {
+                // KDC-прокси может жить не в корне: сохраняем путь и query.
+                let path = request.url.path();
+                let path = if path.is_empty() { "/" } else { path };
+                let target = match request.url.query() {
+                    Some(query) => format!("{path}?{query}"),
+                    None => path.to_string(),
+                };
+                send_kdc_http(
+                    host,
+                    port,
+                    &target,
+                    &request.data,
+                    request.protocol == NetworkProtocol::Https,
+                )
+            }
+        };
 
-        let mut tls_config = rustls::client::ClientConfig::builder()
+        result.map_err(|e| Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, e))
+    }
+}
+
+/// KDC по TCP: запрос уже содержит 4-байтовый префикс длины (его формирует
+/// SSPI); ответ приходит с таким же префиксом, его и возвращаем.
+fn send_kdc_tcp(host: &str, port: u16, data: &[u8]) -> Result<Vec<u8>, String> {
+    let mut stream = tcp_connect(host, port, RDP_CONNECT_TIMEOUT)
+        .map_err(|e| format!("KDC {host}:{port}: {e}"))?;
+    stream
+        .set_read_timeout(Some(RDP_IO_TIMEOUT))
+        .map_err(|e| format!("KDC {host}:{port}: тайм-аут чтения: {e}"))?;
+    stream
+        .set_write_timeout(Some(RDP_IO_TIMEOUT))
+        .map_err(|e| format!("KDC {host}:{port}: тайм-аут записи: {e}"))?;
+    stream
+        .write_all(data)
+        .map_err(|e| format!("KDC {host}:{port}: отправка: {e}"))?;
+    stream
+        .flush()
+        .map_err(|e| format!("KDC {host}:{port}: отправка: {e}"))?;
+
+    let mut length = [0u8; 4];
+    stream
+        .read_exact(&mut length)
+        .map_err(|e| format!("KDC {host}:{port}: чтение длины ответа: {e}"))?;
+    let length = u32::from_be_bytes(length) as usize;
+    if length == 0 || length > MAX_KDC_RESPONSE {
+        return Err(format!(
+            "KDC {host}:{port}: недопустимая длина ответа {length}"
+        ));
+    }
+    let mut response = vec![0u8; length + 4];
+    response[..4].copy_from_slice(&(length as u32).to_be_bytes());
+    stream
+        .read_exact(&mut response[4..])
+        .map_err(|e| format!("KDC {host}:{port}: чтение ответа: {e}"))?;
+    Ok(response)
+}
+
+/// KDC по UDP. SSPI ожидает ответ с 4-байтовым префиксом длины.
+fn send_kdc_udp(host: &str, port: u16, data: &[u8]) -> Result<Vec<u8>, String> {
+    use std::net::UdpSocket;
+
+    // Для IPv6-буквального адреса нужен IPv6-сокет; для имён обычно IPv4.
+    let bind = if host.parse::<std::net::Ipv6Addr>().is_ok() {
+        "[::]:0"
+    } else {
+        "0.0.0.0:0"
+    };
+    let socket = UdpSocket::bind(bind).map_err(|e| format!("KDC UDP {host}:{port}: сокет: {e}"))?;
+    socket
+        .set_read_timeout(Some(RDP_IO_TIMEOUT))
+        .map_err(|e| format!("KDC UDP {host}:{port}: тайм-аут: {e}"))?;
+    socket
+        .connect((host, port))
+        .map_err(|e| format!("KDC UDP {host}:{port}: {e}"))?;
+    socket
+        .send(data)
+        .map_err(|e| format!("KDC UDP {host}:{port}: отправка: {e}"))?;
+
+    let mut buf = vec![0u8; 0xbb80];
+    let n = socket
+        .recv(&mut buf)
+        .map_err(|e| format!("KDC UDP {host}:{port}: чтение ответа: {e}"))?;
+    let mut response = Vec::with_capacity(n + 4);
+    response.extend_from_slice(&(n as u32).to_be_bytes());
+    response.extend_from_slice(&buf[..n]);
+    Ok(response)
+}
+
+/// KDC-прокси (MS-KKDCP): POST с KDC-сообщением в теле, ответ — тело HTTP.
+fn send_kdc_http(
+    host: &str,
+    port: u16,
+    target: &str,
+    data: &[u8],
+    tls: bool,
+) -> Result<Vec<u8>, String> {
+    let tcp = tcp_connect(host, port, RDP_CONNECT_TIMEOUT)
+        .map_err(|e| format!("KDC-прокси {host}:{port}: {e}"))?;
+    tcp.set_read_timeout(Some(RDP_IO_TIMEOUT))
+        .map_err(|e| format!("KDC-прокси {host}:{port}: тайм-аут чтения: {e}"))?;
+    tcp.set_write_timeout(Some(RDP_IO_TIMEOUT))
+        .map_err(|e| format!("KDC-прокси {host}:{port}: тайм-аут записи: {e}"))?;
+
+    if tls {
+        let mut config = rustls::client::ClientConfig::builder()
             .dangerous()
             .with_custom_certificate_verifier(Arc::new(NoCertificateVerification))
             .with_no_client_auth();
-        tls_config.resumption = rustls::client::Resumption::disabled();
-        let server_name =
-            rustls::pki_types::ServerName::try_from(host.to_owned()).map_err(|e| {
-                Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}"))
-            })?;
-        let client =
-            rustls::ClientConnection::new(Arc::new(tls_config), server_name).map_err(|e| {
-                Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}"))
-            })?;
-        let mut stream = rustls::StreamOwned::new(client, tcp);
+        config.resumption = rustls::client::Resumption::disabled();
+        let server_name = rustls::pki_types::ServerName::try_from(host.to_owned())
+            .map_err(|e| format!("некорректное имя KDC-прокси {host}: {e}"))?;
+        let client = rustls::ClientConnection::new(Arc::new(config), server_name)
+            .map_err(|e| format!("TLS KDC-прокси {host}:{port}: {e}"))?;
+        let stream = rustls::StreamOwned::new(client, tcp);
+        kdc_http_exchange(stream, host, port, target, data)
+    } else {
+        kdc_http_exchange(tcp, host, port, target, data)
+    }
+}
 
-        // 2. HTTP/1.1 POST. Токен CredSSP (SPNEGO) передаётся в заголовке
-        //    `Authorization: Negotiate <base64>` — именно так его ждёт сервер
-        //    Windows; в теле запроса его быть не должно.
-        let token = {
-            use base64::Engine as _;
-            base64::engine::general_purpose::STANDARD.encode(&request.data)
-        };
-        let header = format!(
-            "POST / HTTP/1.1\r\n\
-             Host: {host}\r\n\
-             Authorization: Negotiate {token}\r\n\
-             Content-Type: application/octet-stream\r\n\
-             Content-Length: {}\r\n\
-             Connection: close\r\n\
-             \r\n",
-            request.data.len(),
-        );
-        {
-            use std::io::Write as _;
-            stream.write_all(header.as_bytes()).map_err(|e| {
-                Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}"))
-            })?;
-            // Тело запроса оставляем пустым: токен уже ушёл в заголовке.
-            stream.flush().map_err(|e| {
-                Sspi::Error::new(Sspi::ErrorKind::NoAuthenticatingAuthority, format!("{e:?}"))
-            })?;
-        }
+fn kdc_http_exchange<S: Read + Write>(
+    mut stream: S,
+    host: &str,
+    port: u16,
+    target: &str,
+    data: &[u8],
+) -> Result<Vec<u8>, String> {
+    let request = build_kdc_http_request(host, port, target, data);
+    stream
+        .write_all(&request)
+        .map_err(|e| format!("KDC-прокси {host}:{port}: отправка: {e}"))?;
+    stream
+        .flush()
+        .map_err(|e| format!("KDC-прокси {host}:{port}: отправка: {e}"))?;
+    let raw =
+        read_http_response(&mut stream).map_err(|e| format!("KDC-прокси {host}:{port}: {e}"))?;
+    parse_kdc_http_response(&raw).map_err(|e| format!("KDC-прокси {host}:{port}: {e}"))
+}
 
-        // 3. Читаем весь ответ: ответный токен CredSSP находится в заголовке
-        //    `WWW-Authenticate: Negotiate <base64>`.
-        let mut raw = Vec::<u8>::new();
-        let mut buf = [0u8; 8192];
-        loop {
-            match stream.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => raw.extend(&buf[..n]),
-                Err(_) => break,
+/// Собирает HTTP/1.1 POST для KDC-прокси. Тело — KDC-сообщение.
+fn build_kdc_http_request(host: &str, port: u16, target: &str, data: &[u8]) -> Vec<u8> {
+    let host_header = if port == 80 || port == 443 {
+        host.to_string()
+    } else {
+        format!("{host}:{port}")
+    };
+    let head = format!(
+        "POST {target} HTTP/1.1\r\n\
+         Host: {host_header}\r\n\
+         Content-Type: application/octet-stream\r\n\
+         Content-Length: {}\r\n\
+         Connection: close\r\n\
+         \r\n",
+        data.len()
+    );
+    let mut request = head.into_bytes();
+    request.extend_from_slice(data);
+    request
+}
+
+/// Читает HTTP-ответ до закрытия соединения или до полного Content-Length.
+fn read_http_response<S: Read>(stream: &mut S) -> Result<Vec<u8>, String> {
+    let mut raw = Vec::new();
+    let mut buf = [0u8; 8192];
+    loop {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                raw.extend_from_slice(&buf[..n]);
+                if raw.len() > MAX_KDC_RESPONSE {
+                    return Err("ответ больше допустимого размера".to_string());
+                }
             }
-        }
-
-        // Токен из заголовка WWW-Authenticate (base64 → исходные байты).
-        if let Some(token) = negotiate_token(&raw) {
-            return Ok(token);
-        }
-
-        // Запасной вариант: токен в теле ответа.
-        // Ищем конец заголовков ("\r\n\r\n") и возвращаем оставшееся тело.
-        let mut split = raw.len();
-        for i in 0..raw.len() {
-            if raw[i] == b'\r'
-                && i + 3 < raw.len()
-                && raw[i + 1] == b'\n'
-                && raw[i + 2] == b'\r'
-                && raw[i + 3] == b'\n'
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            // Сервер вправе не закрывать соединение сразу; если заголовки уже
+            // пришли, отдаём то, что успели прочитать.
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                ) && find_header_end(&raw).is_some() =>
             {
-                split = i + 4;
                 break;
             }
+            Err(e) => return Err(format!("чтение ответа: {e}")),
         }
-        Ok(if split < raw.len() {
-            raw[split..].to_vec()
+    }
+    if raw.is_empty() {
+        return Err("сервер закрыл соединение без HTTP-ответа".to_string());
+    }
+    Ok(raw)
+}
+
+fn find_header_end(raw: &[u8]) -> Option<usize> {
+    raw.windows(4).position(|w| w == b"\r\n\r\n")
+}
+
+/// Разбирает HTTP-ответ KDC-прокси: проверяет статус и отделяет тело.
+fn parse_kdc_http_response(raw: &[u8]) -> Result<Vec<u8>, String> {
+    let end = find_header_end(raw).ok_or_else(|| "неполный HTTP-ответ".to_string())?;
+    let head = String::from_utf8_lossy(&raw[..end]);
+    let status_line = head.lines().next().unwrap_or_default().trim();
+    let mut parts = status_line.split_whitespace();
+    let version = parts.next().unwrap_or_default();
+    let code = parts
+        .next()
+        .and_then(|code| code.parse::<u16>().ok())
+        .ok_or_else(|| format!("некорректный HTTP-ответ: {status_line}"))?;
+    if !version.starts_with("HTTP/") {
+        return Err(format!("некорректный HTTP-ответ: {status_line}"));
+    }
+
+    let body = &raw[end + 4..];
+    if !(200..300).contains(&code) {
+        let snippet: String = String::from_utf8_lossy(body)
+            .trim()
+            .replace(['\r', '\n'], " ")
+            .chars()
+            .take(200)
+            .collect();
+        return Err(if snippet.is_empty() {
+            format!("HTTP-ответ {status_line}")
         } else {
-            Vec::<u8>::new()
-        })
-    }
-}
-
-/// Ищет в HTTP-ответе токен CredSSP из заголовка `WWW-Authenticate: Negotiate`.
-///
-/// Значение заголовка — base64; возвращаем исходные байты токена.
-fn negotiate_token(raw: &[u8]) -> Option<Vec<u8>> {
-    use base64::Engine as _;
-
-    let header = find_ci(raw, b"www-authenticate:")?;
-    let rest = &raw[header + 16..];
-    let line_end = rest
-        .iter()
-        .position(|&b| b == b'\r' || b == b'\n')
-        .unwrap_or(rest.len());
-    let line = &rest[..line_end];
-
-    let neg = find_ci(line, b"negotiate")?;
-    let value = line[neg + 9..].trim_ascii();
-    let value = value.strip_prefix(b"\"").unwrap_or(value);
-    let value = value.strip_suffix(b"\"").unwrap_or(value);
-    if value.is_empty() {
-        return None;
+            format!("HTTP-ответ {status_line}: {snippet}")
+        });
     }
 
-    base64::engine::general_purpose::STANDARD
-        .decode(value)
-        .ok()
-        .filter(|t| !t.is_empty())
-}
-
-/// Поиск подстроки без учёта регистра.
-fn find_ci(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() || haystack.len() < needle.len() {
-        return None;
+    for line in head.lines().skip(1) {
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
+        if !name.eq_ignore_ascii_case("content-length") {
+            continue;
+        }
+        let length = value
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| format!("некорректный Content-Length: {}", value.trim()))?;
+        if length > body.len() {
+            return Err(format!(
+                "неполный ответ: получено {} из {length} байт",
+                body.len()
+            ));
+        }
+        return Ok(body[..length].to_vec());
     }
-    haystack
-        .windows(needle.len())
-        .position(|window| window.eq_ignore_ascii_case(needle))
+
+    Ok(body.to_vec())
 }
 
 /// Событие клавиатуры для RDP-сессии.
@@ -285,7 +421,7 @@ pub enum RdpKey {
     Char(char),
 }
 
-/// Действие с кнопкой мыши в RDP fast-path.
+/// Действие с кнопкой мыши в RDP.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseEvent {
     /// Перемещение курсора (с зажатыми кнопками или без них).
@@ -361,9 +497,9 @@ impl rustls::client::danger::ServerCertVerifier for NoCertificateVerification {
 /// Подключение RDP через IronRDP (чистый Rust, без FreeRDP FFI).
 /// Использует ironrdp-blocking для синхронной работы в отдельном потоке GTK.
 /// Поддерживает NLA (CredSSP через `RdpNetworkClient`) и классический
-/// TLS+графический вход (PROTOCOL_SSL). Активная стадия даёт ввод (мышь/
-/// клавиатура через fast-path), двунаправленный буфер обмена (CLIPRDR)
-/// и декодированное изображение рабочего стола для отрисовки.
+/// TLS+графический вход (PROTOCOL_SSL). Активная стадия даёт ввод (мышь —
+/// slow-path с Share Data Header, клавиатура — fast-path), двунаправленный
+/// буфер обмена (CLIPRDR) и декодированное изображение рабочего стола.
 /// Типы активной RDP-сессии (поток поверх TCP — TLS или «голый» для RC4).
 type RdpFramed = ironrdp_blocking::Framed<SessionStream>;
 type RdpStage = ironrdp_session::ActiveStage;
@@ -390,6 +526,12 @@ pub struct RdpConnection {
     /// пользовательского канала.
     io_channel_id: u16,
     user_channel_id: u16,
+    /// Идентификатор общего ресурса из ConnectionResult: нужен для Share Data
+    /// Header в slow-path вводе мыши.
+    share_id: u32,
+    /// Сессия завершена штатно (сервер закрыл соединение). В отличие от
+    /// ошибки, UI показывает «сессия закрыта», а не красный статус.
+    close_reason: Option<String>,
 }
 
 impl RdpConnection {
@@ -406,6 +548,8 @@ impl RdpConnection {
             outgoing: Vec::new(),
             io_channel_id: 0,
             user_channel_id: 0,
+            share_id: 0,
+            close_reason: None,
         }
     }
 
@@ -442,6 +586,8 @@ impl RdpConnection {
 
         self.io_channel_id = connection_result.io_channel_id;
         self.user_channel_id = connection_result.user_channel_id;
+        self.share_id = connection_result.share_id;
+        self.close_reason = None;
 
         self.stage = Some(
             ironrdp_session::ActiveStageBuilder {
@@ -466,16 +612,29 @@ impl RdpConnection {
     /// сервера, декодирует её в изображение и отправляет ответные рамки.
     ///
     /// Возвращает `Ok(true)`, пока сессия активна, `Ok(false)` — когда данных
-    /// ещё нет (would-block, вызывайте снова), и `Err` при ошибке/разрыве.
+    /// ещё нет (would-block, вызывайте снова) или сессия штатно закрыта
+    /// (см. [`Self::close_reason`]), и `Err` при ошибке/разрыве.
     pub fn run(&mut self) -> Result<bool, String> {
+        if self.close_reason.is_some() {
+            return Ok(false);
+        }
+
         // Дописываем ввод, который не ушёл из-за WouldBlock.
         self.flush_outgoing();
 
+        let Self {
+            framed,
+            stage,
+            image,
+            decode_errors,
+            close_reason,
+            ..
+        } = self;
         let (framed, stage, image, decode_errors) = match (
-            self.framed.as_mut(),
-            self.stage.as_mut(),
-            self.image.as_mut(),
-            &mut self.decode_errors,
+            framed.as_mut(),
+            stage.as_mut(),
+            image.as_mut(),
+            decode_errors,
         ) {
             (Some(f), Some(s), Some(i), errors) => (f, s, i, errors),
             _ => return Err("RDP-сессия не инициализирована (нет framed/stage/image)".to_string()),
@@ -486,6 +645,13 @@ impl RdpConnection {
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 // Данных пока нет — возвращаем состояние в сессию и даём GUI
                 // продолжить (вызывать run() снова по таймеру / активности).
+                return Ok(false);
+            }
+            // Сервер закрыл соединение (штатный logoff или обрыв) — это не
+            // ошибка декодирования. UI покажет «сессия закрыта», а не красную
+            // строку «not enough bytes».
+            Err(e) if is_connection_closed(&e) => {
+                *close_reason = Some("сервер закрыл соединение".to_string());
                 return Ok(false);
             }
             Err(e) => return Err(format!("ошибка чтения рамки: {e}")),
@@ -515,19 +681,47 @@ impl RdpConnection {
             }
         };
 
+        let mut terminated = None;
         for out in outputs {
             match out {
                 ironrdp_session::ActiveStageOutput::ResponseFrame(frame) => {
-                    framed
-                        .write_all(&frame)
-                        .map_err(|e| format!("ошибка отправки ответа: {e}"))?;
+                    if let Err(e) = framed.write_all(&frame) {
+                        if is_connection_closed(&e) {
+                            *close_reason = Some("сервер закрыл соединение".to_string());
+                            return Ok(false);
+                        }
+                        return Err(format!("ошибка отправки ответа: {e}"));
+                    }
                 }
-                ironrdp_session::ActiveStageOutput::Terminate(_) => return Ok(true),
+                ironrdp_session::ActiveStageOutput::Terminate(reason) => {
+                    terminated = Some(reason);
+                }
                 _ => {}
             }
         }
 
+        if let Some(reason) = terminated {
+            let text = match reason {
+                ironrdp_session::GracefulDisconnectReason::ServerInitiated => {
+                    "сервер завершил сеанс".to_string()
+                }
+                ironrdp_session::GracefulDisconnectReason::UserInitiated => {
+                    "сеанс завершён".to_string()
+                }
+                ironrdp_session::GracefulDisconnectReason::Other(description) => {
+                    format!("сервер завершил сеанс: {description}")
+                }
+            };
+            *close_reason = Some(text);
+            return Ok(false);
+        }
+
         Ok(true)
+    }
+
+    /// Причина штатного закрытия сессии; `None`, пока сессия активна.
+    pub fn close_reason(&self) -> Option<&str> {
+        self.close_reason.as_deref()
     }
 }
 
@@ -629,44 +823,38 @@ fn queue_input(queue: &mut Vec<u8>, frame: Vec<u8>) -> bool {
     true
 }
 
-/// Собирает кадр медленного пути (TS_INPUT_PDU) с одним событием мыши.
+/// Собирает кадр медленного пути ввода: Share Control Header + Share Data
+/// Header (`PDUTYPE2_INPUT`) + `TS_INPUT_PDU_DATA`.
 ///
-/// TPKT + X.224 + MCS SendDataRequest, внутри — сразу `TS_INPUT_PDU_DATA`.
-/// Полные 16-битные `pointerFlags` выражают DOWN и все три кнопки, чего
-/// 5-битный `eventFlags` быстрого пути не умеет.
+/// Именно Share Data Header отличает корректный медленный ввод от «голого»
+/// `TS_INPUT_PDU` в MCS user_data: без него сервер читает первые байты как
+/// заголовок общего ресурса и молча отбрасывает событие. Полные 16-битные
+/// `pointerFlags` выражают DOWN и все три кнопки, чего 5-битный `eventFlags`
+/// быстрого пути не умеет.
 ///
 /// `TS_SECURITY_HEADER` здесь писать нельзя: в Enhanced RDP Security (TLS/NLA)
 /// его нет вовсе, а в Standard RDP Security обёртку добавляет
-/// `ActiveStage::secure_outgoing_frame`. Лишние 4 байта сервер читает как
-/// `numEvents = 0` и молча выбрасывает весь PDU — мышь не работает.
-fn slow_path_mouse_frame(
+/// `ActiveStage::secure_outgoing_frame`.
+fn slow_path_input_frame(
     io_channel_id: u16,
     user_channel_id: u16,
-    pdu: ironrdp_pdu::input::MousePdu,
+    share_id: u32,
+    events: Vec<ironrdp_pdu::input::InputEvent>,
 ) -> Vec<u8> {
-    use ironrdp_pdu::input::{InputEvent, InputEventPdu};
-    use ironrdp_pdu::mcs::SendDataRequest;
-    use ironrdp_pdu::x224::X224;
-    use std::borrow::Cow;
+    use ironrdp_pdu::input::InputEventPdu;
+    use ironrdp_pdu::rdp::headers::{encode_share_data, ShareDataPdu};
 
-    let events = InputEventPdu(vec![InputEvent::Mouse(pdu)]);
-    let mut body = Vec::new();
-    match ironrdp_pdu::encode_vec(&events) {
-        Ok(encoded) => body.extend_from_slice(&encoded),
+    let mut buf = ironrdp_pdu::WriteBuf::new();
+    match encode_share_data(
+        user_channel_id,
+        io_channel_id,
+        share_id,
+        ShareDataPdu::Input(InputEventPdu(events)),
+        &mut buf,
+    ) {
+        Ok(_) => buf.into_inner(),
         Err(e) => {
-            crate::logging::warn(&format!("не удалось закодировать событие мыши: {e}"));
-            return Vec::new();
-        }
-    }
-    let request = SendDataRequest {
-        initiator_id: user_channel_id,
-        channel_id: io_channel_id,
-        user_data: Cow::Owned(body),
-    };
-    match ironrdp_pdu::encode_vec(&X224(request)) {
-        Ok(frame) => frame,
-        Err(e) => {
-            crate::logging::warn(&format!("не удалось собрать кадр ввода мыши: {e}"));
+            crate::logging::warn(&format!("не удалось собрать кадр ввода: {e}"));
             Vec::new()
         }
     }
@@ -713,6 +901,17 @@ fn connection_error_message(
     });
     let standard_security_error = lower.iter().any(|e| e.contains("standard rdp security"));
 
+    // Настоящая причина отказа NLA — первая ошибка, не являющаяся требованием
+    // CredSSP. Печатаем её один раз под «Причина:» и исключаем из хвоста,
+    // иначе одна и та же причина повторялась дважды.
+    let nla_cause = if requires_credssp && nla {
+        errors
+            .iter()
+            .find(|e| !e.to_lowercase().contains("requires enhanced rdp security"))
+    } else {
+        None
+    };
+
     if requires_credssp {
         if nla {
             message.push_str(
@@ -720,12 +919,8 @@ fn connection_error_message(
                  Проверьте логин/пароль и домен, а также что учётной записи разрешён \
                  вход по RDP. ",
             );
-            // Настоящая причина — отказ NLA-попытки, а не «сервер требует CredSSP».
-            if let Some(nla_err) = errors
-                .iter()
-                .find(|e| !e.to_lowercase().contains("requires enhanced rdp security"))
-            {
-                message.push_str(&format!("Причина: {nla_err} "));
+            if let Some(cause) = nla_cause {
+                message.push_str(&format!("Причина: {cause} "));
             }
         } else {
             message.push_str(
@@ -751,35 +946,47 @@ fn connection_error_message(
 
     // Ошибки соединяем в одну строку: в строке состояния переносы растягивали
     // бы её на несколько строк. Одинаковые причины повторяются для каждого
-    // режима безопасности — оставляем по одному разу. Требование NLA уже
-    // объяснено выше — не дублируем его в хвосте.
+    // режима безопасности — оставляем по одному разу. Причины, уже объяснённые
+    // выше (требование NLA/RC4 и причина NLA), в хвосте не дублируем.
     let mut unique_errors: Vec<&str> = Vec::new();
     for error in errors {
-        if requires_credssp
-            && error
-                .to_lowercase()
-                .contains("requires enhanced rdp security")
-        {
+        let error_lower = error.to_lowercase();
+        if requires_credssp && error_lower.contains("requires enhanced rdp security") {
             continue;
         }
-        if !unique_errors.contains(&error.as_str()) {
+        if standard_security_error && error_lower.contains("standard rdp security") {
+            continue;
+        }
+        if nla_cause == Some(error) {
+            continue;
+        }
+        if !unique_errors
+            .iter()
+            .any(|seen| seen.eq_ignore_ascii_case(error))
+        {
             unique_errors.push(error);
         }
     }
-    message.push_str(&unique_errors.join(" · "));
-    if banner.is_none() && !requires_credssp {
-        message.push_str(
-            " Проверьте порт (по умолчанию 3389), адрес узла и требования \
-             сервера к NLA.",
-        );
+
+    if !unique_errors.is_empty() {
+        if !message.is_empty() && !message.ends_with(' ') {
+            message.push(' ');
+        }
+        let tail = unique_errors.join(" · ");
+        message.push_str(&tail);
+        if !tail.ends_with('.') {
+            message.push('.');
+        }
+        message.push(' ');
     }
-    message
+
+    if banner.is_none() && !requires_credssp && !standard_security_error {
+        message.push_str("Проверьте адрес, порт (по умолчанию 3389) и доступность узла.");
+    }
+
+    message.trim_end().to_string()
 }
 
-/// Режимы безопасности RDP в порядке попыток.
-///
-/// Standard RDP Security (RC4) попадает в список только при явном разрешении:
-/// иначе даже последняя попытка остаётся с TLS/NLA.
 /// Разрешение экрана RDP для коннектора.
 ///
 /// `0x0` («разрешение не задано») превращаем в `1024x768`: 1x1 рендерить
@@ -792,6 +999,10 @@ fn effective_desktop_size(width: u32, height: u32) -> (u32, u32) {
     }
 }
 
+/// Режимы безопасности RDP в порядке попыток.
+///
+/// Standard RDP Security (RC4) попадает в список только при явном разрешении:
+/// иначе даже последняя попытка остаётся с TLS/NLA.
 fn security_modes(nla: bool, allow_legacy: bool) -> Vec<(bool, bool, bool)> {
     let mut modes = if nla {
         vec![
@@ -843,10 +1054,10 @@ fn tcp_connect(host: &str, port: u16, timeout: Duration) -> io::Result<TcpStream
 fn describe_error(e: &ironrdp_connector::ConnectorError) -> String {
     use std::error::Error as _;
 
-    let mut text = e.to_string();
+    let mut text = clean_error_part(&e.to_string());
     let mut source = e.source();
     while let Some(cause) = source {
-        let part = cause.to_string();
+        let part = clean_error_part(&cause.to_string());
         if !part.is_empty() && !text.contains(&part) {
             text.push_str(": ");
             text.push_str(&part);
@@ -854,6 +1065,91 @@ fn describe_error(e: &ironrdp_connector::ConnectorError) -> String {
         source = cause.source();
     }
     text
+}
+
+/// Убирает из ошибки IronRDP отладочный префикс `[контекст @ файл:строка]`
+/// и переводит служебные контексты на понятный язык. Пользователю нужна
+/// причина, а не путь к исходнику в сборочном контейнере.
+fn clean_error_part(part: &str) -> String {
+    let (raw_context, kind) = match part
+        .strip_prefix('[')
+        .and_then(|rest| rest.split_once("] "))
+    {
+        Some((prefix, kind)) => (prefix.split(" @ ").next().unwrap_or(prefix), kind),
+        None => ("", part),
+    };
+
+    let context = match raw_context.to_ascii_lowercase().as_str() {
+        "write all" => "запись в RDP-соединение",
+        "read frame by hint" => "чтение ответа RDP-сервера",
+        "read pdu" => "чтение кадра RDP",
+        "credssp" => "NLA (CredSSP)",
+        "connection initiation" => "согласование RDP",
+        "connect finalize" => "завершение RDP-подключения",
+        _ => raw_context,
+    };
+    let kind = match kind {
+        "custom error" => "",
+        _ => kind,
+    };
+    let same = !kind.is_empty() && raw_context.eq_ignore_ascii_case(kind);
+
+    let text = match (context, kind) {
+        ("", "") => String::new(),
+        ("", kind) => kind.to_string(),
+        (context, "") => context.to_string(),
+        (context, _) if same => context.to_string(),
+        (context, kind) => format!("{context}: {kind}"),
+    };
+    if text.to_ascii_lowercase().contains("not enough bytes") {
+        "сервер закрыл соединение до ответа".to_string()
+    } else {
+        text
+    }
+}
+
+/// Сервер закрыл соединение: для пользователя это штатное завершение сессии,
+/// а не ошибка декодирования (`not enough bytes` из Framed при EOF).
+fn is_connection_closed(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::UnexpectedEof
+            | io::ErrorKind::ConnectionReset
+            | io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::BrokenPipe
+            | io::ErrorKind::NotConnected
+    ) || error
+        .to_string()
+        .to_ascii_lowercase()
+        .contains("not enough bytes")
+}
+
+/// Достаёт открытый ключ сервера из его TLS-сертификата для CredSSP.
+///
+/// NLA подписывает `pubKeyAuth` хэшем открытого ключа сервера. Пустой ключ
+/// даёт неверную подпись — сервер разрывает соединение (обычно `os error 104`)
+/// сразу после проверки учётных данных.
+fn extract_tls_server_public_key(
+    certs: Option<&[rustls::pki_types::CertificateDer<'_>]>,
+) -> Result<Vec<u8>, String> {
+    use x509_cert::der::Decode as _;
+
+    let der = certs
+        .and_then(|chain| chain.first())
+        .ok_or_else(|| "сервер не прислал TLS-сертификат".to_string())?;
+    let cert = x509_cert::Certificate::from_der(der.as_ref())
+        .map_err(|e| format!("не удалось разобрать TLS-сертификат: {e}"))?;
+    let key = cert
+        .tbs_certificate
+        .subject_public_key_info
+        .subject_public_key
+        .as_bytes()
+        .ok_or_else(|| "открытый ключ TLS-сертификата не выровнен по байтам".to_string())?
+        .to_vec();
+    if key.is_empty() {
+        return Err("пустой открытый ключ в TLS-сертификате".to_string());
+    }
+    Ok(key)
 }
 
 impl RdpConnection {
@@ -869,12 +1165,7 @@ impl RdpConnection {
         //    висеть на системном тайм-ауте, если хост выключен или молчит.
         let addr = format!("{}:{}", self.profile.host, self.profile.port);
         let tcp_stream = tcp_connect(&self.profile.host, self.profile.port, RDP_CONNECT_TIMEOUT)
-            .map_err(|e| {
-                format!(
-                    "не удалось подключиться к {addr}: {e}\n\
-                     Проверьте адрес и порт (по умолчанию 3389) и доступность узла."
-                )
-            })?;
+            .map_err(|e| format!("не удалось подключиться к {addr}: {e}"))?;
         tcp_stream
             .set_read_timeout(Some(RDP_IO_TIMEOUT))
             .map_err(|e| format!("не удалось задать тайм-аут чтения: {e}"))?;
@@ -959,13 +1250,13 @@ impl RdpConnection {
         //    либо TLS-рукопожатие поверх уже открытого TCP-соединения.
         let (tcp_stream, leftover_bytes) = framed.into_inner();
 
-        let (mut framed, upgraded) = if legacy {
+        let (mut framed, upgraded, server_public_key) = if legacy {
             let stream = SessionStream::Plain(tcp_stream);
             let framed = ironrdp_blocking::Framed::new_with_leftover(stream, leftover_bytes);
             let upgraded = ironrdp_blocking::mark_as_upgraded(should_upgrade, &mut connector);
-            (framed, upgraded)
+            (framed, upgraded, Vec::new())
         } else {
-            let tls_stream = {
+            let (tls_stream, server_public_key) = {
                 let mut config = rustls::client::ClientConfig::builder()
                     .dangerous()
                     .with_custom_certificate_verifier(Arc::new(NoCertificateVerification))
@@ -985,15 +1276,29 @@ impl RdpConnection {
                 let client = rustls::ClientConnection::new(config, server_name)
                     .map_err(|e| format!("ошибка создания TLS-соединения: {e}"))?;
 
-                let stream = rustls::StreamOwned::new(client, tcp_stream);
+                // PrefixedStream — ВНУТРИ TLS: leftover-байты, прочитанные
+                // вместе с X.224-ответом, должны пройти через TLS-движок.
+                let stream = PrefixedStream::new(leftover_bytes.to_vec(), tcp_stream);
+                let mut tls_stream = rustls::StreamOwned::new(client, stream);
 
-                // Оборачиваем в PrefixedStream, чтобы сначала отдать leftover-байты
-                PrefixedStream::new(leftover_bytes.to_vec(), stream)
+                // Завершаем рукопожатие до connect_finalize: для NLA нужен
+                // сертификат сервера, а ошибки TLS должны быть видны сразу.
+                tls_stream
+                    .conn
+                    .complete_io(&mut tls_stream.sock)
+                    .map_err(|e| format!("ошибка TLS-рукопожатия с {addr}: {e}"))?;
+
+                let server_public_key = if credssp {
+                    extract_tls_server_public_key(tls_stream.conn.peer_certificates())?
+                } else {
+                    Vec::new()
+                };
+                (tls_stream, server_public_key)
             };
 
             let framed = ironrdp_blocking::Framed::new(SessionStream::Tls(Box::new(tls_stream)));
             let upgraded = ironrdp_blocking::mark_as_upgraded(should_upgrade, &mut connector);
-            (framed, upgraded)
+            (framed, upgraded, server_public_key)
         };
 
         // 9. Завершаем процедуру подключения (NLA — через RdpNetworkClient).
@@ -1003,8 +1308,8 @@ impl RdpConnection {
             &mut framed,
             &mut RdpNetworkClient,
             ironrdp_connector::ServerName::from(self.profile.host.clone()),
-            Vec::new(), // server_public_key не нужен без CredSSP
-            None,       // kerberos_config
+            server_public_key,
+            None, // kerberos_config
         )
         .map_err(|e| format!("ошибка завершения RDP-подключения: {}", describe_error(&e)))?;
 
@@ -1154,7 +1459,7 @@ impl RdpConnection {
         self.send_key(CTRL, false);
     }
 
-    /// Отправить движение/клик мыши (fast-path Mouse-событие).
+    /// Отправить движение/клик мыши (slow-path `TS_INPUT_PDU`).
     ///
     /// `buttons` — маска [`MOUSE_LEFT`]/[`MOUSE_RIGHT`]/[`MOUSE_MIDDLE`].
     /// При отпускании кнопки маска должна содержать отпускаемую кнопку, а
@@ -1174,7 +1479,12 @@ impl RdpConnection {
         // PDU — сервер видел eventFlags=0 и игнорировал событие. TS_INPUT_PDU
         // несёт полные 16-битные pointerFlags, поэтому клики, drag и колесо
         // кодируются верно.
-        let frame = slow_path_mouse_frame(self.io_channel_id, self.user_channel_id, pdu);
+        let frame = slow_path_input_frame(
+            self.io_channel_id,
+            self.user_channel_id,
+            self.share_id,
+            vec![ironrdp_pdu::input::InputEvent::Mouse(pdu)],
+        );
         self.write_input_frame(frame);
     }
 
@@ -1207,16 +1517,16 @@ impl RdpConnection {
         flags
     }
 
-    /// Отправить колесо мыши (fast-path Mouse-событие с вертикальным колесом).
+    /// Отправить колесо мыши (slow-path Mouse-событие с вертикальным колесом).
     /// `delta` — условные единицы прокрутки (положительные — вверх).
     pub fn send_wheel(&mut self, x: u32, y: u32, delta: i32) {
-        let mut flags = ironrdp_pdu::input::mouse::PointerFlags::VERTICAL_WHEEL;
-        if delta < 0 {
-            flags |= ironrdp_pdu::input::mouse::PointerFlags::WHEEL_NEGATIVE;
-        }
-        let units = delta.unsigned_abs().min(i16::MAX as u32) as i16;
+        // WheelRotationMask — 9-битное число в дополнительном коде, диапазон
+        // [-256, 255]. Знак и величину кодирует сам MousePdu::encode; вручную
+        // выставлять WHEEL_NEGATIVE при положительной величине нельзя — сервер
+        // прочитает такое как -136 вместо -120.
+        let units = delta.clamp(-256, 255) as i16;
         let pdu = ironrdp_pdu::input::MousePdu {
-            flags,
+            flags: ironrdp_pdu::input::mouse::PointerFlags::VERTICAL_WHEEL,
             number_of_wheel_rotation_units: units,
             x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
             y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
@@ -1227,7 +1537,12 @@ impl RdpConnection {
         // PDU — сервер видел eventFlags=0 и игнорировал событие. TS_INPUT_PDU
         // несёт полные 16-битные pointerFlags, поэтому клики, drag и колесо
         // кодируются верно.
-        let frame = slow_path_mouse_frame(self.io_channel_id, self.user_channel_id, pdu);
+        let frame = slow_path_input_frame(
+            self.io_channel_id,
+            self.user_channel_id,
+            self.share_id,
+            vec![ironrdp_pdu::input::InputEvent::Mouse(pdu)],
+        );
         self.write_input_frame(frame);
     }
 
@@ -1406,9 +1721,8 @@ mod tests {
         assert!(!conn.image_pixels().is_empty(), "кадр пустой");
         assert!(got_frame, "кадр не получен");
 
-        // Обратное направление: события мыши уходят fast-path'ом в том же
-        // RC4-потоке (Standard RDP Security). Сервер не должен разорвать
-        // сессию из-за неверного шифрования ввода.
+        // Обратное направление: проверяем, что slow-path ввод мыши
+        // (Share Control + Share Data) не разрывает сессию.
         conn.send_mouse(10, 10, 0, MouseEvent::Move);
         conn.send_mouse(10, 10, MOUSE_LEFT, MouseEvent::ButtonDown);
         conn.send_mouse(10, 10, MOUSE_LEFT, MouseEvent::ButtonUp);
@@ -1604,61 +1918,113 @@ mod tests {
         assert_eq!(q.len(), MAX_PENDING_INPUT);
     }
 
-    /// Кадр мыши — медленный путь: TPKT, MCS и полные 16-битные pointerFlags.
+    /// Разбирает slow-path кадр до `TS_INPUT_PDU_DATA`, проверяя обёртку
+    /// Share Control + Share Data. Возвращает `(share_id, pdu_source, events)`.
+    fn decode_slow_path_input(frame: &[u8]) -> (u32, u16, ironrdp_pdu::input::InputEventPdu) {
+        use ironrdp_pdu::mcs::McsMessage;
+        use ironrdp_pdu::rdp::headers::{ShareControlHeader, ShareControlPdu, ShareDataPdu};
+        use ironrdp_pdu::x224::X224;
+
+        let X224(McsMessage::SendDataRequest(req)) =
+            ironrdp_pdu::decode::<X224<McsMessage<'_>>>(frame).expect("не SendDataRequest")
+        else {
+            panic!("ожидался MCS SendDataRequest");
+        };
+        let control: ShareControlHeader =
+            ironrdp_pdu::decode(req.user_data.as_ref()).expect("нет Share Control Header");
+        let share_id = control.share_id;
+        let pdu_source = control.pdu_source;
+        let ShareControlPdu::Data(data) = control.share_control_pdu else {
+            panic!("ожидался Share Data PDU");
+        };
+        let ShareDataPdu::Input(events) = data.share_data_pdu else {
+            panic!("ожидался Input PDU");
+        };
+        (share_id, pdu_source, events)
+    }
+
+    /// Кадр мыши — медленный путь: MCS + Share Control Header + Share Data
+    /// Header (`PDUTYPE2_INPUT`) + TS_INPUT_PDU с полными pointerFlags.
     #[test]
-    fn mouse_frame_is_slow_path_with_full_pointer_flags() {
+    fn mouse_frame_has_share_data_header_and_full_pointer_flags() {
         use ironrdp_pdu::input::mouse::PointerFlags;
+        use ironrdp_pdu::input::InputEvent;
+
         let pdu = ironrdp_pdu::input::MousePdu {
             flags: PointerFlags::LEFT_BUTTON | PointerFlags::DOWN,
             number_of_wheel_rotation_units: 0,
             x_position: 0x1234,
             y_position: 0x0abc,
         };
-        let frame = slow_path_mouse_frame(1003, 1002, pdu);
+        let frame = slow_path_input_frame(1003, 1002, 0x1020_3040, vec![InputEvent::Mouse(pdu)]);
         assert!(frame.len() > 20, "кадр слишком короткий: {}", frame.len());
         assert_eq!(&frame[..2], &[0x03, 0x00], "TPKT");
         let len = u16::from_be_bytes([frame[2], frame[3]]) as usize;
         assert_eq!(len, frame.len(), "длина TPKT совпадает с кадром");
-        let flags = (PointerFlags::LEFT_BUTTON | PointerFlags::DOWN)
-            .bits()
-            .to_le_bytes();
-        assert!(
-            frame.windows(2).any(|w| w == flags),
-            "нет 16-битных pointerFlags"
+
+        let (share_id, pdu_source, events) = decode_slow_path_input(&frame);
+        assert_eq!(share_id, 0x1020_3040, "shareId должен попасть в заголовок");
+        assert_eq!(pdu_source, 1002, "pdu_source — пользовательский канал");
+        assert_eq!(
+            events.0.len(),
+            1,
+            "сервер должен увидеть ровно одно событие"
         );
-        assert!(frame.windows(2).any(|w| w == [0x34, 0x12]), "нет xPos");
-        assert!(frame.windows(2).any(|w| w == [0xbc, 0x0a]), "нет yPos");
-        assert!(
-            frame.windows(2).any(|w| w == [0x01, 0x80]),
-            "нет типа события INPUT_EVENT_MOUSE"
-        );
+        match &events.0[0] {
+            InputEvent::Mouse(m) => {
+                assert_eq!((m.x_position, m.y_position), (0x1234, 0x0abc));
+                assert_eq!(m.flags, PointerFlags::LEFT_BUTTON | PointerFlags::DOWN);
+                assert_eq!(m.number_of_wheel_rotation_units, 0);
+            }
+            other => panic!("ожидалось событие мыши, получено {other:?}"),
+        }
     }
 
     #[test]
-    fn mouse_frame_encodes_wheel_rotation_in_flags() {
+    fn mouse_frame_encodes_wheel_rotation() {
         use ironrdp_pdu::input::mouse::PointerFlags;
-        let pdu = ironrdp_pdu::input::MousePdu {
-            flags: PointerFlags::VERTICAL_WHEEL,
-            number_of_wheel_rotation_units: 120,
-            x_position: 1,
-            y_position: 2,
-        };
-        let frame = slow_path_mouse_frame(1003, 1002, pdu);
-        let expect = (PointerFlags::VERTICAL_WHEEL.bits() | 120u16).to_le_bytes();
-        assert!(
-            frame.windows(2).any(|w| w == expect),
-            "вращение колеса не упаковано в pointerFlags"
-        );
+        use ironrdp_pdu::input::InputEvent;
+
+        for delta in [120i16, -120i16] {
+            let pdu = ironrdp_pdu::input::MousePdu {
+                flags: PointerFlags::VERTICAL_WHEEL,
+                number_of_wheel_rotation_units: delta,
+                x_position: 1,
+                y_position: 2,
+            };
+            let frame =
+                slow_path_input_frame(1003, 1002, 0x1020_3040, vec![InputEvent::Mouse(pdu)]);
+            let (_, _, events) = decode_slow_path_input(&frame);
+            match &events.0[0] {
+                InputEvent::Mouse(m) => {
+                    assert!(
+                        m.flags.contains(PointerFlags::VERTICAL_WHEEL),
+                        "потерян флаг колеса для {delta}"
+                    );
+                    assert_eq!(
+                        m.number_of_wheel_rotation_units, delta,
+                        "вращение {delta} не пережило кодирование"
+                    );
+                    assert_eq!(
+                        m.flags.contains(PointerFlags::WHEEL_NEGATIVE),
+                        delta < 0,
+                        "знак колеса для {delta}"
+                    );
+                }
+                other => panic!("ожидалось событие мыши, получено {other:?}"),
+            }
+        }
     }
 
-    /// Регрессия 1.9.1: кадр ввода мыши не должен содержать `TS_SECURITY_HEADER`.
+    /// Регрессия 1.9.1: в MCS user_data не должно быть лишнего
+    /// `TS_SECURITY_HEADER` — первым идёт Share Control Header.
     ///
-    /// Разбираем кадр по структуре, а не поиском байтов: при лишнем 4-байтовом
-    /// заголовке сервер читает `numEvents = 0`, и этот тест падает.
+    /// Разбираем кадр по структуре: при лишних 4 байтах заголовка сервер
+    /// прочитает их как `shareId` и не увидит событие ввода.
     #[test]
-    fn mouse_frame_has_no_security_header_before_input_pdu() {
+    fn mouse_frame_starts_with_share_control_header() {
         use ironrdp_pdu::input::mouse::PointerFlags;
-        use ironrdp_pdu::input::{InputEvent, InputEventPdu};
+        use ironrdp_pdu::input::InputEvent;
         use ironrdp_pdu::mcs::McsMessage;
         use ironrdp_pdu::x224::X224;
 
@@ -1668,7 +2034,7 @@ mod tests {
             x_position: 640,
             y_position: 480,
         };
-        let frame = slow_path_mouse_frame(1003, 1002, pdu);
+        let frame = slow_path_input_frame(1003, 1002, 0x1020_3040, vec![InputEvent::Mouse(pdu)]);
 
         let X224(McsMessage::SendDataRequest(req)) =
             ironrdp_pdu::decode::<X224<McsMessage<'_>>>(&frame).expect("не SendDataRequest")
@@ -1676,20 +2042,173 @@ mod tests {
             panic!("ожидался MCS SendDataRequest");
         };
         assert_eq!(req.channel_id, 1003, "ввод должен идти в I/O-канал");
+        let (_, _, events) = decode_slow_path_input(&frame);
+        assert_eq!(events.0.len(), 1);
+    }
 
-        let events: InputEventPdu =
-            ironrdp_pdu::decode(req.user_data.as_ref()).expect("не TS_INPUT_PDU_DATA");
-        assert_eq!(
-            events.0.len(),
-            1,
-            "сервер должен увидеть ровно одно событие"
-        );
-        match &events.0[0] {
-            InputEvent::Mouse(m) => {
-                assert_eq!((m.x_position, m.y_position), (640, 480));
-                assert!(m.flags.contains(PointerFlags::MOVE));
+    #[test]
+    fn send_wheel_round_trips_negative_rotation() {
+        use ironrdp_pdu::input::mouse::PointerFlags;
+        use ironrdp_pdu::input::InputEvent;
+
+        for delta in [120, -120] {
+            let mut conn = RdpConnection::new(test_profile());
+            conn.io_channel_id = 1003;
+            conn.user_channel_id = 1002;
+            conn.share_id = 0x1020_3040;
+            conn.send_wheel(10, 20, delta);
+            let (_, _, events) = decode_slow_path_input(&conn.outgoing);
+            match &events.0[0] {
+                InputEvent::Mouse(m) => {
+                    assert_eq!(m.number_of_wheel_rotation_units, delta as i16);
+                    assert_eq!(
+                        m.flags.contains(PointerFlags::WHEEL_NEGATIVE),
+                        delta < 0,
+                        "знак колеса для {delta}"
+                    );
+                    assert_eq!((m.x_position, m.y_position), (10, 20));
+                }
+                other => panic!("ожидалось событие мыши, получено {other:?}"),
             }
-            other => panic!("ожидалось событие мыши, получено {other:?}"),
         }
+    }
+
+    #[test]
+    fn extracts_server_public_key_from_tls_certificate() {
+        use x509_cert::der::Decode as _;
+
+        let der = include_bytes!("../../tests/fixtures/rsa2048-crt.der");
+        let cert = x509_cert::Certificate::from_der(&der[..]).expect("сертификат");
+        let expected = cert
+            .tbs_certificate
+            .subject_public_key_info
+            .subject_public_key
+            .as_bytes()
+            .expect("BIT STRING")
+            .to_vec();
+
+        let cert_der = rustls::pki_types::CertificateDer::from(der.to_vec());
+        let chain = [cert_der];
+        let key = extract_tls_server_public_key(Some(&chain)).expect("ключ сервера");
+        assert!(!key.is_empty());
+        assert_eq!(key, expected);
+        assert_eq!(key[0], 0x30, "ожидался DER PKCS#1 RSAPublicKey");
+    }
+
+    #[test]
+    fn missing_tls_certificate_is_reported() {
+        let err = extract_tls_server_public_key(None).expect_err("без цепочки — ошибка");
+        assert!(err.contains("сертификат"), "{err}");
+    }
+
+    #[test]
+    fn connection_closed_errors_are_classified() {
+        assert!(is_connection_closed(&io::Error::from(
+            io::ErrorKind::UnexpectedEof
+        )));
+        assert!(is_connection_closed(&io::Error::from(
+            io::ErrorKind::ConnectionReset
+        )));
+        assert!(is_connection_closed(&io::Error::new(
+            io::ErrorKind::InvalidData,
+            "not enough bytes"
+        )));
+        assert!(!is_connection_closed(&io::Error::new(
+            io::ErrorKind::InvalidData,
+            "bad pdu"
+        )));
+    }
+
+    #[test]
+    fn debug_location_is_stripped_from_error() {
+        assert_eq!(
+            clean_error_part("[write all @ /build/connector.rs:162] custom error"),
+            "запись в RDP-соединение"
+        );
+        assert_eq!(
+            clean_error_part("[CredSSP @ /build/connector.rs:90] CredSSP"),
+            "NLA (CredSSP)"
+        );
+        assert_eq!(
+            clean_error_part("[read frame by hint @ /build/framed.rs:42] custom error"),
+            "чтение ответа RDP-сервера"
+        );
+        assert_eq!(
+            clean_error_part("not enough bytes"),
+            "сервер закрыл соединение до ответа"
+        );
+    }
+
+    #[test]
+    fn nla_cause_is_printed_once() {
+        let cause = "ошибка завершения RDP-подключения: запись в RDP-соединение: \
+                     Соединение разорвано другой стороной (os error 104)"
+            .to_string();
+        let errors = vec![
+            cause.clone(),
+            cause,
+            "ошибка начала RDP-подключения: negotiation failure: server requires \
+             Enhanced RDP Security with CredSSP"
+                .to_string(),
+        ];
+        let msg = connection_error_message("host:3389", None, &errors, false, true);
+        assert_eq!(msg.matches("os error 104").count(), 1, "{msg}");
+        assert_eq!(msg.matches("Причина:").count(), 1, "{msg}");
+        assert_eq!(msg.matches("требует NLA").count(), 1, "{msg}");
+    }
+
+    #[test]
+    fn connection_refused_hint_is_printed_once() {
+        let error =
+            "не удалось подключиться к host:3389: В соединении отказано (os error 111)".to_string();
+        let msg = connection_error_message("host:3389", None, &[error.clone(), error], false, true);
+        assert_eq!(msg.matches("os error 111").count(), 1, "{msg}");
+        assert_eq!(
+            msg.matches("Проверьте адрес, порт").count(),
+            1,
+            "подсказка про порт не должна дублироваться: {msg}"
+        );
+    }
+
+    #[test]
+    fn kdc_http_request_puts_token_in_body() {
+        let data = b"\x01\x02\x03";
+        let request = build_kdc_http_request("dc.example.com", 443, "/KdcProxy", data);
+        let text = String::from_utf8_lossy(&request);
+        assert!(
+            text.starts_with("POST /KdcProxy HTTP/1.1\r\n"),
+            "неверный request-target: {text}"
+        );
+        assert!(
+            text.contains("Content-Length: 3\r\n"),
+            "нет длины тела: {text}"
+        );
+        assert!(
+            !text.contains("Authorization:"),
+            "KDC-прокси не использует Negotiate: {text}"
+        );
+        assert!(
+            request.ends_with(&data[..]),
+            "KDC-сообщение должно быть в теле запроса"
+        );
+    }
+
+    #[test]
+    fn kdc_http_response_parses_body_and_status() {
+        let ok = b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n\x01\x02\x03";
+        assert_eq!(
+            parse_kdc_http_response(ok).expect("ответ 200"),
+            vec![1, 2, 3]
+        );
+
+        let short = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nabc";
+        assert_eq!(
+            parse_kdc_http_response(short).expect("Content-Length"),
+            b"ab".to_vec()
+        );
+
+        let unauthorized = b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n";
+        let err = parse_kdc_http_response(unauthorized).expect_err("401 — ошибка");
+        assert!(err.contains("401"), "{err}");
     }
 }

@@ -234,7 +234,13 @@ impl RdpViewer {
                                 }
                             }
                         }
-                        Ok(false) => {}
+                        Ok(false) => {
+                            if let Some(reason) = conn.close_reason() {
+                                crate::logging::info(&format!("RDP-сессия завершена: {reason}"));
+                                let _ = tx_ui.send(ToUi::State(SessionState::Closed));
+                                return;
+                            }
+                        }
                         Err(e) => {
                             let _ = tx_ui.send(ToUi::State(SessionState::Failed(e)));
                             return;
@@ -255,6 +261,7 @@ impl RdpViewer {
             let remote_size = remote_size.clone();
             let on_state = on_state.clone();
 
+            let mut was_connected = false;
             glib::timeout_add_local(Duration::from_millis(25), move || {
                 loop {
                     match rx_ui.try_recv() {
@@ -291,6 +298,7 @@ impl RdpViewer {
                         Ok(ToUi::State(state)) => {
                             match &state {
                                 SessionState::Connected => {
+                                    was_connected = true;
                                     spinner.set_spinning(false);
                                     // После подключения сразу отдаём фокус
                                     // экрану, чтобы клавиатура работала без
@@ -302,10 +310,20 @@ impl RdpViewer {
                                 }
                                 SessionState::Failed(e) => {
                                     spinner.set_spinning(false);
-                                    hint.set_text(&format!("Ошибка подключения: {e}"));
+                                    let prefix = if was_connected {
+                                        "Сессия завершена с ошибкой"
+                                    } else {
+                                        "Ошибка подключения"
+                                    };
+                                    hint.set_text(&format!("{prefix}: {e}"));
                                     hint.set_visible(true);
                                 }
-                                _ => {}
+                                SessionState::Closed => {
+                                    spinner.set_spinning(false);
+                                    hint.set_text("Сессия завершена: сервер закрыл соединение.");
+                                    hint.set_visible(true);
+                                }
+                                SessionState::Connecting => {}
                             }
                             on_state(state);
                         }
