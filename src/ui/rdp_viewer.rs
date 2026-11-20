@@ -727,12 +727,21 @@ impl RdpViewer {
                 if rw == 0 || rh == 0 {
                     return glib::Propagation::Proceed;
                 }
+                // Один щелчок = 120 единиц вращения; дробный dy (плавная
+                // прокрутка) не должен усыхать в ноль при усечении до i32.
+                let notches = if dy.abs() >= 1.0 {
+                    -(dy as i32)
+                } else if dy != 0.0 {
+                    -(dy.signum() as i32)
+                } else {
+                    return glib::Propagation::Proceed;
+                };
                 let (px, py) = pointer.get();
                 let (rx, ry) = map_coordinates(&area_ref, px, py, rw, rh, mode.get());
                 let _ = tx.send(ToRdp::Wheel {
                     x: rx,
                     y: ry,
-                    delta: -(dy as i32),
+                    delta: notches,
                 });
                 glib::Propagation::Stop
             });

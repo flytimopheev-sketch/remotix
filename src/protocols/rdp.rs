@@ -928,41 +928,14 @@ fn queue_input(queue: &mut Vec<u8>, frame: Vec<u8>) -> bool {
     true
 }
 
-/// Собирает кадр медленного пути ввода: Share Control Header + Share Data
-/// Header (`PDUTYPE2_INPUT`) + `TS_INPUT_PDU_DATA`.
+/// Переводит щелчки колеса в единицы вращения RDP (WHEEL_DELTA = 120).
 ///
-/// Именно Share Data Header отличает корректный медленный ввод от «голого»
-/// `TS_INPUT_PDU` в MCS user_data: без него сервер читает первые байты как
-/// заголовок общего ресурса и молча отбрасывает событие. Полные 16-битные
-/// `pointerFlags` выражают DOWN и все три кнопки, чего 5-битный `eventFlags`
-/// быстрого пути не умеет.
-///
-/// `TS_SECURITY_HEADER` здесь писать нельзя: в Enhanced RDP Security (TLS/NLA)
-/// его нет вовсе, а в Standard RDP Security обёртку добавляет
-/// `ActiveStage::secure_outgoing_frame`.
-fn slow_path_input_frame(
-    io_channel_id: u16,
-    user_channel_id: u16,
-    share_id: u32,
-    events: Vec<ironrdp_pdu::input::InputEvent>,
-) -> Vec<u8> {
-    use ironrdp_pdu::input::InputEventPdu;
-    use ironrdp_pdu::rdp::headers::{encode_share_data, ShareDataPdu};
-
-    let mut buf = ironrdp_pdu::WriteBuf::new();
-    match encode_share_data(
-        user_channel_id,
-        io_channel_id,
-        share_id,
-        ShareDataPdu::Input(InputEventPdu(events)),
-        &mut buf,
-    ) {
-        Ok(_) => buf.into_inner(),
-        Err(e) => {
-            crate::logging::rdp_warn(&format!("не удалось собрать кадр ввода: {e}"));
-            Vec::new()
-        }
-    }
+/// `WheelRotationMask` — 9-битное поле в дополнительном коде, диапазон
+/// [-256, 255], поэтому в один PDU помещается не больше двух щелчков.
+/// Раньше GTK-овский `dy` (±1) уходил в кадр как есть: сервер видел 1/120
+/// щелчка, и прокрутка была практически незаметна.
+fn wheel_rotation_units(notches: i32) -> i16 {
+    (notches.clamp(-2, 2) * 120) as i16
 }
 
 /// Логин RDP из профиля; `None`, если он пуст или состоит из пробелов.
@@ -1537,6 +1510,49 @@ impl RdpConnection {
         self.flush_outgoing();
     }
 
+    /// Отправляет события указателя через `ActiveStage::process_fastpath_input`.
+    ///
+    /// Это единственный публичный путь, который не только кодирует ввод, но и
+    /// рисует курсор в кадровом буфере: `DecodedImage::move_pointer` объявлен
+    /// `pub(crate)` и напрямую недоступен. Пока мышь собирала кадр вручную,
+    /// указатель в изображение не попадал вовсе — курсора в сессии не было
+    /// видно, хотя клики уходили на сервер.
+    fn send_pointer_events(
+        &mut self,
+        events: Vec<ironrdp_pdu::input::fast_path::FastPathInputEvent>,
+    ) {
+        if events.is_empty() {
+            return;
+        }
+        let Self {
+            stage,
+            image,
+            outgoing,
+            input_sent_at,
+            ..
+        } = self;
+        let (Some(stage), Some(image)) = (stage.as_mut(), image.as_mut()) else {
+            return;
+        };
+        let outputs = match stage.process_fastpath_input(image, &events) {
+            Ok(outputs) => outputs,
+            Err(e) => {
+                crate::logging::rdp_warn(&format!("не удалось отправить ввод указателя: {e}"));
+                return;
+            }
+        };
+        for out in outputs {
+            if let ironrdp_session::ActiveStageOutput::ResponseFrame(frame) = out {
+                if queue_input(outgoing, frame) {
+                    *input_sent_at = Some(Instant::now());
+                } else {
+                    crate::logging::rdp_warn("очередь ввода RDP переполнена — буфер сброшен");
+                }
+            }
+        }
+        self.flush_outgoing();
+    }
+
     /// Дописывает накопленный ввод в сокет.
     ///
     /// Сокет неблокирующий: `WouldBlock` — не ошибка, а «попробуй позже»,
@@ -1633,19 +1649,12 @@ impl RdpConnection {
             x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
             y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
         };
-        // Медленный путь: в fast-path событии Mouse флаги указателя лежат
-        // в 5-битном eventFlags заголовка (MS-RDPBCGR 2.2.8.1.2.2.3) и не
-        // выражают DOWN/BUTTON2/BUTTON3, а IronRDP кладёт туда тело slow-path
-        // PDU — сервер видел eventFlags=0 и игнорировал событие. TS_INPUT_PDU
-        // несёт полные 16-битные pointerFlags, поэтому клики, drag и колесо
-        // кодируются верно.
-        let frame = slow_path_input_frame(
-            self.io_channel_id,
-            self.user_channel_id,
-            self.share_id,
-            vec![ironrdp_pdu::input::InputEvent::Mouse(pdu)],
-        );
-        self.write_input_frame(frame);
+        // Fast-path: 5-битный eventFlags заголовка выбирает только ТИП события,
+        // а полные 16-битные pointerFlags лежат в теле TS_FP_INPUT_MOUSE_EVENT
+        // (MS-RDPBCGR 2.2.8.1.2.2.3) — DOWN и все три кнопки выражаются.
+        self.send_pointer_events(vec![
+            ironrdp_pdu::input::fast_path::FastPathInputEvent::MouseEvent(pdu),
+        ]);
     }
 
     /// Флаги fast-path mouse для маски кнопок и действия.
@@ -1678,32 +1687,25 @@ impl RdpConnection {
     }
 
     /// Отправить колесо мыши (slow-path Mouse-событие с вертикальным колесом).
-    /// `delta` — условные единицы прокрутки (положительные — вверх).
+    /// `delta` — щелчки колеса (положительные — вверх); один щелчок = 120 единиц.
     pub fn send_wheel(&mut self, x: u32, y: u32, delta: i32) {
         // WheelRotationMask — 9-битное число в дополнительном коде, диапазон
         // [-256, 255]. Знак и величину кодирует сам MousePdu::encode; вручную
         // выставлять WHEEL_NEGATIVE при положительной величине нельзя — сервер
         // прочитает такое как -136 вместо -120.
-        let units = delta.clamp(-256, 255) as i16;
+        let units = wheel_rotation_units(delta);
         let pdu = ironrdp_pdu::input::MousePdu {
             flags: ironrdp_pdu::input::mouse::PointerFlags::VERTICAL_WHEEL,
             number_of_wheel_rotation_units: units,
             x_position: x.clamp(0, u32::from(u16::MAX)) as u16,
             y_position: y.clamp(0, u32::from(u16::MAX)) as u16,
         };
-        // Медленный путь: в fast-path событии Mouse флаги указателя лежат
-        // в 5-битном eventFlags заголовка (MS-RDPBCGR 2.2.8.1.2.2.3) и не
-        // выражают DOWN/BUTTON2/BUTTON3, а IronRDP кладёт туда тело slow-path
-        // PDU — сервер видел eventFlags=0 и игнорировал событие. TS_INPUT_PDU
-        // несёт полные 16-битные pointerFlags, поэтому клики, drag и колесо
-        // кодируются верно.
-        let frame = slow_path_input_frame(
-            self.io_channel_id,
-            self.user_channel_id,
-            self.share_id,
-            vec![ironrdp_pdu::input::InputEvent::Mouse(pdu)],
-        );
-        self.write_input_frame(frame);
+        // Fast-path: 5-битный eventFlags заголовка выбирает только ТИП события,
+        // а полные 16-битные pointerFlags лежат в теле TS_FP_INPUT_MOUSE_EVENT
+        // (MS-RDPBCGR 2.2.8.1.2.2.3) — DOWN и все три кнопки выражаются.
+        self.send_pointer_events(vec![
+            ironrdp_pdu::input::fast_path::FastPathInputEvent::MouseEvent(pdu),
+        ]);
     }
 
     /// Загрузить текст в удалённый буфер обмена (уходит на сервер RDP).
@@ -2087,161 +2089,6 @@ mod tests {
         assert_eq!(q.len(), MAX_PENDING_INPUT);
     }
 
-    /// Разбирает slow-path кадр до `TS_INPUT_PDU_DATA`, проверяя обёртку
-    /// Share Control + Share Data. Возвращает `(share_id, pdu_source, events)`.
-    fn decode_slow_path_input(frame: &[u8]) -> (u32, u16, ironrdp_pdu::input::InputEventPdu) {
-        use ironrdp_pdu::mcs::McsMessage;
-        use ironrdp_pdu::rdp::headers::{ShareControlHeader, ShareControlPdu, ShareDataPdu};
-        use ironrdp_pdu::x224::X224;
-
-        let X224(McsMessage::SendDataRequest(req)) =
-            ironrdp_pdu::decode::<X224<McsMessage<'_>>>(frame).expect("не SendDataRequest")
-        else {
-            panic!("ожидался MCS SendDataRequest");
-        };
-        let control: ShareControlHeader =
-            ironrdp_pdu::decode(req.user_data.as_ref()).expect("нет Share Control Header");
-        let share_id = control.share_id;
-        let pdu_source = control.pdu_source;
-        let ShareControlPdu::Data(data) = control.share_control_pdu else {
-            panic!("ожидался Share Data PDU");
-        };
-        let ShareDataPdu::Input(events) = data.share_data_pdu else {
-            panic!("ожидался Input PDU");
-        };
-        (share_id, pdu_source, events)
-    }
-
-    /// Кадр мыши — медленный путь: MCS + Share Control Header + Share Data
-    /// Header (`PDUTYPE2_INPUT`) + TS_INPUT_PDU с полными pointerFlags.
-    #[test]
-    fn mouse_frame_has_share_data_header_and_full_pointer_flags() {
-        use ironrdp_pdu::input::mouse::PointerFlags;
-        use ironrdp_pdu::input::InputEvent;
-
-        let pdu = ironrdp_pdu::input::MousePdu {
-            flags: PointerFlags::LEFT_BUTTON | PointerFlags::DOWN,
-            number_of_wheel_rotation_units: 0,
-            x_position: 0x1234,
-            y_position: 0x0abc,
-        };
-        let frame = slow_path_input_frame(1003, 1002, 0x1020_3040, vec![InputEvent::Mouse(pdu)]);
-        assert!(frame.len() > 20, "кадр слишком короткий: {}", frame.len());
-        assert_eq!(&frame[..2], &[0x03, 0x00], "TPKT");
-        let len = u16::from_be_bytes([frame[2], frame[3]]) as usize;
-        assert_eq!(len, frame.len(), "длина TPKT совпадает с кадром");
-
-        let (share_id, pdu_source, events) = decode_slow_path_input(&frame);
-        assert_eq!(share_id, 0x1020_3040, "shareId должен попасть в заголовок");
-        assert_eq!(pdu_source, 1002, "pdu_source — пользовательский канал");
-        assert_eq!(
-            events.0.len(),
-            1,
-            "сервер должен увидеть ровно одно событие"
-        );
-        match &events.0[0] {
-            InputEvent::Mouse(m) => {
-                assert_eq!((m.x_position, m.y_position), (0x1234, 0x0abc));
-                assert_eq!(m.flags, PointerFlags::LEFT_BUTTON | PointerFlags::DOWN);
-                assert_eq!(m.number_of_wheel_rotation_units, 0);
-            }
-            other => panic!("ожидалось событие мыши, получено {other:?}"),
-        }
-    }
-
-    #[test]
-    fn mouse_frame_encodes_wheel_rotation() {
-        use ironrdp_pdu::input::mouse::PointerFlags;
-        use ironrdp_pdu::input::InputEvent;
-
-        for delta in [120i16, -120i16] {
-            let pdu = ironrdp_pdu::input::MousePdu {
-                flags: PointerFlags::VERTICAL_WHEEL,
-                number_of_wheel_rotation_units: delta,
-                x_position: 1,
-                y_position: 2,
-            };
-            let frame =
-                slow_path_input_frame(1003, 1002, 0x1020_3040, vec![InputEvent::Mouse(pdu)]);
-            let (_, _, events) = decode_slow_path_input(&frame);
-            match &events.0[0] {
-                InputEvent::Mouse(m) => {
-                    assert!(
-                        m.flags.contains(PointerFlags::VERTICAL_WHEEL),
-                        "потерян флаг колеса для {delta}"
-                    );
-                    assert_eq!(
-                        m.number_of_wheel_rotation_units, delta,
-                        "вращение {delta} не пережило кодирование"
-                    );
-                    assert_eq!(
-                        m.flags.contains(PointerFlags::WHEEL_NEGATIVE),
-                        delta < 0,
-                        "знак колеса для {delta}"
-                    );
-                }
-                other => panic!("ожидалось событие мыши, получено {other:?}"),
-            }
-        }
-    }
-
-    /// Регрессия 1.9.1: в MCS user_data не должно быть лишнего
-    /// `TS_SECURITY_HEADER` — первым идёт Share Control Header.
-    ///
-    /// Разбираем кадр по структуре: при лишних 4 байтах заголовка сервер
-    /// прочитает их как `shareId` и не увидит событие ввода.
-    #[test]
-    fn mouse_frame_starts_with_share_control_header() {
-        use ironrdp_pdu::input::mouse::PointerFlags;
-        use ironrdp_pdu::input::InputEvent;
-        use ironrdp_pdu::mcs::McsMessage;
-        use ironrdp_pdu::x224::X224;
-
-        let pdu = ironrdp_pdu::input::MousePdu {
-            flags: PointerFlags::MOVE,
-            number_of_wheel_rotation_units: 0,
-            x_position: 640,
-            y_position: 480,
-        };
-        let frame = slow_path_input_frame(1003, 1002, 0x1020_3040, vec![InputEvent::Mouse(pdu)]);
-
-        let X224(McsMessage::SendDataRequest(req)) =
-            ironrdp_pdu::decode::<X224<McsMessage<'_>>>(&frame).expect("не SendDataRequest")
-        else {
-            panic!("ожидался MCS SendDataRequest");
-        };
-        assert_eq!(req.channel_id, 1003, "ввод должен идти в I/O-канал");
-        let (_, _, events) = decode_slow_path_input(&frame);
-        assert_eq!(events.0.len(), 1);
-    }
-
-    #[test]
-    fn send_wheel_round_trips_negative_rotation() {
-        use ironrdp_pdu::input::mouse::PointerFlags;
-        use ironrdp_pdu::input::InputEvent;
-
-        for delta in [120, -120] {
-            let mut conn = RdpConnection::new(test_profile());
-            conn.io_channel_id = 1003;
-            conn.user_channel_id = 1002;
-            conn.share_id = 0x1020_3040;
-            conn.send_wheel(10, 20, delta);
-            let (_, _, events) = decode_slow_path_input(&conn.outgoing);
-            match &events.0[0] {
-                InputEvent::Mouse(m) => {
-                    assert_eq!(m.number_of_wheel_rotation_units, delta as i16);
-                    assert_eq!(
-                        m.flags.contains(PointerFlags::WHEEL_NEGATIVE),
-                        delta < 0,
-                        "знак колеса для {delta}"
-                    );
-                    assert_eq!((m.x_position, m.y_position), (10, 20));
-                }
-                other => panic!("ожидалось событие мыши, получено {other:?}"),
-            }
-        }
-    }
-
     #[test]
     fn extracts_server_public_key_from_tls_certificate() {
         use x509_cert::der::Decode as _;
@@ -2379,5 +2226,20 @@ mod tests {
         let unauthorized = b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n";
         let err = parse_kdc_http_response(unauthorized).expect_err("401 — ошибка");
         assert!(err.contains("401"), "{err}");
+    }
+
+    #[test]
+    fn wheel_notch_is_120_rotation_units() {
+        assert_eq!(wheel_rotation_units(1), 120);
+        assert_eq!(wheel_rotation_units(-1), -120);
+        assert_eq!(wheel_rotation_units(0), 0);
+    }
+
+    #[test]
+    fn wheel_units_fit_nine_bit_field() {
+        for n in [-100, -3, -2, 2, 3, 100] {
+            let u = wheel_rotation_units(n);
+            assert!((-256..=255).contains(&u), "не влезает в 9 бит: {u}");
+        }
     }
 }
