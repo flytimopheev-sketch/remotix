@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.9.1
+Version:        1.9.2
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
@@ -67,6 +67,12 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Fri Nov 20 2026 Remotix Team <flytimopheev@gmail.com> - 1.9.2
+- RDP: курсор рисуется в кадре — ввод указателя идёт через
+  ActiveStage::process_fastpath_input, а не мимо него вручную собранным кадром
+- RDP: колесо крутит на 120 единиц за щелчок (WHEEL_DELTA), дробный dy не теряется
+- RDP: NLA pubKeyAuth, TLS leftover, CLIPRDR, качество соединения, полный экран
+- CONTEXT.md: архитектура, принятые решения, статус задач
 * Wed Nov 18 2026 Remotix Team <flytimopheev@gmail.com> - 1.9.1
 - RDP: исправлен ввод мыши по TLS/NLA — убран лишний TS_SECURITY_HEADER
   из slow-path кадра: сервер читал numEvents=0 и игнорировал события
