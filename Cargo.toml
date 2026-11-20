@@ -44,6 +44,13 @@ ironrdp-graphics = "0.9.0"
 ironrdp-dvc = "0.8.0"
 ironrdp-displaycontrol = "0.8.0"
 ironrdp-echo = "0.4.0"
+# CLIPRDR реализован в src/protocols/rdp/cliprdr.rs на готовом API
+# статических каналов. ironrdp-svc уже присутствует в vendor/ как
+# транзитивная зависимость connector/session, поэтому новых внешних
+# крейтов и изменений vendor.tar.zst не требуется.
+ironrdp-svc = "0.8.0"
+# AsAny для собственного CLIPRDR-канала; крейт уже в vendor/.
+ironrdp-core = "0.2.1"
 # TLS для RDP (rustls + ring — чистый Rust, без openssl для RDP-канала)
 rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12", "ring"] }
 x509-cert = { version = "0.2", default-features = false, features = ["std"] }

@@ -1,3 +1,6 @@
+mod cliprdr;
+
+use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::Arc;
@@ -7,6 +10,8 @@ use secrecy::ExposeSecret;
 
 use crate::models::Profile;
 use crate::protocols::Connection;
+use cliprdr::{ClipboardEvent, CliprdrClient};
+use ironrdp_svc::{SvcMessage, SvcProcessorMessages};
 
 /// Общий дедлайн на TCP-подключение к RDP-серверу.
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -40,6 +45,44 @@ impl ClipboardConfig {
                     || (!o.clipboard_to_remote && !o.clipboard_from_remote)),
         }
     }
+}
+
+/// Фактически согласованный протокол безопасности RDP.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RdpSecurity {
+    /// Сессия ещё не подключена или протокол неизвестен.
+    Unknown,
+    /// NLA (CredSSP) поверх TLS.
+    Nla,
+    /// TLS без CredSSP (графический вход).
+    Tls,
+    /// Standard RDP Security (RC4, без TLS).
+    Rc4,
+}
+
+impl RdpSecurity {
+    /// Короткая подпись для индикатора качества.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Unknown => "—",
+            Self::Nla => "NLA",
+            Self::Tls => "TLS",
+            Self::Rc4 => "RC4",
+        }
+    }
+}
+
+/// Снимок качества активной RDP-сессии для индикатора в просмотрщике.
+#[derive(Debug, Clone, Copy)]
+pub struct RdpQuality {
+    /// Активный протокол безопасности.
+    pub security: RdpSecurity,
+    /// Последняя измеренная задержка отклика на ввод, мс.
+    pub latency_ms: Option<u32>,
+    /// Сколько кадров не удалось декодировать за сессию.
+    pub decode_errors: u32,
+    /// Всего байт полезной нагрузки PDU RDP.
+    pub bytes_received: u64,
 }
 
 /// Поток с префиксом — оборачивает TLS-стрим и сначала отдаёт leftover-байты,
@@ -532,6 +575,18 @@ pub struct RdpConnection {
     /// Сессия завершена штатно (сервер закрыл соединение). В отличие от
     /// ошибки, UI показывает «сессия закрыта», а не красный статус.
     close_reason: Option<String>,
+    /// Согласованный протокол безопасности (NLA/TLS/RC4).
+    security: RdpSecurity,
+    /// Момент отправки последнего ввода: по нему оценивается отклик.
+    input_sent_at: Option<Instant>,
+    /// Последняя измеренная задержка отклика на ввод, мс.
+    latency_ms: Option<u32>,
+    /// Всего байт полезной нагрузки PDU RDP.
+    bytes_received: u64,
+    /// Ошибки декодирования за всю сессию (для индикатора потерь).
+    frame_errors: u32,
+    /// Текст из удалённого буфера, ожидающий передачи в GUI-поток.
+    clipboard_events: VecDeque<ClipboardEvent>,
 }
 
 impl RdpConnection {
@@ -550,25 +605,13 @@ impl RdpConnection {
             user_channel_id: 0,
             share_id: 0,
             close_reason: None,
+            security: RdpSecurity::Unknown,
+            input_sent_at: None,
+            latency_ms: None,
+            bytes_received: 0,
+            frame_errors: 0,
+            clipboard_events: VecDeque::new(),
         }
-    }
-
-    /// Двунаправленный буфер обмена (канал CLIPRDR).
-    ///
-    /// Канал CLIPRDR регистрируется коннектором IronRDP автоматически по флагу
-    /// `clipboard` профиля. Здесь мы лишь фиксируем выбранные направления
-    /// обмена; передача данных выполняется GUI-слоем поверх событий сессии:
-    ///   - локальный -> удалённый: местный буфер -> CLIPRDR_FORMAT_LIST,
-    ///   - удалённый -> локальный: CLIPRDR_FORMAT_DATA_RESPONSE -> GTK-клипборд.
-    pub fn setup_clipboard(&self) {
-        let c = self.clipboard;
-        if !c.enabled {
-            return; // буфер обмена отключён в профиле
-        }
-        // Локальный -> удалённый: подписка на изменение локального буфера.
-        let _ = c.to_remote;
-        // Удалённый -> локальный: обработка CLIPRDR_FORMAT_DATA_RESPONSE.
-        let _ = c.from_remote;
     }
 
     /// Строит активную стадию RDP-сессии из результата подключения и создаёт
@@ -627,16 +670,40 @@ impl RdpConnection {
             stage,
             image,
             decode_errors,
+            frame_errors,
+            latency_ms,
+            bytes_received,
+            clipboard_events,
+            input_sent_at,
             close_reason,
             ..
         } = self;
-        let (framed, stage, image, decode_errors) = match (
+        let (
+            framed,
+            stage,
+            image,
+            decode_errors,
+            frame_errors,
+            latency_ms,
+            bytes_received,
+            clipboard_events,
+            input_sent_at,
+            close_reason,
+        ) = match (
             framed.as_mut(),
             stage.as_mut(),
             image.as_mut(),
             decode_errors,
+            frame_errors,
+            latency_ms,
+            bytes_received,
+            clipboard_events,
+            input_sent_at,
+            close_reason,
         ) {
-            (Some(f), Some(s), Some(i), errors) => (f, s, i, errors),
+            (Some(f), Some(s), Some(i), de, fe, lat, br, ce, isa, cr) => {
+                (f, s, i, de, fe, lat, br, ce, isa, cr)
+            }
             _ => return Err("RDP-сессия не инициализирована (нет framed/stage/image)".to_string()),
         };
 
@@ -657,16 +724,31 @@ impl RdpConnection {
             Err(e) => return Err(format!("ошибка чтения рамки: {e}")),
         };
 
+        // Отклик измеряем от последнего отправленного ввода до первого
+        // ответа сервера. Это не ICMP-RTT, но хорошо показывает, когда
+        // сессия начинает «тормозить» на действиях пользователя.
+        if let Some(sent) = input_sent_at.take() {
+            let elapsed = sent.elapsed();
+            if elapsed <= Duration::from_secs(5) {
+                *latency_ms = Some(elapsed.as_millis().min(u128::from(u32::MAX)) as u32);
+            }
+        }
+        *bytes_received = bytes_received.saturating_add(payload.len() as u64);
+
         let outputs = match stage.process(image, action, &payload) {
             Ok(outputs) => {
                 *decode_errors = 0;
+                if let Some(client) = stage.get_svc_processor_mut::<CliprdrClient>() {
+                    clipboard_events.extend(client.drain_events());
+                }
                 outputs
             }
             Err(e) => {
                 let text = e.to_string();
                 if text.to_ascii_lowercase().contains("decode") {
                     *decode_errors += 1;
-                    crate::logging::warn(&format!(
+                    *frame_errors = frame_errors.saturating_add(1);
+                    crate::logging::rdp_warn(&format!(
                         "кадр RDP ({} байт) не декодирован ({} подряд): {text}",
                         payload.len(),
                         *decode_errors
@@ -723,6 +805,29 @@ impl RdpConnection {
     pub fn close_reason(&self) -> Option<&str> {
         self.close_reason.as_deref()
     }
+
+    /// Снимок качества соединения для индикатора в GUI.
+    pub fn quality(&self) -> RdpQuality {
+        RdpQuality {
+            security: self.security,
+            latency_ms: self.latency_ms,
+            decode_errors: self.frame_errors,
+            bytes_received: self.bytes_received,
+        }
+    }
+
+    /// Забирает текст, полученный из удалённого буфера обмена.
+    ///
+    /// Наружу отдаются только строки: тип события канала остаётся внутри
+    /// модуля, а GUI не нужно знать про CLIPRDR-детали.
+    pub fn take_clipboard_text(&mut self) -> Vec<String> {
+        self.clipboard_events
+            .drain(..)
+            .map(|event| match event {
+                ClipboardEvent::Text(text) => text,
+            })
+            .collect()
+    }
 }
 
 impl Connection for RdpConnection {
@@ -757,7 +862,7 @@ impl Connection for RdpConnection {
             match self.connect_with(credssp, tls, legacy) {
                 Ok(()) => return Ok(()),
                 Err(e) => {
-                    crate::logging::warn(&format!(
+                    crate::logging::rdp_warn(&format!(
                         "режим RDP (NLA={credssp}, TLS={tls}, RC4={legacy}) не сработал: {e}"
                     ));
                     errors.push(e);
@@ -854,7 +959,7 @@ fn slow_path_input_frame(
     ) {
         Ok(_) => buf.into_inner(),
         Err(e) => {
-            crate::logging::warn(&format!("не удалось собрать кадр ввода: {e}"));
+            crate::logging::rdp_warn(&format!("не удалось собрать кадр ввода: {e}"));
             Vec::new()
         }
     }
@@ -1239,8 +1344,12 @@ impl RdpConnection {
             enable_standard_rdp_security: legacy,
         };
 
-        // 4. Создаём коннектор IronRDP
+        // 4. Создаём коннектор IronRDP и регистрируем CLIPRDR до отправки
+        //    GCC-блоков: сервер должен увидеть канал в Channel Definition.
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config, client_addr);
+        if self.clipboard.enabled {
+            connector.attach_static_channel(CliprdrClient::new(self.clipboard));
+        }
 
         // 5. Запускаем процедуру подключения (до TLS-апгрейда)
         let should_upgrade = ironrdp_blocking::connect_begin(&mut framed, &mut connector)
@@ -1250,11 +1359,12 @@ impl RdpConnection {
         //    либо TLS-рукопожатие поверх уже открытого TCP-соединения.
         let (tcp_stream, leftover_bytes) = framed.into_inner();
 
-        let (mut framed, upgraded, server_public_key) = if legacy {
+        let (mut framed, upgraded, server_public_key, nla_active) = if legacy {
             let stream = SessionStream::Plain(tcp_stream);
             let framed = ironrdp_blocking::Framed::new_with_leftover(stream, leftover_bytes);
             let upgraded = ironrdp_blocking::mark_as_upgraded(should_upgrade, &mut connector);
-            (framed, upgraded, Vec::new())
+            let nla_active = connector.should_perform_credssp();
+            (framed, upgraded, Vec::new(), nla_active)
         } else {
             let (tls_stream, server_public_key) = {
                 let mut config = rustls::client::ClientConfig::builder()
@@ -1298,7 +1408,10 @@ impl RdpConnection {
 
             let framed = ironrdp_blocking::Framed::new(SessionStream::Tls(Box::new(tls_stream)));
             let upgraded = ironrdp_blocking::mark_as_upgraded(should_upgrade, &mut connector);
-            (framed, upgraded, server_public_key)
+            // После mark_as_upgraded состояние коннектора уже отражает
+            // фактический выбор сервера: Credssp только при HYBRID/HYBRID_EX.
+            let nla_active = connector.should_perform_credssp();
+            (framed, upgraded, server_public_key, nla_active)
         };
 
         // 9. Завершаем процедуру подключения (NLA — через RdpNetworkClient).
@@ -1313,13 +1426,30 @@ impl RdpConnection {
         )
         .map_err(|e| format!("ошибка завершения RDP-подключения: {}", describe_error(&e)))?;
 
-        // 10. Сохраняем живой TLS-стрим и строим активную стадию (просмотр):
+        // 10. Фиксируем фактический протокол безопасности для индикатора:
+        //     NLA только если коннектор реально прошёл CredSSP.
+        self.security = if nla_active {
+            RdpSecurity::Nla
+        } else if legacy {
+            RdpSecurity::Rc4
+        } else {
+            RdpSecurity::Tls
+        };
+
+        let desktop = connection_result.desktop_size;
+        crate::logging::rdp_info(&format!(
+            "RDP: подключено к {}:{}, безопасность {}, экран {}x{}",
+            self.profile.host,
+            self.profile.port,
+            self.security.label(),
+            desktop.width,
+            desktop.height
+        ));
+
+        // 11. Сохраняем живой TLS-стрим и строим активную стадию (просмотр):
         //     рамки сервера будут декодироваться в изображение методом run().
         self.framed = Some(framed);
         self.setup_active_stage(connection_result);
-
-        // 11. Двунаправленный буфер обмена туда и обратно (канал CLIPRDR).
-        self.setup_clipboard();
         self.connected = true;
         Ok(())
     }
@@ -1364,15 +1494,45 @@ impl RdpConnection {
             Some(stage) => match stage.secure_outgoing_frame(frame) {
                 Ok(frame) => frame,
                 Err(e) => {
-                    crate::logging::warn(&format!("не удалось зашифровать кадр ввода: {e}"));
+                    crate::logging::rdp_warn(&format!("не удалось зашифровать кадр ввода: {e}"));
                     return;
                 }
             },
             None => frame,
         };
 
+        if queue_input(&mut self.outgoing, frame) {
+            self.input_sent_at = Some(Instant::now());
+        } else {
+            crate::logging::rdp_warn("очередь ввода RDP переполнена — буфер сброшен");
+        }
+        self.flush_outgoing();
+    }
+
+    /// Отправляет готовые сообщения статического канала (CLIPRDR).
+    ///
+    /// `ActiveStage::process_svc_processor_messages` уже накладывает
+    /// security-конверт, поэтому кадр кладётся в очередь как есть — повторно
+    /// через `write_input_frame` его пропускать нельзя (RC4 зашифровал бы
+    /// его дважды).
+    fn send_svc_messages(&mut self, messages: Vec<SvcMessage>) {
+        if messages.is_empty() {
+            return;
+        }
+        let Some(stage) = self.stage.as_ref() else {
+            return;
+        };
+        let frame = match stage
+            .process_svc_processor_messages(SvcProcessorMessages::<CliprdrClient>::new(messages))
+        {
+            Ok(frame) => frame,
+            Err(e) => {
+                crate::logging::rdp_warn(&format!("CLIPRDR: не удалось отправить сообщение: {e}"));
+                return;
+            }
+        };
         if !queue_input(&mut self.outgoing, frame) {
-            crate::logging::warn("очередь ввода RDP переполнена — буфер сброшен");
+            crate::logging::rdp_warn("очередь CLIPRDR переполнена — сообщение сброшено");
         }
         self.flush_outgoing();
     }
@@ -1402,7 +1562,7 @@ impl RdpConnection {
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
                 Err(e) => {
-                    crate::logging::warn(&format!("не удалось отправить ввод RDP: {e}"));
+                    crate::logging::rdp_warn(&format!("не удалось отправить ввод RDP: {e}"));
                     outgoing.clear();
                     break;
                 }
@@ -1547,16 +1707,25 @@ impl RdpConnection {
     }
 
     /// Загрузить текст в удалённый буфер обмена (уходит на сервер RDP).
+    ///
+    /// Содержимое не логируется: CLIPRDR пишет только направление, формат и
+    /// размер. Если канал ещё не получил Monitor Ready, текст сохраняется в
+    /// клиенте и будет объявлен сразу после готовности канала.
     pub fn set_clipboard(&mut self, text: &str) {
-        // Отправка текста реализована на уровне GUI, через CLIPRDR-клиент.
-        // Сейчас буфер обмена в Remotix поддерживает текст; бинарные данные
-        // и файлы — заглушка, но не блокируют сессию.
-        let _ = text;
-    }
-
-    /// Запросить обновление от удалённого буфера обмена (сerosoft рекомендация).
-    pub fn request_clipboard_update(&mut self) {
-        // CLIPRDR уже работает в фоне через канал; явный запрос не требуется.
+        if !self.clipboard.enabled || !self.clipboard.to_remote {
+            return;
+        }
+        let messages = match self.stage.as_mut() {
+            Some(stage) => match stage.get_svc_processor_mut::<CliprdrClient>() {
+                Some(client) => client.set_local_text(Some(text.to_string())),
+                None => {
+                    crate::logging::rdp_warn("CLIPRDR: канал не зарегистрирован в сессии");
+                    return;
+                }
+            },
+            None => return,
+        };
+        self.send_svc_messages(messages);
     }
 }
 

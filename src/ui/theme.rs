@@ -220,6 +220,16 @@ popover > contents {
 .remotix-remote-screen {
     background-color: #10161d;
 }
+.remotix-rdp-quality {
+    background-color: alpha(#000000, 0.45);
+    color: #e6edf3;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.85em;
+}
+.remotix-rdp-quality-good { color: #7ee787; }
+.remotix-rdp-quality-warn { color: #f2cc60; }
+.remotix-rdp-quality-bad { color: #ff7b72; }
 
 /* --- Резервный терминал --- */
 .remotix-terminal {

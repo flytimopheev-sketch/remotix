@@ -208,11 +208,14 @@ fn build_main_window(app: &Application, db: Rc<Database>, mut key: [u8; 32]) {
     let state = AppState::new(db, key);
     key.zeroize();
 
+    let settings = crate::settings::Settings::new(state.db.clone());
+    let (window_width, window_height) = settings.main_window_size();
+
     let window = ApplicationWindow::builder()
         .application(app)
         .title("Remotix — Клиент удалённого доступа")
-        .default_width(1180)
-        .default_height(720)
+        .default_width(window_width)
+        .default_height(window_height)
         .build();
 
     let main = MainWindow::new(state.clone());
@@ -220,8 +223,25 @@ fn build_main_window(app: &Application, db: Rc<Database>, mut key: [u8; 32]) {
     window.set_child(Some(&main.root));
 
     // Тема оформления из настроек.
-    let settings = crate::settings::Settings::new(state.db.clone());
     crate::ui::theme::apply(&settings.theme(), &window);
+
+    // Сохраняем размер окна при закрытии. В maximized/fullscreen текущие
+    // width/height — это размер экрана, а не пользовательский, поэтому
+    // оставляем последний нормальный размер нетронутым.
+    {
+        let settings = settings.clone();
+        window.connect_close_request(move |win| {
+            if !win.is_maximized() && !win.is_fullscreen() {
+                let (width, height) = (win.width(), win.height());
+                if width > 0 && height > 0 {
+                    if let Err(e) = settings.set_main_window_size(width, height) {
+                        crate::logging::warn(&format!("не удалось сохранить размер окна: {e}"));
+                    }
+                }
+            }
+            gtk4::glib::Propagation::Proceed
+        });
+    }
 
     // Действия окна: «win.*»
     let actions = gio::SimpleActionGroup::new();

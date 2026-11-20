@@ -6,15 +6,18 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::mpsc;
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
+use std::time::{Duration, Instant};
 
 use gtk4::prelude::*;
-use gtk4::{cairo, gdk, glib, Box as GtkBox, Button, DrawingArea, Label, Overlay, Spinner};
+use gtk4::{
+    cairo, gdk, gio, glib, pango, Box as GtkBox, Button, DrawingArea, Label, Overlay, Spinner,
+};
 
 use crate::models::Profile;
 use crate::protocols::rdp::{
-    MouseEvent, RdpConnection, RdpKey, MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT,
+    ClipboardConfig, MouseEvent, RdpConnection, RdpKey, MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT,
 };
 use crate::protocols::Connection;
 use crate::ui::SessionState;
@@ -26,6 +29,15 @@ enum ToUi {
         width: u32,
         height: u32,
         pixels: Vec<u8>,
+    },
+    /// Текст из удалённого буфера обмена (содержимое не логируется).
+    ClipboardText(String),
+    /// Снимок качества соединения для индикатора.
+    Quality {
+        summary: String,
+        tooltip: String,
+        /// CSS-класс: good / warn / bad.
+        class: &'static str,
     },
     /// Изменилось состояние сессии.
     State(SessionState),
@@ -51,6 +63,8 @@ enum ToRdp {
     },
     /// Синтетическая последовательность `Ctrl+Alt+Del`.
     CtrlAltDel,
+    /// Локальный текст, который нужно объявить удалённой стороне.
+    ClipboardText(String),
 }
 
 /// Вкладка с просмотрщиком удалённого рабочего стола.
@@ -94,10 +108,108 @@ impl RdpViewer {
 
         let (tx_ui, rx_ui) = mpsc::channel::<ToUi>();
         let (tx_rdp, rx_rdp) = mpsc::channel::<ToRdp>();
+        // Закрытие вкладки должно останавливать поток RDP, даже если
+        // обработчики буфера обмена ещё держат отправитель канала.
+        let cancelled = Arc::new(AtomicBool::new(false));
+
+        // Буфер обмена: слушаем локальные изменения и отправляем текст в
+        // поток RDP. Начальное содержимое читаем при появлении вкладки —
+        // оно будет объявлено после Monitor Ready канала CLIPRDR.
+        let clipboard_cfg = ClipboardConfig::from_profile(&profile);
+        let last_remote_text: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+        let clipboard_active = Rc::new(Cell::new(false));
+        let clipboard = if clipboard_cfg.enabled {
+            Some(area.display().clipboard())
+        } else {
+            None
+        };
+        if clipboard_cfg.to_remote {
+            if let Some(clipboard) = clipboard.clone() {
+                let tx = tx_rdp.clone();
+                let last_remote = last_remote_text.clone();
+                let active = clipboard_active.clone();
+                let handler_id =
+                    Rc::new(RefCell::new(Some(clipboard.connect_changed(move |clip| {
+                        if !active.get() {
+                            return;
+                        }
+                        send_clipboard_text(clip, &tx, &last_remote);
+                    }))));
+                // GDK-буфер обмена общий для приложения: без явного
+                // отключения обработчик переживёт закрытие вкладки и будет
+                // держать канал RDP открытым.
+                let clipboard_for_destroy = clipboard.clone();
+                area.connect_destroy(move |_| {
+                    if let Some(id) = handler_id.borrow_mut().take() {
+                        clipboard_for_destroy.disconnect(id);
+                    }
+                });
+
+                // Локальный буфер отправляем только когда вкладка видима:
+                // иначе несколько RDP-сессий начнут пересылать изменения
+                // друг другу и зациклят буфер между вкладками.
+                {
+                    let tx = tx_rdp.clone();
+                    let last_remote = last_remote_text.clone();
+                    let active = clipboard_active.clone();
+                    let clipboard = clipboard.clone();
+                    area.connect_map(move |_| {
+                        active.set(true);
+                        send_clipboard_text(&clipboard, &tx, &last_remote);
+                    });
+                }
+                {
+                    let active = clipboard_active.clone();
+                    area.connect_unmap(move |_| active.set(false));
+                }
+            }
+        }
+        {
+            let cancelled = cancelled.clone();
+            area.connect_destroy(move |_| cancelled.store(true, Ordering::Relaxed));
+        }
 
         // Панель управления сессией.
         let cad = Button::with_label("Ctrl+Alt+Del");
         cad.set_tooltip_text(Some("Отправить в удалённую сессию Ctrl+Alt+Del"));
+
+        let quality = Label::new(Some("Подключение…"));
+        quality.add_css_class("remotix-rdp-quality");
+        quality.add_css_class("remotix-rdp-quality-warn");
+        quality.set_tooltip_text(Some(
+            "Качество RDP: протокол безопасности, отклик на ввод, кадры/с и ошибки декодирования",
+        ));
+        quality.set_ellipsize(pango::EllipsizeMode::End);
+        quality.set_max_width_chars(56);
+
+        let log_btn = Button::with_label("Лог");
+        log_btn.set_tooltip_text(Some(
+            "Открыть диагностический журнал RDP (без паролей и содержимого буфера)",
+        ));
+        {
+            let hint = hint.clone();
+            log_btn.connect_clicked(move |_| match crate::logging::ensure_rdp_log_file() {
+                Ok(path) => {
+                    crate::logging::rdp_info("диагностический журнал RDP открыт из просмотрщика");
+                    let uri = gio::File::for_path(&path).uri();
+                    if let Err(e) =
+                        gio::AppInfo::launch_default_for_uri(&uri, None::<&gio::AppLaunchContext>)
+                    {
+                        crate::logging::rdp_warn(&format!("не удалось открыть журнал RDP: {e}"));
+                        hint.set_text(&format!(
+                            "Не удалось открыть журнал RDP: {e}\n{}",
+                            path.display()
+                        ));
+                        hint.set_visible(true);
+                    }
+                }
+                Err(e) => {
+                    crate::logging::rdp_warn(&format!("не удалось создать журнал RDP: {e}"));
+                    hint.set_text(&format!("Не удалось создать журнал RDP: {e}"));
+                    hint.set_visible(true);
+                }
+            });
+        }
 
         let panel = GtkBox::new(gtk4::Orientation::Horizontal, 6);
         panel.set_halign(gtk4::Align::End);
@@ -119,23 +231,15 @@ impl RdpViewer {
         }
 
         let fs_btn = Button::with_label("⛶");
-        fs_btn.set_tooltip_text(Some("Полный экран"));
+        fs_btn.set_tooltip_text(Some("Полный экран (F11)"));
         {
             let area_fs = area.clone();
-            fs_btn.connect_clicked(move |_| {
-                if let Some(root) = area_fs.root() {
-                    if let Ok(win) = root.downcast::<gtk4::Window>() {
-                        if win.is_fullscreen() {
-                            win.unfullscreen();
-                        } else {
-                            win.fullscreen();
-                        }
-                    }
-                }
-            });
+            fs_btn.connect_clicked(move |_| toggle_fullscreen(&area_fs));
         }
 
+        panel.append(&quality);
         panel.append(&scale_btn);
+        panel.append(&log_btn);
         panel.append(&fs_btn);
         panel.append(&cad);
 
@@ -145,6 +249,35 @@ impl RdpViewer {
         overlay.add_overlay(&hint);
         overlay.add_overlay(&panel);
         root.append(&overlay);
+
+        // F11 ловим на уровне корня вкладки: фокус может быть на кнопке
+        // панели, а не на DrawingArea. Повторные press-события при
+        // удержании клавиши не должны дёргать полноэкранный режим.
+        {
+            let area_f11 = area.clone();
+            let f11_down = Rc::new(Cell::new(false));
+            let controller = gtk4::EventControllerKey::new();
+            controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
+            controller.connect_key_pressed({
+                let f11_down = f11_down.clone();
+                move |_, key, _, _| {
+                    if key == gdk::Key::F11 {
+                        if !f11_down.replace(true) {
+                            toggle_fullscreen(&area_f11);
+                        }
+                        glib::Propagation::Stop
+                    } else {
+                        glib::Propagation::Proceed
+                    }
+                }
+            });
+            controller.connect_key_released(move |_, key, _, _| {
+                if key == gdk::Key::F11 {
+                    f11_down.set(false);
+                }
+            });
+            root.add_controller(controller);
+        }
 
         // ---------------- Отрисовка кадра ----------------
         {
@@ -186,11 +319,18 @@ impl RdpViewer {
         // ---------------- Поток RDP ----------------
         {
             let tx_ui = tx_ui.clone();
+            let cancelled = cancelled.clone();
             std::thread::spawn(move || {
                 let mut conn = RdpConnection::new(profile);
+                if cancelled.load(Ordering::Relaxed) {
+                    return;
+                }
 
                 if let Err(e) = conn.connect() {
                     let _ = tx_ui.send(ToUi::State(SessionState::Failed(e)));
+                    return;
+                }
+                if cancelled.load(Ordering::Relaxed) {
                     return;
                 }
                 let _ = tx_ui.send(ToUi::State(SessionState::Connected));
@@ -203,19 +343,31 @@ impl RdpViewer {
                 }
 
                 let mut last: Vec<u8> = Vec::new();
+                let mut frames_since: u32 = 0;
+                let mut bytes_mark: u64 = 0;
+                let mut errors_mark: u32 = 0;
+                let mut stats_at = Instant::now();
                 loop {
-                    // Ввод от пользователя.
-                    while let Ok(ev) = rx_rdp.try_recv() {
-                        match ev {
-                            ToRdp::Key { key, pressed } => conn.send_key(key, pressed),
-                            ToRdp::Mouse {
+                    if cancelled.load(Ordering::Relaxed) {
+                        return;
+                    }
+
+                    // Ввод от пользователя. Disconnected означает, что
+                    // вкладку закрыли: поток RDP больше не нужен.
+                    loop {
+                        match rx_rdp.try_recv() {
+                            Ok(ToRdp::Key { key, pressed }) => conn.send_key(key, pressed),
+                            Ok(ToRdp::Mouse {
                                 x,
                                 y,
                                 buttons,
                                 event,
-                            } => conn.send_mouse(x, y, buttons, event),
-                            ToRdp::Wheel { x, y, delta } => conn.send_wheel(x, y, delta),
-                            ToRdp::CtrlAltDel => conn.send_ctrl_alt_del(),
+                            }) => conn.send_mouse(x, y, buttons, event),
+                            Ok(ToRdp::Wheel { x, y, delta }) => conn.send_wheel(x, y, delta),
+                            Ok(ToRdp::CtrlAltDel) => conn.send_ctrl_alt_del(),
+                            Ok(ToRdp::ClipboardText(text)) => conn.set_clipboard(&text),
+                            Err(mpsc::TryRecvError::Empty) => break,
+                            Err(mpsc::TryRecvError::Disconnected) => return,
                         }
                     }
 
@@ -226,6 +378,7 @@ impl RdpViewer {
                                 if !pixels.is_empty() && pixels != last.as_slice() {
                                     last.clear();
                                     last.extend_from_slice(pixels);
+                                    frames_since = frames_since.saturating_add(1);
                                     let _ = tx_ui.send(ToUi::Frame {
                                         width: u32::from(w),
                                         height: u32::from(h),
@@ -236,15 +389,70 @@ impl RdpViewer {
                         }
                         Ok(false) => {
                             if let Some(reason) = conn.close_reason() {
-                                crate::logging::info(&format!("RDP-сессия завершена: {reason}"));
+                                crate::logging::rdp_info(&format!(
+                                    "RDP-сессия завершена: {reason}"
+                                ));
                                 let _ = tx_ui.send(ToUi::State(SessionState::Closed));
                                 return;
                             }
                         }
                         Err(e) => {
+                            crate::logging::rdp_error(&format!("RDP-сессия: {e}"));
                             let _ = tx_ui.send(ToUi::State(SessionState::Failed(e)));
                             return;
                         }
+                    }
+
+                    // Текст, который сервер положил в удалённый буфер.
+                    for text in conn.take_clipboard_text() {
+                        let _ = tx_ui.send(ToUi::ClipboardText(text));
+                    }
+
+                    // Раз в секунду обновляем индикатор качества. Задержка —
+                    // время от последнего ввода до ответа сервера, ошибки —
+                    // ошибки декодирования кадров за последнюю секунду.
+                    if stats_at.elapsed() >= Duration::from_secs(1) {
+                        let q = conn.quality();
+                        let errors_since = q.decode_errors.saturating_sub(errors_mark);
+                        let latency = q
+                            .latency_ms
+                            .map(|ms| format!("{ms} мс"))
+                            .unwrap_or_else(|| "—".to_string());
+                        let kbps =
+                            ((q.bytes_received.saturating_sub(bytes_mark)) * 8 / 1000) as u32;
+                        let summary = format!(
+                            "{} · {} · {} к/с · ошибки {}",
+                            q.security.label(),
+                            latency,
+                            frames_since,
+                            errors_since
+                        );
+                        let tooltip = format!(
+                            "Безопасность: {}\nОтклик на ввод: {}\nКадров в секунду: {}\nТрафик: {} кбит/с\nОшибки декодирования за секунду: {} (всего {})",
+                            q.security.label(),
+                            latency,
+                            frames_since,
+                            kbps,
+                            errors_since,
+                            q.decode_errors
+                        );
+                        let latency_ms = q.latency_ms.unwrap_or(0);
+                        let class = if errors_since > 3 || latency_ms > 250 {
+                            "remotix-rdp-quality-bad"
+                        } else if errors_since > 0 || latency_ms > 100 {
+                            "remotix-rdp-quality-warn"
+                        } else {
+                            "remotix-rdp-quality-good"
+                        };
+                        let _ = tx_ui.send(ToUi::Quality {
+                            summary,
+                            tooltip,
+                            class,
+                        });
+                        stats_at = Instant::now();
+                        frames_since = 0;
+                        bytes_mark = q.bytes_received;
+                        errors_mark = q.decode_errors;
                     }
 
                     std::thread::sleep(Duration::from_millis(12));
@@ -254,15 +462,24 @@ impl RdpViewer {
 
         // ---------------- Вывод кадров в GTK ----------------
         {
-            let area = area.clone();
+            // Слабая ссылка: таймер не должен удерживать экран (и всю
+            // вкладку) после её закрытия.
+            let area = area.downgrade();
             let frame = frame.clone();
             let spinner = spinner.clone();
             let hint = hint.clone();
             let remote_size = remote_size.clone();
             let on_state = on_state.clone();
+            let quality = quality.clone();
+            let clipboard = clipboard.clone();
+            let last_remote_text = last_remote_text.clone();
+            let cancelled = cancelled.clone();
 
             let mut was_connected = false;
             glib::timeout_add_local(Duration::from_millis(25), move || {
+                if cancelled.load(Ordering::Relaxed) || area.upgrade().is_none() {
+                    return glib::ControlFlow::Break;
+                }
                 loop {
                     match rx_ui.try_recv() {
                         Ok(ToUi::Frame {
@@ -284,32 +501,65 @@ impl RdpViewer {
                             match surface {
                                 Ok(surface) => {
                                     *frame.borrow_mut() = Some(surface);
-                                    area.queue_draw();
+                                    if let Some(area) = area.upgrade() {
+                                        area.queue_draw();
+                                    }
                                     spinner.set_spinning(false);
                                     hint.set_visible(false);
                                 }
                                 Err(e) => {
-                                    crate::logging::warn(&format!(
+                                    crate::logging::rdp_warn(&format!(
                                         "не удалось подготовить кадр RDP: {e}"
                                     ));
                                 }
                             }
+                        }
+                        Ok(ToUi::ClipboardText(text)) => {
+                            if !clipboard_cfg.from_remote {
+                                continue;
+                            }
+                            if let Some(clipboard) = clipboard.as_ref() {
+                                // Запоминаем текст, чтобы обработчик changed
+                                // не отправил его обратно как локальное
+                                // изменение (эхо удалённого буфера).
+                                *last_remote_text.borrow_mut() = Some(text.clone());
+                                clipboard.set_text(&text);
+                            }
+                        }
+                        Ok(ToUi::Quality {
+                            summary,
+                            tooltip,
+                            class,
+                        }) => {
+                            quality.set_text(&summary);
+                            quality.set_tooltip_text(Some(&tooltip));
+                            for old in [
+                                "remotix-rdp-quality-good",
+                                "remotix-rdp-quality-warn",
+                                "remotix-rdp-quality-bad",
+                            ] {
+                                quality.remove_css_class(old);
+                            }
+                            quality.add_css_class(class);
                         }
                         Ok(ToUi::State(state)) => {
                             match &state {
                                 SessionState::Connected => {
                                     was_connected = true;
                                     spinner.set_spinning(false);
+                                    quality.set_text("Ожидание данных…");
                                     // После подключения сразу отдаём фокус
                                     // экрану, чтобы клавиатура работала без
                                     // обязательного первого клика.
-                                    let area = area.clone();
-                                    glib::idle_add_local_once(move || {
-                                        area.grab_focus();
-                                    });
+                                    if let Some(area) = area.upgrade() {
+                                        glib::idle_add_local_once(move || {
+                                            area.grab_focus();
+                                        });
+                                    }
                                 }
                                 SessionState::Failed(e) => {
                                     spinner.set_spinning(false);
+                                    quality.set_text("—");
                                     let prefix = if was_connected {
                                         "Сессия завершена с ошибкой"
                                     } else {
@@ -320,6 +570,7 @@ impl RdpViewer {
                                 }
                                 SessionState::Closed => {
                                     spinner.set_spinning(false);
+                                    quality.set_text("—");
                                     hint.set_text("Сессия завершена: сервер закрыл соединение.");
                                     hint.set_visible(true);
                                 }
@@ -348,6 +599,11 @@ impl RdpViewer {
                 }
             });
             controller.connect_key_released(move |_, key, keycode, _state| {
+                // F11 переключает полный экран в capture-фазе корня;
+                // release в удалённую сессию отправлять не нужно.
+                if key == gdk::Key::F11 {
+                    return;
+                }
                 let _ = tx.send(ToRdp::Key {
                     key: rdp_key(key, keycode),
                     pressed: false,
@@ -490,6 +746,56 @@ impl RdpViewer {
     pub fn root(&self) -> &GtkBox {
         &self.root
     }
+}
+
+/// Переключает полноэкранный режим окна, в котором находится экран RDP.
+fn toggle_fullscreen(area: &DrawingArea) {
+    if let Some(root) = area.root() {
+        if let Ok(win) = root.downcast::<gtk4::Window>() {
+            if win.is_fullscreen() {
+                win.unfullscreen();
+            } else {
+                win.fullscreen();
+            }
+        }
+    }
+}
+
+/// Читает текст из GDK-буфера и отправляет его в поток RDP.
+///
+/// `last_remote` хранит текст, который мы только что записали в локальный
+/// буфер из удалённой сессии: его нельзя отправлять обратно как «локальное
+/// изменение», иначе получится эхо.
+fn send_clipboard_text(
+    clipboard: &gdk::Clipboard,
+    tx: &mpsc::Sender<ToRdp>,
+    last_remote: &Rc<RefCell<Option<String>>>,
+) {
+    let tx = tx.clone();
+    let last_remote = last_remote.clone();
+    clipboard.read_text_async(None::<&gio::Cancellable>, move |result| {
+        // Пустой буфер или не текстовое содержимое (например, картинка)
+        // означает, что удалённый текст больше не актуален.
+        let text = match result {
+            Ok(Some(text)) => text.to_string(),
+            Ok(None) => String::new(),
+            Err(e) => {
+                crate::logging::rdp_warn(&format!(
+                    "CLIPRDR: не удалось прочитать локальный буфер обмена: {e}"
+                ));
+                return;
+            }
+        };
+        let is_echo = {
+            let guard = last_remote.borrow();
+            guard.as_deref() == Some(text.as_str())
+        };
+        if is_echo {
+            return;
+        }
+        *last_remote.borrow_mut() = None;
+        let _ = tx.send(ToRdp::ClipboardText(text));
+    });
 }
 
 /// Переводит координаты виджета в координаты удалённого экрана.

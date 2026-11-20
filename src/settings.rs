@@ -156,6 +156,27 @@ impl Settings {
         self.set("session.tabs", &Value::Text(tabs.to_string()))
     }
 
+    // ---------------- Главное окно ----------------
+
+    /// Сохранённый размер главного окна (ширина, высота).
+    pub fn main_window_size(&self) -> (i32, i32) {
+        let width = self.number("window.width", 1180).clamp(640, 8192) as i32;
+        let height = self.number("window.height", 720).clamp(480, 8192) as i32;
+        (width, height)
+    }
+
+    /// Сохраняет размер главного окна с разумными границами.
+    pub fn set_main_window_size(&self, width: i32, height: i32) -> Result<(), String> {
+        self.set(
+            "window.width",
+            &Value::Number(i64::from(width.clamp(640, 8192))),
+        )?;
+        self.set(
+            "window.height",
+            &Value::Number(i64::from(height.clamp(480, 8192))),
+        )
+    }
+
     // ---------------- RDP ----------------
 
     /// Разрешение экрана по умолчанию: `ШИРИНАxВЫСОТА`.
@@ -210,7 +231,19 @@ mod tests {
         assert_eq!(s.rdp_resolution(), "1024x768");
         assert!(s.rdp_nla());
         assert_eq!(s.rdp_color_depth(), 32);
+        assert_eq!(s.main_window_size(), (1180, 720));
         assert_eq!(s.theme(), crate::ui::theme::DEFAULT_THEME);
+    }
+
+    #[test]
+    fn main_window_size_roundtrip_and_clamps() {
+        let s = settings();
+        s.set_main_window_size(1500, 900).unwrap();
+        assert_eq!(s.main_window_size(), (1500, 900));
+        s.set_main_window_size(100, 100).unwrap();
+        assert_eq!(s.main_window_size(), (640, 480));
+        s.set_main_window_size(20000, 20000).unwrap();
+        assert_eq!(s.main_window_size(), (8192, 8192));
     }
 
     #[test]

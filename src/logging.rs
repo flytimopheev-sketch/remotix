@@ -1,17 +1,24 @@
 //! Санитайзер сообщений перед записью в stderr и журнал.
 //!
-//! В приложении нет отдельного файлового логгера, но ошибки протоколов и
-//! серверов попадают в stderr и журнал подключений. Сервер (или библиотека)
-//! может вернуть в тексте пароль, токен или приватный ключ, поэтому все
-//! сообщения проходят через [`sanitize`].
+//! Ошибки протоколов и серверов попадают в stderr и журнал подключений,
+//! а диагностика RDP — в отдельный файл [`rdp_log_path`]. Сервер (или
+//! библиотека) может вернуть в тексте пароль, токен или приватный ключ,
+//! поэтому все сообщения проходят через [`sanitize`].
 //!
 //! `SanitizeConfig` позволяет дополнительно вырезать известные значения
 //! секретов (например, пароль root) и ограничивать длину записи.
 
 use std::fmt::Write as _;
+use std::fs::{self, OpenOptions};
+use std::io::Write as _;
+use std::path::PathBuf;
+use std::sync::Mutex;
 
 const REDACTED: &str = "[REDACTED]";
 const DEFAULT_MAX_LEN: usize = 8192;
+/// Диагностический журнал RDP ограничен по размеру: старый файл
+/// переименовывается в `rdp.log.1` при превышении.
+const RDP_LOG_MAX_BYTES: u64 = 2 * 1024 * 1024;
 
 /// Настройки санитайзера.
 #[derive(Debug, Clone)]
@@ -66,6 +73,188 @@ pub fn info(message: &str) {
 /// Пишет сообщение об ошибке в stderr уже очищенным от секретов.
 pub fn error(message: &str) {
     eprintln!("Remotix: ошибка: {}", sanitize(message));
+}
+
+/// Уровень диагностического журнала RDP.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Level {
+    Error,
+    Warn,
+    Info,
+}
+
+impl Level {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Error => "ERROR",
+            Self::Warn => "WARN",
+            Self::Info => "INFO",
+        }
+    }
+}
+
+/// Файловый журнал RDP с простой ротацией.
+///
+/// Содержимое буфера обмена сюда не передаётся: вызывающий код пишет только
+/// направление, формат и размер. Дополнительно каждая строка проходит через
+/// [`sanitize`] — на случай, если сервер вернул секрет в тексте ошибки.
+#[derive(Debug)]
+struct RdpLog {
+    path: PathBuf,
+    file: Option<std::fs::File>,
+    failed: bool,
+}
+
+impl RdpLog {
+    fn new(path: PathBuf) -> Self {
+        let mut log = Self {
+            path,
+            file: None,
+            failed: false,
+        };
+        log.open();
+        log
+    }
+
+    fn open(&mut self) {
+        if self.failed {
+            return;
+        }
+        if let Some(parent) = self.path.parent() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                eprintln!(
+                    "Remotix: не удалось создать каталог журнала RDP {}: {e}",
+                    parent.display()
+                );
+                self.failed = true;
+                return;
+            }
+        }
+        match OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)
+        {
+            Ok(file) => self.file = Some(file),
+            Err(e) => {
+                eprintln!(
+                    "Remotix: не удалось открыть журнал RDP {}: {e}",
+                    self.path.display()
+                );
+                self.failed = true;
+            }
+        }
+    }
+
+    fn rotate(&mut self) {
+        self.file = None;
+        let rotated = self.path.with_file_name("rdp.log.1");
+        let _ = fs::remove_file(&rotated);
+        if let Err(e) = fs::rename(&self.path, &rotated) {
+            eprintln!(
+                "Remotix: не удалось ротировать журнал RDP {}: {e}",
+                self.path.display()
+            );
+        }
+        self.failed = false;
+        self.open();
+    }
+
+    fn write(&mut self, level: Level, message: &str) {
+        if self.failed {
+            return;
+        }
+        if self.file.is_none() {
+            self.open();
+        }
+        let Some(file) = self.file.as_mut() else {
+            return;
+        };
+
+        let too_big = file
+            .metadata()
+            .map(|meta| meta.len() >= RDP_LOG_MAX_BYTES)
+            .unwrap_or(false);
+        if too_big {
+            self.rotate();
+            if self.failed {
+                return;
+            }
+        }
+
+        let Some(file) = self.file.as_mut() else {
+            return;
+        };
+        let line = format!(
+            "{} {:<5} {}\n",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+            level.label(),
+            sanitize(message)
+        );
+        if let Err(e) = file.write_all(line.as_bytes()) {
+            eprintln!("Remotix: не удалось записать журнал RDP: {e}");
+            self.failed = true;
+        } else if let Err(e) = file.flush() {
+            eprintln!("Remotix: не удалось сбросить журнал RDP: {e}");
+        }
+    }
+}
+
+static RDP_LOG: Mutex<Option<RdpLog>> = Mutex::new(None);
+
+/// Путь диагностического журнала RDP.
+pub fn rdp_log_path() -> PathBuf {
+    crate::config::data_dir().join("logs").join("rdp.log")
+}
+
+/// Создаёт файл журнала (если его ещё нет) и возвращает путь.
+///
+/// Используется кнопкой «Лог» в просмотрщике, чтобы открыть журнал даже до
+/// первого сообщения.
+pub fn ensure_rdp_log_file() -> Result<PathBuf, String> {
+    let path = rdp_log_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("не удалось создать {}: {e}", parent.display()))?;
+    }
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("не удалось открыть {}: {e}", path.display()))?;
+    Ok(path)
+}
+
+/// Записывает сообщение в stderr и диагностический журнал RDP.
+pub fn rdp(level: Level, message: &str) {
+    let clean = sanitize(message);
+    match level {
+        Level::Error => eprintln!("Remotix: ошибка: {clean}"),
+        Level::Warn | Level::Info => eprintln!("Remotix: {clean}"),
+    }
+
+    let mut guard = RDP_LOG.lock().unwrap_or_else(|e| e.into_inner());
+    if guard.is_none() {
+        *guard = Some(RdpLog::new(rdp_log_path()));
+    }
+    if let Some(log) = guard.as_mut() {
+        log.write(level, &clean);
+    }
+}
+
+/// Информационное сообщение RDP.
+pub fn rdp_info(message: &str) {
+    rdp(Level::Info, message);
+}
+
+/// Предупреждение RDP.
+pub fn rdp_warn(message: &str) {
+    rdp(Level::Warn, message);
+}
+
+/// Ошибка RDP.
+pub fn rdp_error(message: &str) {
+    rdp(Level::Error, message);
 }
 
 /// Заменяет блоки PEM-ключей целиком, не оставляя даже строк тела.
@@ -264,6 +453,25 @@ mod tests {
         let clean = sanitize_with("root-secret и ещё немного текста", &config);
         assert!(!clean.contains("root-secret"));
         assert!(clean.contains("обрезано"));
+    }
+
+    #[test]
+    fn rdp_log_has_levels_and_redacts_secrets() {
+        let dir = std::env::temp_dir().join(format!("remotix-rdp-log-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("rdp.log");
+        let mut log = RdpLog::new(path.clone());
+        log.write(Level::Warn, "password=hunter2");
+        log.write(Level::Info, "кадр 10 байт");
+
+        let text = fs::read_to_string(&path).expect("log");
+        assert!(text.contains("WARN"), "нет уровня WARN: {text}");
+        assert!(text.contains("INFO"), "нет уровня INFO: {text}");
+        assert!(!text.contains("hunter2"), "пароль попал в журнал: {text}");
+        assert!(text.contains(REDACTED), "нет маскировки: {text}");
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }
 
