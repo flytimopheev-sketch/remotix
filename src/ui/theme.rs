@@ -5,6 +5,11 @@
 //! хорошо выглядит и в светлой, и в тёмной теме рабочего окружения.
 //! Дополнительно доступны несколько собственных палитр: «Cosmic», «Океан» и
 //! «Уголь».
+//!
+//! Язык оформления: скруглённые карточки и «пилюли», спокойные отступы,
+//! полупрозрачные панели поверх контента (RDP-панель, индикатор качества),
+//! мягкие переходы цвета при наведении. Всё это — подмножество CSS GTK4,
+//! совместимое с библиотекой 4.6 в РЕД ОС.
 
 use gtk4::prelude::*;
 use gtk4::CssProvider;
@@ -53,7 +58,35 @@ pub const DEFAULT_THEME: &str = "light";
 
 /// Основные стили интерфейса.
 const STYLE: &str = r#"
-/* --- Боковая панель со списком подключений --- */
+/* ============================================================
+   Общие элементы: скругления и спокойные переходы
+   ============================================================ */
+button,
+entry,
+spinbutton,
+dropdown,
+combobox {
+    border-radius: 9px;
+}
+button.flat.remotix-menu-item,
+notebook > header > tabs > tab {
+    transition: background-color 140ms ease-out;
+}
+
+/* ============================================================
+   Шапка окна: меньше «хрома», больше воздуха
+   ============================================================ */
+headerbar {
+    box-shadow: none;
+    min-height: 44px;
+}
+headerbar button {
+    padding: 5px 10px;
+}
+
+/* ============================================================
+   Боковая панель со списком подключений
+   ============================================================ */
 .remotix-sidebar {
     background-color: alpha(@theme_base_color, 0.45);
 }
@@ -61,17 +94,16 @@ const STYLE: &str = r#"
     background-color: transparent;
 }
 .remotix-sidebar listbox row {
-    border-radius: 9px;
-    /* Отступ слева — чтобы название профиля не примыкало к краю окна. */
-    padding: 7px 10px 7px 14px;
-    margin: 1px 8px 1px 4px;
-    transition: background-color 120ms ease-out;
+    border-radius: 10px;
+    padding: 8px 10px 8px 14px;
+    margin: 1px 8px 1px 6px;
 }
 .remotix-sidebar listbox row:hover {
     background-color: alpha(currentColor, 0.07);
 }
 .remotix-sidebar listbox row.selected {
     background-color: @accent_bg_color;
+    box-shadow: 0 1px 2px alpha(#000000, 0.18);
 }
 .remotix-sidebar listbox row.selected label.remotix-profile-name,
 .remotix-sidebar listbox row.selected label.remotix-profile-details {
@@ -90,18 +122,38 @@ const STYLE: &str = r#"
     font-size: 0.82em;
     opacity: 0.62;
 }
-/* Метка протокола: цвет задаётся классами .success/.accent/.warning */
+
+/* Метка протокола: «пилюля» с цветом от .success/.accent/.warning */
 .remotix-tag {
     font-size: 0.72em;
     font-weight: 700;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background-color: alpha(currentColor, 0.14);
+}
+.remotix-sidebar listbox row.selected .remotix-tag {
+    background-color: alpha(#ffffff, 0.22);
 }
 
-/* --- Строка состояния --- */
+/* Блок быстрого подключения: компактная карточка */
+.remotix-quick {
+    background-color: alpha(currentColor, 0.05);
+    border-radius: 12px;
+    margin: 10px;
+    padding: 10px;
+}
+
+/* ============================================================
+   Строка состояния
+   ============================================================ */
 .remotix-statusbar {
-    padding: 5px 12px;
+    padding: 6px 12px;
     font-size: 0.85em;
     opacity: 0.85;
     border-top: 1px solid alpha(currentColor, 0.12);
+}
+.remotix-statusbar button {
+    padding: 3px 8px;
 }
 .remotix-status-ok {
     color: #3da35d;
@@ -119,7 +171,22 @@ const STYLE: &str = r#"
     opacity: 0.55;
 }
 
-/* --- Вкладки сессий --- */
+/* ============================================================
+   Вкладки сессий
+   ============================================================ */
+notebook > header {
+    background-color: transparent;
+    border-bottom: 1px solid alpha(currentColor, 0.10);
+}
+notebook > header > tabs > tab {
+    padding: 5px 8px;
+    border-radius: 8px;
+    margin: 3px 2px;
+    min-height: 0;
+}
+notebook > header > tabs > tab:hover {
+    background-color: alpha(currentColor, 0.06);
+}
 .remotix-session {
     font-family: monospace;
 }
@@ -139,25 +206,28 @@ const STYLE: &str = r#"
 
 /* Пункты контекстного меню профиля */
 .remotix-menu-item {
-    padding: 6px 12px;
-    border-radius: 6px;
+    padding: 7px 12px;
+    border-radius: 8px;
 }
 
 /* Контекстное меню: убираем жёсткую рамку стандартного поповера. */
 popover > contents {
-    padding: 4px;
+    padding: 5px;
     border-radius: 12px;
     border-style: none;
+    box-shadow: 0 4px 14px alpha(#000000, 0.16);
 }
 
-/* --- Файловый менеджер SFTP --- */
+/* ============================================================
+   Файловый менеджер SFTP
+   ============================================================ */
 .remotix-file-list {
     background-color: transparent;
 }
 .remotix-file-list row {
-    border-radius: 6px;
-    margin: 1px 4px;
-    padding: 1px 4px;
+    border-radius: 8px;
+    margin: 1px 6px;
+    padding: 3px 8px;
 }
 .remotix-file-list row:hover {
     background-color: alpha(currentColor, 0.08);
@@ -166,16 +236,16 @@ popover > contents {
 .remotix-file-list row:selected,
 .remotix-file-list row.selected:backdrop,
 .remotix-file-list row:selected:backdrop {
-    background-color: #3584e4;
+    background-color: @accent_bg_color;
 }
 .remotix-file-list row.selected label,
 .remotix-file-list row:selected label,
 .remotix-file-list row.selected:backdrop label,
 .remotix-file-list row:selected:backdrop label {
-    color: #ffffff;
+    color: @accent_fg_color;
 }
 .remotix-dir {
-    color: #3584e4;
+    color: @accent_color;
     font-weight: 700;
 }
 .remotix-file {
@@ -200,7 +270,9 @@ popover > contents {
     font-size: 0.9em;
 }
 
-/* --- Диалоги --- */
+/* ============================================================
+   Диалоги
+   ============================================================ */
 .remotix-dialog-header {
     font-weight: 700;
     font-size: 1.05em;
@@ -216,22 +288,45 @@ popover > contents {
     padding: 10px 0 4px 0;
 }
 
-/* --- Экран удалённого рабочего стола --- */
+/* ============================================================
+   Экран удалённого рабочего стола
+   ============================================================ */
 .remotix-remote-screen {
     background-color: #10161d;
+    /* Курсор над экраном скрывается в коде (рисует удалённая сессия). */
+}
+/* Плавающая панель управления сессией: полупрозрачная «пилюля». */
+.remotix-rdp-toolbar {
+    background-color: alpha(#0e1420, 0.72);
+    border-radius: 12px;
+    padding: 6px;
+}
+.remotix-rdp-toolbar button {
+    padding: 4px 10px;
+    border-radius: 8px;
+    color: #e6edf3;
+    background-color: alpha(#ffffff, 0.08);
+}
+.remotix-rdp-toolbar button:hover {
+    background-color: alpha(#ffffff, 0.16);
+}
+.remotix-rdp-toolbar button:active {
+    background-color: alpha(#ffffff, 0.24);
 }
 .remotix-rdp-quality {
     background-color: alpha(#000000, 0.45);
     color: #e6edf3;
-    border-radius: 6px;
-    padding: 4px 8px;
+    border-radius: 999px;
+    padding: 4px 10px;
     font-size: 0.85em;
 }
 .remotix-rdp-quality-good { color: #7ee787; }
 .remotix-rdp-quality-warn { color: #f2cc60; }
 .remotix-rdp-quality-bad { color: #ff7b72; }
 
-/* --- Резервный терминал --- */
+/* ============================================================
+   Резервный терминал
+   ============================================================ */
 .remotix-terminal {
     background-color: #0d1b2a;
     color: #e6edf3;
@@ -242,6 +337,7 @@ popover > contents {
 /* Cosmic: глубокий индиго */
 .remotix-theme-cosmic { background-color: #12122b; color: #e7e4f7; }
 .remotix-theme-cosmic .remotix-sidebar { background-color: #1a1a3c; }
+.remotix-theme-cosmic .remotix-quick { background-color: alpha(#ffffff, 0.06); }
 .remotix-theme-cosmic .remotix-statusbar { background-color: #1a1a3c; color: #b6b1db; }
 .remotix-theme-cosmic .remotix-profile-details { color: #9b96c4; }
 .remotix-theme-cosmic .remotix-hint { color: #7a75a8; }
@@ -254,6 +350,7 @@ popover > contents {
 /* Океан: холодные бирюзовые тона */
 .remotix-theme-ocean { background-color: #0d1f26; color: #dff1f5; }
 .remotix-theme-ocean .remotix-sidebar { background-color: #122a33; }
+.remotix-theme-ocean .remotix-quick { background-color: alpha(#ffffff, 0.06); }
 .remotix-theme-ocean .remotix-statusbar { background-color: #122a33; color: #a9cdd6; }
 .remotix-theme-ocean .remotix-profile-details { color: #8fb4be; }
 .remotix-theme-ocean .remotix-hint { color: #6d949e; }
@@ -266,6 +363,7 @@ popover > contents {
 /* Уголь: нейтральный серый */
 .remotix-theme-carbon { background-color: #17181a; color: #e3e4e6; }
 .remotix-theme-carbon .remotix-sidebar { background-color: #1e2023; }
+.remotix-theme-carbon .remotix-quick { background-color: alpha(#ffffff, 0.05); }
 .remotix-theme-carbon .remotix-statusbar { background-color: #1e2023; color: #a8aaad; }
 .remotix-theme-carbon .remotix-profile-details { color: #8f9296; }
 .remotix-theme-carbon .remotix-hint { color: #6f7276; }
@@ -314,4 +412,23 @@ pub fn apply(id: &str, root: &impl IsA<gtk4::Widget>) {
         root.remove_css_class(&format!("remotix-theme-{}", t.id));
     }
     root.add_css_class(&format!("remotix-theme-{}", theme.id));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Все идентификаторы тем уникальны и применяются без паники:
+    /// `apply` ищет тему по id и вешает класс на корневой виджет.
+    #[test]
+    fn theme_ids_are_unique_and_known_ids_resolve() {
+        let mut ids = std::collections::HashSet::new();
+        for t in THEMES {
+            assert!(ids.insert(t.id), "повторяющийся идентификатор темы");
+            assert!(!t.name.is_empty());
+        }
+        // Неизвестный идентификатор откатывается на первую тему (светлую).
+        assert!(THEMES.iter().find(|t| t.id == "no-such").is_none());
+        assert_eq!(DEFAULT_THEME, "light");
+    }
 }

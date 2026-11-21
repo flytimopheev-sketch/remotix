@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-%D0%A0%D0%95%D0%94%20%D0%9E%D0%A1%207%20%7C%208-crimson?style=flat-square)](#-установка)
 [![CI](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml/badge.svg?branch=main)](https://github.com/flytimopheev-sketch/remotix/actions/workflows/build-rpm.yml)
-[![Release](https://img.shields.io/badge/release-1.9.0-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
+[![Release](https://img.shields.io/badge/release-1.9.3-blue?style=flat-square)](https://github.com/flytimopheev-sketch/remotix/releases)
 
 Единый интерфейс для подключения к удалённым рабочим столам и серверам.
 Написан на Rust + GTK4, работает **полностью офлайн**: без облака, без телеметрии,
@@ -110,7 +110,7 @@ Remotix — это «одно окно» для всех удалённых по
 ### Готовый RPM-пакет
 
 ```bash
-sudo dnf install ./remotix-1.9.0-1.x86_64.rpm
+sudo dnf install ./remotix-1.9.3-1.x86_64.rpm
 ```
 
 После установки Remotix появляется в меню приложений («Сеть → Remotix»),
@@ -353,11 +353,14 @@ BIOS/UEFI и настройках сетевого адаптера, а комп
 ### Удалённый рабочий стол (RDP)
 
 Вкладка RDP показывает экран удалённой машины и передаёт клавиатуру и мышь.
+Курсор удалённой сессии рисуется прямо в кадр и двигается сразу за мышью;
+локальная стрелка над экраном скрыта, поэтому дубликатов не возникает.
 Поддерживается аутентификация NLA (CredSSP) — как на современных серверах
 Windows 10/11 и RDS; если сервер NLA не поддерживает, Remotix повторяет
 подключение по TLS. Standard RDP Security (RC4) по умолчанию отключён и
 включается только явно в свойствах профиля. Кнопка `Ctrl+Alt+Del` в панели
 просмотрщика отправляет соответствующую последовательность в удалённую сессию.
+Подробности — в [руководстве пользователя](docs/user-guide.md).
 
 #### Сервер принимает только Standard RDP Security (RC4)
 

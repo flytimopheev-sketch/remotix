@@ -1,5 +1,5 @@
 Name:           remotix
-Version:        1.9.2
+Version:        1.9.3
 Release:        1%{?dist}
 Summary:        Клиент удалённого доступа (RDP/SSH) для РЕД ОС
 License:        MIT
@@ -67,6 +67,17 @@ install -Dm644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/metainfo/remotix.metainfo.xml
 
 %changelog
+* Fri Nov 21 2026 Remotix Team <flytimopheev@gmail.com> - 1.9.3
+- RDP: включён программный рендеринг курсора — указатель удалённой сессии
+  рисуется библиотекой в кадровый буфер и виден всегда (1.9.2 держал
+  pointer_software_rendering=false, и курсора не было нигде)
+- RDP: локальный курсор GTK над удалённым экраном скрыт — дубликатов не остаётся
+- RDP: кадр с курсором уходит в UI сразу после ввода, не дожидаясь ответа
+  сервера (флаг image_dirty) — курсор не замирает на простаивающем столе
+- RDP: регрессионный тест курсора без сети (цветной указатель + ввод мыши)
+- Оформление: скруглённые кнопки/поля, пилюли протоколов, карточка быстрого
+  подключения, плавающая панель RDP, пилюля качества, скруглённые вкладки и
+  строки SFTP
 * Fri Nov 20 2026 Remotix Team <flytimopheev@gmail.com> - 1.9.2
 - RDP: курсор рисуется в кадре — ввод указателя идёт через
   ActiveStage::process_fastpath_input, а не мимо него вручную собранным кадром

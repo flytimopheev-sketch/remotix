@@ -587,6 +587,10 @@ pub struct RdpConnection {
     frame_errors: u32,
     /// Текст из удалённого буфера, ожидающий передачи в GUI-поток.
     clipboard_events: VecDeque<ClipboardEvent>,
+    /// Кадровый буфер изменился вне очереди серверных кадров: курсор,
+    /// нарисованный библиотекой при отправке ввода мыши. UI должен забрать
+    /// пиксели даже когда сервер молчит (`run()` вернул бы `Ok(false)`).
+    image_dirty: bool,
 }
 
 impl RdpConnection {
@@ -611,6 +615,7 @@ impl RdpConnection {
             bytes_received: 0,
             frame_errors: 0,
             clipboard_events: VecDeque::new(),
+            image_dirty: false,
         }
     }
 
@@ -676,6 +681,7 @@ impl RdpConnection {
             clipboard_events,
             input_sent_at,
             close_reason,
+            image_dirty,
             ..
         } = self;
         let (
@@ -689,6 +695,7 @@ impl RdpConnection {
             clipboard_events,
             input_sent_at,
             close_reason,
+            image_dirty,
         ) = match (
             framed.as_mut(),
             stage.as_mut(),
@@ -700,9 +707,10 @@ impl RdpConnection {
             clipboard_events,
             input_sent_at,
             close_reason,
+            image_dirty,
         ) {
-            (Some(f), Some(s), Some(i), de, fe, lat, br, ce, isa, cr) => {
-                (f, s, i, de, fe, lat, br, ce, isa, cr)
+            (Some(f), Some(s), Some(i), de, fe, lat, br, ce, isa, cr, id) => {
+                (f, s, i, de, fe, lat, br, ce, isa, cr, id)
             }
             _ => return Err("RDP-сессия не инициализирована (нет framed/stage/image)".to_string()),
         };
@@ -778,6 +786,14 @@ impl RdpConnection {
                 ironrdp_session::ActiveStageOutput::Terminate(reason) => {
                     terminated = Some(reason);
                 }
+                // Область кадра перерисована (в т.ч. курсор): UI заберёт
+                // пиксели в этом же или следующем шаге цикла просмотра.
+                ironrdp_session::ActiveStageOutput::GraphicsUpdate(_) => {
+                    *image_dirty = true;
+                }
+                // PointerBitmap/Position/Hidden/Default не приходят: курсор
+                // выбран программный (pointer_software_rendering), библиотека
+                // рисует его сама и отдаёт GraphicsUpdate.
                 _ => {}
             }
         }
@@ -1311,8 +1327,15 @@ impl RdpConnection {
             license_cache: None,
             timezone_info: ironrdp_pdu::rdp::client_info::TimezoneInfo::default(),
             compression_type: None,
+            // Курсор удалённой сессии рисуется БИБЛИОТЕКОЙ прямо в кадровый
+            // буфер: серверные pointer-обновления попадают в DecodedImage
+            // (update_pointer), а ввод мыши перерисовывает его через
+            // move_pointer. При false библиотека отдавала бы PointerBitmap
+            // наружу для аппаратного курсора, который просмотрщик не
+            // реализует, — DecodedImage::pointer оставался None, и курсор
+            // не появлялся нигде: мышь выглядела неуправляемой.
             enable_server_pointer: true,
-            pointer_software_rendering: false,
+            pointer_software_rendering: true,
             multitransport_flags: None,
             enable_standard_rdp_security: legacy,
         };
@@ -1542,15 +1565,32 @@ impl RdpConnection {
             }
         };
         for out in outputs {
-            if let ironrdp_session::ActiveStageOutput::ResponseFrame(frame) = out {
-                if queue_input(outgoing, frame) {
-                    *input_sent_at = Some(Instant::now());
-                } else {
-                    crate::logging::rdp_warn("очередь ввода RDP переполнена — буфер сброшен");
+            match out {
+                ironrdp_session::ActiveStageOutput::ResponseFrame(frame) => {
+                    if queue_input(outgoing, frame) {
+                        *input_sent_at = Some(Instant::now());
+                    } else {
+                        crate::logging::rdp_warn("очередь ввода RDP переполнена — буфер сброшен");
+                    }
                 }
+                // Библиотека перерисовала курсор в новом месте кадра.
+                ironrdp_session::ActiveStageOutput::GraphicsUpdate(_) => {
+                    self.image_dirty = true;
+                }
+                _ => {}
             }
         }
         self.flush_outgoing();
+    }
+
+    /// Забирает признак «кадровый буфер изменился вне серверных кадров».
+    ///
+    /// Курсор при вводе мыши рисуется библиотекой прямо в кадровый буфер.
+    /// Без этого флага обновление экрана происходило бы только при
+    /// очередном кадре сервера: на простаивающем рабочем столе курсор
+    /// замирал, и мышь казалась неуправляемой.
+    pub fn take_image_dirty(&mut self) -> bool {
+        std::mem::take(&mut self.image_dirty)
     }
 
     /// Дописывает накопленный ввод в сокет.
@@ -1778,6 +1818,146 @@ mod tests {
         assert_eq!(effective_desktop_size(1280, 0), (1024, 768));
     }
 
+    /// Флаг «кадровый буфер изменён вводом» по умолчанию снят и после
+    /// чтения снова снят: кадр уходит в UI только после реального ввода.
+    #[test]
+    fn image_dirty_starts_clear_and_resets_after_take() {
+        let mut conn = RdpConnection::new(test_profile());
+        assert!(
+            !conn.take_image_dirty(),
+            "без ввода кадр не должен помечаться"
+        );
+        assert!(!conn.take_image_dirty(), "чтение должно снимать флаг");
+    }
+
+    /// Регрессионный тест «мыши» (симуляция сервера без сети).
+    ///
+    /// Проверяет полный путь курсора в конфигурации, которую использует
+    /// `connect_with`: сервер прислал цветной указатель → он нарисован
+    /// в кадровый буфер; клиент двигает мышь → курсор перерисован и stage
+    /// вернул `GraphicsUpdate`, по которому UI забирает новые пиксели.
+    ///
+    /// Именно здесь сломались 1.9.1–1.9.2: при `pointer_software_rendering:
+    /// false` библиотека отдавала `PointerBitmap` наружу (просмотрщик его
+    /// не реализует), `DecodedImage::pointer` оставался `None`, и ввод мыши
+    /// не рисовал ничего — на простаивающем рабочем столе курсор замирал.
+    #[test]
+    fn server_pointer_rendered_and_client_input_moves_cursor() {
+        use ironrdp_graphics::image_processing::PixelFormat;
+        use ironrdp_pdu::fast_path::{
+            EncryptionFlags, FastPathHeader, FastPathUpdatePdu, Fragmentation, UpdateCode,
+        };
+        use ironrdp_pdu::input::fast_path::FastPathInputEvent;
+        use ironrdp_pdu::pointer::{ColorPointerAttribute, Point16};
+        use ironrdp_pdu::Action;
+        use ironrdp_session::image::DecodedImage;
+        use ironrdp_session::{ActiveStageBuilder, ActiveStageOutput};
+        use ironrdp_svc::StaticChannelSet;
+
+        // 8x8 указатель: xor-маска 24bpp (TS_COLORPOINTERATTRIBUTE — всегда
+        // 24 бита на пиксель), and-маска — 1 бит на пиксель с выравниванием
+        // строки до 16 бит: 8 пикселей = 2 байта на строку.
+        const POINTER_SIZE: u16 = 8;
+        let xor_mask = vec![0x7f_u8; usize::from(POINTER_SIZE) * usize::from(POINTER_SIZE) * 3];
+        let and_mask = vec![0x00_u8; usize::from(POINTER_SIZE) * 2];
+        let color = ColorPointerAttribute {
+            cache_index: 0,
+            hot_spot: Point16 { x: 0, y: 0 },
+            width: POINTER_SIZE,
+            height: POINTER_SIZE,
+            xor_mask: &xor_mask,
+            and_mask: &and_mask,
+        };
+
+        // Серверный fast-path кадр: заголовок + TS_FP_UPDATE(ColorPointer).
+        let body = ironrdp_pdu::encode_vec(&color).expect("кодирование TS_COLORPOINTERATTRIBUTE");
+        let update_pdu = FastPathUpdatePdu {
+            fragmentation: Fragmentation::Single,
+            update_code: UpdateCode::ColorPointer,
+            compression_flags: None,
+            compression_type: None,
+            data: &body,
+        };
+        let update = ironrdp_pdu::encode_vec(&update_pdu).expect("кодирование TS_FP_UPDATE");
+        let header = FastPathHeader::new(EncryptionFlags::empty(), update.len());
+        let mut frame = ironrdp_pdu::encode_vec(&header).expect("кодирование заголовка fast-path");
+        frame.extend_from_slice(&update);
+
+        // Ввод мыши: перемещение в (50, 50).
+        let mouse_move = || {
+            vec![FastPathInputEvent::MouseEvent(
+                ironrdp_pdu::input::MousePdu {
+                    flags: ironrdp_pdu::input::mouse::PointerFlags::MOVE,
+                    number_of_wheel_rotation_units: 0,
+                    x_position: 50,
+                    y_position: 50,
+                },
+            )]
+        };
+        let draws_graphics = |outputs: &[ironrdp_session::ActiveStageOutput]| {
+            outputs
+                .iter()
+                .any(|out| matches!(out, ActiveStageOutput::GraphicsUpdate(_)))
+        };
+
+        let build_stage = |software: bool| {
+            ActiveStageBuilder {
+                static_channels: StaticChannelSet::new(),
+                user_channel_id: 1001,
+                io_channel_id: 1002,
+                message_channel_id: None,
+                share_id: 0,
+                compression_type: None,
+                enable_server_pointer: true,
+                pointer_software_rendering: software,
+                security: None,
+            }
+            .build()
+        };
+
+        // 1. Программный рендеринг (как в connect_with): указатель сервера
+        //    нарисован в кадровый буфер.
+        let mut image = DecodedImage::new(PixelFormat::BgrA32, 100, 100);
+        let mut stage = build_stage(true);
+        let outputs = stage
+            .process(&mut image, Action::FastPath, &frame)
+            .expect("обработка серверного кадра с указателем");
+        assert!(
+            draws_graphics(&outputs),
+            "серверный указатель должен рисоваться в кадр при pointer_software_rendering = true"
+        );
+
+        // 2. Движение мыши перерисовывает курсор на новом месте.
+        let outputs = stage
+            .process_fastpath_input(&mut image, &mouse_move())
+            .expect("обработка ввода мыши");
+        assert!(
+            draws_graphics(&outputs),
+            "движение мыши должно перерисовывать курсор в кадровом буфере"
+        );
+
+        // 3. Аппаратный режим (так было до исправления): указатель в кадр
+        //    НЕ попадает, ввод мыши не даёт GraphicsUpdate — режим бесполезен
+        //    для просмотрщика без отрисовки PointerBitmap. Фиксирует причину,
+        //    по которой connect_with включает программный рендеринг.
+        let mut image = DecodedImage::new(PixelFormat::BgrA32, 100, 100);
+        let mut stage = build_stage(false);
+        let outputs = stage
+            .process(&mut image, Action::FastPath, &frame)
+            .expect("обработка серверного кадра (аппаратный режим)");
+        assert!(
+            !draws_graphics(&outputs),
+            "в аппаратном режиме указатель не должен рисоваться в кадр"
+        );
+        let outputs = stage
+            .process_fastpath_input(&mut image, &mouse_move())
+            .expect("обработка ввода мыши (аппаратный режим)");
+        assert!(
+            !draws_graphics(&outputs),
+            "в аппаратном режиме ввод мыши не рисует курсор — курсора не видно вовсе"
+        );
+    }
+
     #[test]
     fn blank_username_is_rejected_before_connecting() {
         let mut profile = test_profile();
@@ -1897,6 +2077,16 @@ mod tests {
         conn.send_mouse(10, 10, 0, MouseEvent::Move);
         conn.send_mouse(10, 10, MOUSE_LEFT, MouseEvent::ButtonDown);
         conn.send_mouse(10, 10, MOUSE_LEFT, MouseEvent::ButtonUp);
+        // Ввод мыши обязан перерисовать курсор в кадровом буфере: сервер
+        // прислал указатель (программный рендеринг), поэтому движение
+        // помечает буфер «грязным» даже без ответных кадров сервера.
+        // Раньше курсор появлялся только вместе с очередным кадром сервера
+        // и на простаивающем рабочем столе мышь выглядела неуправляемой.
+        assert!(
+            conn.take_image_dirty(),
+            "ввод мыши должен пометить кадровый буфер как изменённый (курсор перерисован)"
+        );
+        assert!(!conn.take_image_dirty(), "флаг должен сбрасываться чтением");
         for _ in 0..20 {
             match conn.run() {
                 Ok(_) => std::thread::sleep(Duration::from_millis(50)),

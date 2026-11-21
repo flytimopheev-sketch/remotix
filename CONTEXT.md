@@ -52,6 +52,23 @@
 7. **Колесо.** GTK dy (±1) — это ЩЕЛЧКИ, а не единицы вращения. Один щелчок = 120
    (WHEEL_DELTA). wheel_rotation_units() переводит щелчки в единицы и ограничивает
    ±2 щелчка на PDU (9-битное поле [-256, 255]). Дробный dy не усекается в ноль.
+8. **Рендеринг курсора — ТОЛЬКО программный (1.9.3).** Правка 1.9.2 (решение 6)
+   была недостаточной: при pointer_software_rendering=false (Accelerated)
+   библиотека отдаёт PointerBitmap наружу, DecodedImage::pointer остаётся None и
+   move_pointer не рисует ничего — курсора нет даже через process_fastpath_input.
+   connect_with включает pointer_software_rendering=true: серверные указатели
+   рисуются в кадровый буфер (update_pointer), ввод мыши двигает их (move_pointer).
+   Регрессионный тест server_pointer_rendered_and_client_input_moves_cursor
+   фиксирует оба режима без сети (синтетический TS_COLORPOINTERATTRIBUTE,
+   xor-маска 24bpp — декодер ожидает именно её).
+9. **Кадр с курсором — без ожидания сервера.** Рисованный вводом курсор раньше
+   уходил в UI только вместе с очередным кадром сервера: цикл сравнивал пиксели
+   лишь после Ok(true). RdpConnection::image_dirty (take_image_dirty) помечает
+   буфер после GraphicsUpdate от send_pointer_events/run, и цикл просмотра
+   отправляет кадр и при Ok(false).
+10. **Локальный курсор над удалённым экраном скрыт** (cursor "none" в
+    rdp_viewer): виден ровно один указатель — тот, что рисует сессия,
+    включая скрытый курсор и спецформы (I-beam, resize и т.д.).
 
 ## CI (.github/workflows/build-rpm.yml)
 - Триггеры: push main, теги v*, workflow_dispatch (input publish_release).
@@ -67,16 +84,30 @@
 - [x] NLA pubKeyAuth (a0b2822cf): ключ берётся из сертификата сервера.
 - [x] Share Data Header в slow-path (a0b2822cf).
 - [x] CLIPRDR, качество, полный экран (a00e06965).
-- [ ] **Курсор + колесо** — ветка fix/rdp-pointer-render, проверка в CI.
-      Требует подтверждения на живом хосте: виден ли курсор, крутится ли колесо.
-- [ ] Указательные PDU (PointerBitmap/Position/Hidden) в run() уходят в `_ => {}`.
-      Сейчас курсор рисует библиотека в кадровый буфер; отдельная отрисовка
-      аппаратного курсора GTK — возможное будущее улучшение.
+- [x] 1.9.3 (2026-11-21): **мышь RDP починена полностью** — программный
+      рендеринг курсора (решение 8) + image_dirty (решение 9) + скрытый
+      локальный курсор (решение 10) + обновлённое оформление. Локальная
+      проверка: cargo test 330/330, clippy -D warnings, fmt --check, скриншоты
+      UI в Xvfb (светлая/Cosmic, диалог профиля). Оформление зафиксировано в
+      CHANGELOG/spec/metainfo. Релиз-подтверждение на живом xrdp — за
+      пользователем.
+- [ ] Аппаратный курсор GTK (отрисовка PointerBitmap через gdk::Cursor) —
+      возможное будущее улучшение: курсор двигался бы без перерисовки кадра.
+      Сейчас не нужно: программный курсор обновляется в момент ввода.
 - [ ] 10.252.1.66:3389 — ECONNREFUSED: проблема хоста (xrdp не слушает / firewall).
 - [ ] Список оставшихся пунктов улучшений от заказчика НЕ получен.
 
 ## Ограничения среды агента
-- Песочница эфемерна (стиралась многократно), rustc/cargo/GTK4 нет,
-  static.rust-lang.org закрыт. Компиляция и тесты — ТОЛЬКО через CI репозитория.
-- git-транспорт до github.com рвётся (gnutls_handshake); рабочий путь — GitHub API
-  (contents/blobs/trees/commits/refs/actions).
+- rustc/cargo можно поставить локально (rustup, static.rust-lang.org доступен);
+  GTK4-заголовки ставятся без root: apt-get download libgtk-4-dev + цепочка
+  зависимостей, dpkg -x в ~/gtkroot, PKG_CONFIG_PATH на
+  ~/gtkroot/usr/lib/x86_64-linux-gnu/pkgconfig. Линковка — RUSTFLAGS
+  "-L ~/gtkroot/usr/lib/x86_64-linux-gnu", запуск — LD_LIBRARY_PATH туда же.
+  GTK4 4.18 (trixie) собирает проект без ошибок.
+- Скриншоты UI: Xvfb (apt-get download xvfb xauth x11-apps x11-utils xdotool
+  libxdo3 libxtst6 → ~/gtkroot), GSK_RENDERER=cairo (GL в Xvfb рисует пустые
+  окна), REMOTIX_MASTER_PASSWORD=test, xwd -id <окно> + scripts/xwd2png.py
+  (XWD = 25 полей, bpp 24/32, пиксели после header_size + ncolors*12).
+  Значки Adwaita не грузятся (нет pixbuf-SVG) — это артефакт песочницы.
+- vendor/ (372 крейта) распаковывается packaging/ci/unpack-vendor.sh; сборка
+  офлайн через .cargo/config.toml. Диск: target/ ~5 ГБ — следить за местом.

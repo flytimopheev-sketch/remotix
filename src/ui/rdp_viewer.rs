@@ -211,11 +211,14 @@ impl RdpViewer {
             });
         }
 
-        let panel = GtkBox::new(gtk4::Orientation::Horizontal, 6);
+        let panel = GtkBox::new(gtk4::Orientation::Horizontal, 8);
         panel.set_halign(gtk4::Align::End);
         panel.set_valign(gtk4::Align::Start);
-        panel.set_margin_top(8);
-        panel.set_margin_end(8);
+        panel.set_margin_top(10);
+        panel.set_margin_end(10);
+        // Полупрозрачная «пилюля» поверх удалённого экрана: кнопки видны
+        // и на светлом, и на тёмном рабочем столе.
+        panel.add_css_class("remotix-rdp-toolbar");
         let scale_btn = Button::with_label(scale_mode.get().label());
         scale_btn.set_tooltip_text(Some("Масштаб экрана: вписать / 1:1 / растянуть"));
         {
@@ -372,28 +375,34 @@ impl RdpViewer {
                     }
 
                     match conn.run() {
-                        Ok(true) => {
-                            if let Some((w, h)) = conn.image_size() {
-                                let pixels = conn.image_pixels();
-                                if !pixels.is_empty() && pixels != last.as_slice() {
-                                    last.clear();
-                                    last.extend_from_slice(pixels);
-                                    frames_since = frames_since.saturating_add(1);
-                                    let _ = tx_ui.send(ToUi::Frame {
-                                        width: u32::from(w),
-                                        height: u32::from(h),
-                                        pixels: last.clone(),
-                                    });
+                        Ok(active) => {
+                            if !active {
+                                if let Some(reason) = conn.close_reason() {
+                                    crate::logging::rdp_info(&format!(
+                                        "RDP-сессия завершена: {reason}"
+                                    ));
+                                    let _ = tx_ui.send(ToUi::State(SessionState::Closed));
+                                    return;
                                 }
                             }
-                        }
-                        Ok(false) => {
-                            if let Some(reason) = conn.close_reason() {
-                                crate::logging::rdp_info(&format!(
-                                    "RDP-сессия завершена: {reason}"
-                                ));
-                                let _ = tx_ui.send(ToUi::State(SessionState::Closed));
-                                return;
+                            // Кадр забираем не только после серверной рамки
+                            // (active): ввод мыши рисует курсор прямо в буфер
+                            // (image_dirty) — на простаивающем рабочем столе
+                            // сервер молчит, а курсор двигаться обязан.
+                            if active || conn.take_image_dirty() {
+                                if let Some((w, h)) = conn.image_size() {
+                                    let pixels = conn.image_pixels();
+                                    if !pixels.is_empty() && pixels != last.as_slice() {
+                                        last.clear();
+                                        last.extend_from_slice(pixels);
+                                        frames_since = frames_since.saturating_add(1);
+                                        let _ = tx_ui.send(ToUi::Frame {
+                                            width: u32::from(w),
+                                            height: u32::from(h),
+                                            pixels: last.clone(),
+                                        });
+                                    }
+                                }
                             }
                         }
                         Err(e) => {
@@ -620,6 +629,13 @@ impl RdpViewer {
         area.set_can_focus(true);
         let pressed = Rc::new(Cell::new(0u8));
         let pointer = Rc::new(Cell::new((0.0f64, 0.0f64)));
+
+        // Локальный курсор над удалённым экраном скрываем: указатель рисует
+        // сама RDP-сессия (программный рендеринг в кадровый буфер) — виден
+        // ровно один курсор, тот, что удалённая сторона считает нужным
+        // показать (стрелка, I-beam, «рука», скрытый курсор игр). Без
+        // скрытия поверх удалённого курсора висел бы локальный дубликат.
+        area.set_cursor_from_name(Some("none"));
 
         {
             let tx = tx_rdp.clone();

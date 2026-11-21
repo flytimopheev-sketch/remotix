@@ -167,8 +167,11 @@ impl MainWindow {
 
         let quick_box = GtkBox::new(Orientation::Vertical, 6);
         for m in ["margin-top", "margin-bottom", "margin-start", "margin-end"] {
-            quick_box.set_property(m, 8);
+            quick_box.set_property(m, 10);
         }
+        // Карточка: скруглённый фон выделит блок поиска/подключения
+        // над остальной панелью.
+        quick_box.add_css_class("remotix-quick");
         quick_box.append(&quick_entry);
         quick_box.append(&quick_btn);
 
