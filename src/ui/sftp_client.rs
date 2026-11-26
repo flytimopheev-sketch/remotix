@@ -44,9 +44,9 @@ impl SftpPanel {
         host_key: &crate::protocols::ssh::HostKeyConfig<'_>,
     ) -> Result<Self, String> {
         // Способы входа (пароль, ключ, ssh-agent) те же, что у терминала.
-        let username = profile.username.as_deref().unwrap_or("root");
+        let username = crate::protocols::ssh::effective_username(profile);
         let session =
-            crate::protocols::ssh::connect_session_with(profile, username, bastion, host_key)?;
+            crate::protocols::ssh::connect_session_with(profile, &username, bastion, host_key)?;
 
         // Начальный каталог — абсолютный путь домашнего каталога пользователя.
         // Относительные пути сервер SFTP разрешает от своего рабочего

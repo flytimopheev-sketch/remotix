@@ -97,6 +97,13 @@ impl RdpViewer {
 
         let spinner = Spinner::new();
         spinner.set_spinning(true);
+        // Дочерние виджеты GtkOverlay по умолчанию растягиваются на всю
+        // площадь и перехватывают указатель. Спиннер и подсказка — только
+        // индикаторы: они не должны становиться целью событий мыши, иначе
+        // DrawingArea под ними никогда не получит клик.
+        spinner.set_halign(gtk4::Align::Center);
+        spinner.set_valign(gtk4::Align::Center);
+        spinner.set_can_target(false);
 
         let hint = Label::new(Some("Подключение к удалённому рабочему столу…"));
         hint.add_css_class("remotix-empty");
@@ -105,6 +112,9 @@ impl RdpViewer {
         hint.set_wrap(true);
         hint.set_max_width_chars(60);
         hint.set_justify(gtk4::Justification::Center);
+        hint.set_halign(gtk4::Align::Center);
+        hint.set_valign(gtk4::Align::Center);
+        hint.set_can_target(false);
 
         let (tx_ui, rx_ui) = mpsc::channel::<ToUi>();
         let (tx_rdp, rx_rdp) = mpsc::channel::<ToRdp>();
@@ -514,6 +524,7 @@ impl RdpViewer {
                                         area.queue_draw();
                                     }
                                     spinner.set_spinning(false);
+                                    spinner.set_visible(false);
                                     hint.set_visible(false);
                                 }
                                 Err(e) => {
@@ -568,6 +579,7 @@ impl RdpViewer {
                                 }
                                 SessionState::Failed(e) => {
                                     spinner.set_spinning(false);
+                                    spinner.set_visible(false);
                                     quality.set_text("—");
                                     let prefix = if was_connected {
                                         "Сессия завершена с ошибкой"
@@ -579,6 +591,7 @@ impl RdpViewer {
                                 }
                                 SessionState::Closed => {
                                     spinner.set_spinning(false);
+                                    spinner.set_visible(false);
                                     quality.set_text("—");
                                     hint.set_text("Сессия завершена: сервер закрыл соединение.");
                                     hint.set_visible(true);

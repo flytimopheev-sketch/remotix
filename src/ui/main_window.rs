@@ -1909,11 +1909,20 @@ impl MainWindow {
                 return;
             }
         };
+        // SFTP живёт поверх SSH: для RDP/VNC-профиля открывать бессмысленно.
+        if profile.protocol != Protocol::Ssh {
+            self.set_status("SFTP доступен только для SSH-профилей");
+            return;
+        }
         self.check_host_then(profile, ConnectAction::Sftp);
     }
 
     /// Создаёт вкладку SFTP после проверки доступности узла.
     fn open_sftp_for_profile(&self, profile: Profile) {
+        if profile.protocol != Protocol::Ssh {
+            self.set_status("SFTP доступен только для SSH-профилей");
+            return;
+        }
         let title = format!("SFTP {}", profile.host);
         let restore_id = profile.id;
 

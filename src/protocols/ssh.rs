@@ -114,7 +114,7 @@ impl SshConnection {
 
     /// Подключение с настройками проверки ключа хоста.
     pub fn connect_with(&mut self, config: &HostKeyConfig<'_>) -> Result<(), String> {
-        let username = self.profile.username.clone().unwrap_or_else(whoami);
+        let username = effective_username(&self.profile);
         self.session = Some(connect_session_with(
             &self.profile,
             &username,
@@ -167,11 +167,7 @@ pub fn connect_session_with(
 ) -> Result<ssh2::Session, String> {
     let tcp = match bastion {
         Some(bastion) => {
-            let bastion_user = bastion
-                .username
-                .clone()
-                .filter(|u| !u.is_empty())
-                .unwrap_or_else(whoami);
+            let bastion_user = effective_username(bastion);
             let bastion_session = connect_direct(bastion, &bastion_user, config).map_err(|e| {
                 format!(
                     "не удалось подключиться к бастиону {}:{}: {e}",
@@ -222,51 +218,64 @@ fn handshake_and_auth(
         return Err(e);
     }
 
-    if let Some(key_path) = profile.ssh_key_path.as_deref() {
-        // Аутентификация по ключу (ssh-agent или прямой файл ключа).
-        if profile.ssh_options.use_agent && session.agent().is_ok() {
-            let mut agent = session.agent().map_err(|e| e.to_string())?;
-            agent.connect().map_err(|e| e.to_string())?;
-            agent.list_identities().map_err(|e| e.to_string())?;
-            let mut authenticated = false;
-            for id in agent.identities().map_err(|e| e.to_string())? {
-                if agent.userauth(username, &id).is_ok() {
-                    authenticated = true;
-                    break;
-                }
-            }
-            if !authenticated {
-                return Err("ни один ключ ssh-agent не подошёл".into());
-            }
-        } else {
-            session
-                .userauth_pubkey_file(
-                    username,
-                    None,
-                    Path::new(key_path),
-                    profile
-                        .ssh_key_passphrase
-                        .as_ref()
-                        .map(|p| p.expose_secret()),
-                )
-                .map_err(|e| format!("аутентификация по ключу не удалась: {e}"))?;
+    // Сначала пробуем все разрешённые способы входа, а не только первый:
+    // ssh-agent может быть запущен без нужного ключа, файл ключа может быть
+    // зашифрован, а пароль в профиле при этом рабочий. Раньше первая же
+    // неудача возвращала ошибку, и SFTP/терминал не подключались.
+    let mut errors: Vec<String> = Vec::new();
+    let mut authenticated = false;
+
+    if profile.ssh_options.use_agent {
+        match try_agent_auth(&session, username) {
+            Ok(true) => authenticated = true,
+            Ok(false) => errors.push("ни один ключ ssh-agent не подошёл".to_string()),
+            Err(e) => errors.push(format!("ssh-agent: {e}")),
         }
-    } else {
-        // Аутентификация по паролю (передаётся по зашифрованному SSH-каналу).
-        // Не клонируем пароль: libssh2 получает только ссылку на строку.
-        let password = profile
+    }
+
+    if !authenticated {
+        if let Some(key_path) = profile
+            .ssh_key_path
+            .as_deref()
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+        {
+            let key_path = expand_key_path(key_path);
+            match session.userauth_pubkey_file(
+                username,
+                None,
+                &key_path,
+                profile
+                    .ssh_key_passphrase
+                    .as_ref()
+                    .map(|p| p.expose_secret()),
+            ) {
+                Ok(()) => authenticated = true,
+                Err(e) => errors.push(format!("ключ {}: {e}", key_path.to_string_lossy())),
+            }
+        }
+    }
+
+    if !authenticated {
+        if let Some(password) = profile
             .password
             .as_ref()
             .map(|p| p.expose_secret())
             .filter(|p| !p.is_empty())
-            .ok_or("в профиле не задан пароль")?;
-        session
-            .userauth_password(username, password)
-            .map_err(|e| format!("аутентификация по паролю не удалась: {e}"))?;
+        {
+            match session.userauth_password(username, password) {
+                Ok(()) => authenticated = true,
+                Err(e) => errors.push(format!("пароль: {e}")),
+            }
+        }
     }
 
-    if !session.authenticated() {
-        return Err("аутентификация не пройдена".into());
+    if !authenticated || !session.authenticated() {
+        return Err(if errors.is_empty() {
+            "в профиле не задан пароль или ключ SSH".to_string()
+        } else {
+            format!("аутентификация не пройдена ({})", errors.join("; "))
+        });
     }
 
     // Блокирующие операции после входа не должны иметь 30-секундный лимит:
@@ -761,8 +770,49 @@ impl SshConnection {
     }
 }
 
+/// Логин SSH: явный из профиля, иначе имя текущего пользователя ОС.
+///
+/// Пустая строка и пробелы — это «логин не задан», а не валидное имя:
+/// иначе SFTP подключался как пользователь с пустым именем и сервер
+/// отвечал отказом.
+pub fn effective_username(profile: &Profile) -> String {
+    profile
+        .username
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(whoami)
+}
+
+/// Пробует войти через ssh-agent. `Ok(false)` — агент доступен, но ни один
+/// ключ не подошёл; это не фатально, дальше пробуем файл ключа и пароль.
+fn try_agent_auth(session: &ssh2::Session, username: &str) -> Result<bool, String> {
+    let mut agent = session.agent().map_err(|e| e.to_string())?;
+    agent.connect().map_err(|e| e.to_string())?;
+    agent.list_identities().map_err(|e| e.to_string())?;
+    for identity in agent.identities().map_err(|e| e.to_string())? {
+        if agent.userauth(username, &identity).is_ok() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Раскрывает `~/…` в домашний каталог: путь из профиля часто копируют из
+/// документации OpenSSH, а libssh2 не понимает тильду.
+fn expand_key_path(path: &str) -> PathBuf {
+    let rest = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\"));
+    match rest {
+        Some(rest) => crate::config::home_dir().join(rest),
+        None => PathBuf::from(path),
+    }
+}
+
 fn whoami() -> String {
-    std::env::var("USER").unwrap_or_else(|_| "root".to_string())
+    std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| "root".to_string())
 }
 
 #[cfg(test)]

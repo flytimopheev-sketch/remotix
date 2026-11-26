@@ -565,13 +565,6 @@ pub struct RdpConnection {
     /// Неотправленные байты ввода: сокет неблокирующий, запись может
     /// вернуть WouldBlock — кадр нельзя терять, его дописываем позже.
     outgoing: Vec<u8>,
-    /// Каналы MCS: медленный путь ввода адресуется на I/O-канал от имени
-    /// пользовательского канала.
-    io_channel_id: u16,
-    user_channel_id: u16,
-    /// Идентификатор общего ресурса из ConnectionResult: нужен для Share Data
-    /// Header в slow-path вводе мыши.
-    share_id: u32,
     /// Сессия завершена штатно (сервер закрыл соединение). В отличие от
     /// ошибки, UI показывает «сессия закрыта», а не красный статус.
     close_reason: Option<String>,
@@ -605,9 +598,6 @@ impl RdpConnection {
             image: None,
             decode_errors: 0,
             outgoing: Vec::new(),
-            io_channel_id: 0,
-            user_channel_id: 0,
-            share_id: 0,
             close_reason: None,
             security: RdpSecurity::Unknown,
             input_sent_at: None,
@@ -632,9 +622,6 @@ impl RdpConnection {
             desktop_size.height,
         ));
 
-        self.io_channel_id = connection_result.io_channel_id;
-        self.user_channel_id = connection_result.user_channel_id;
-        self.share_id = connection_result.share_id;
         self.close_reason = None;
 
         self.stage = Some(
@@ -1118,6 +1105,32 @@ fn security_modes(nla: bool, allow_legacy: bool) -> Vec<(bool, bool, bool)> {
     modes
 }
 
+/// Переводит ошибку согласования в понятный текст, когда IronRDP сообщил
+/// «client advertised …, but server selected …».
+///
+/// Так бывает, когда сервер выбрал протокол, который клиент не предлагал:
+/// например RED OS/xrdp с `security_layer=rdp` выбирает Standard RDP
+/// Security (RC4), а профиль разрешает только TLS/NLA. Без перевода
+/// пользователь видит битые флаги протокола вместо причины и не знает,
+/// что нужно включить в свойствах профиля.
+fn security_transport_error(legacy: bool, message: String) -> String {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("client advertised") && lower.contains("server selected") {
+        return if legacy {
+            "сервер требует Enhanced RDP Security (TLS/NLA), а в профиле разрешён \
+             только Standard RDP Security (RC4). Отключите «Разрешить незащищённый \
+             RDP (RC4)» и повторите подключение"
+                .to_string()
+        } else {
+            "сервер выбрал Standard RDP Security (RC4 без TLS). Включите в свойствах \
+             профиля «Разрешить незащищённый RDP (RC4)», если этот сервер \
+             действительно не поддерживает NLA/TLS"
+                .to_string()
+        };
+    }
+    message
+}
+
 /// TCP-подключение с общим дедлайном на все адреса хоста.
 ///
 /// `TcpStream::connect` использует системный тайм-аут: при выключенном хосте
@@ -1321,7 +1334,10 @@ impl RdpConnection {
             platform: ironrdp_pdu::rdp::capability_sets::MajorPlatformType::UNIX,
             hardware_id: None,
             request_data: None,
-            autologon: false,
+            // xrdp и другие не-Windows серверы используют Client Info для
+            // автоматического входа. Без этого флага они показывают экран
+            // логина даже при сохранённых в профиле учётных данных.
+            autologon: !password.is_empty(),
             enable_audio_playback: false,
             performance_flags: ironrdp_pdu::rdp::client_info::PerformanceFlags::default(),
             license_cache: None,
@@ -1348,8 +1364,13 @@ impl RdpConnection {
         }
 
         // 5. Запускаем процедуру подключения (до TLS-апгрейда)
-        let should_upgrade = ironrdp_blocking::connect_begin(&mut framed, &mut connector)
-            .map_err(|e| format!("ошибка начала RDP-подключения: {}", describe_error(&e)))?;
+        let should_upgrade =
+            ironrdp_blocking::connect_begin(&mut framed, &mut connector).map_err(|e| {
+                security_transport_error(
+                    legacy,
+                    format!("ошибка начала RDP-подключения: {}", describe_error(&e)),
+                )
+            })?;
 
         // 6. Апгрейд безопасности: либо Standard RDP Security (без TLS),
         //    либо TLS-рукопожатие поверх уже открытого TCP-соединения.
@@ -1675,7 +1696,7 @@ impl RdpConnection {
         self.send_key(CTRL, false);
     }
 
-    /// Отправить движение/клик мыши (slow-path `TS_INPUT_PDU`).
+    /// Отправить движение/клик мыши (fast-path Mouse-событие).
     ///
     /// `buttons` — маска [`MOUSE_LEFT`]/[`MOUSE_RIGHT`]/[`MOUSE_MIDDLE`].
     /// При отпускании кнопки маска должна содержать отпускаемую кнопку, а
@@ -1726,7 +1747,7 @@ impl RdpConnection {
         flags
     }
 
-    /// Отправить колесо мыши (slow-path Mouse-событие с вертикальным колесом).
+    /// Отправить колесо мыши (fast-path Mouse-событие с вертикальным колесом).
     /// `delta` — щелчки колеса (положительные — вверх); один щелчок = 120 единиц.
     pub fn send_wheel(&mut self, x: u32, y: u32, delta: i32) {
         // WheelRotationMask — 9-битное число в дополнительном коде, диапазон
@@ -2030,6 +2051,25 @@ mod tests {
         }
     }
 
+    #[test]
+    fn security_transport_mismatch_is_reported_before_tls() {
+        // Сервер выбрал протокол, который клиент не предлагал: без перевода
+        // пользователь видит «client advertised …, but server selected …».
+        let mismatch = "ошибка начала RDP-подключения: client advertised 1, \
+                        but server selected 0"
+            .to_string();
+        let err = security_transport_error(false, mismatch.clone());
+        assert!(err.contains("Standard RDP Security"), "{err}");
+        assert!(err.contains("Разрешить незащищённый RDP"), "{err}");
+
+        let err = security_transport_error(true, mismatch);
+        assert!(err.contains("Enhanced RDP Security"), "{err}");
+
+        // Обычные ошибки не подменяются.
+        let plain = "ошибка начала RDP-подключения: не удалось подключиться".to_string();
+        assert_eq!(security_transport_error(false, plain.clone()), plain);
+    }
+
     /// Проверяет подключение к RDP-серверу и получение кадра рабочего стола.
     ///
     /// Требует запущенного RDP-сервера на `127.0.0.1:3389` (в CI это
@@ -2072,8 +2112,8 @@ mod tests {
         assert!(!conn.image_pixels().is_empty(), "кадр пустой");
         assert!(got_frame, "кадр не получен");
 
-        // Обратное направление: проверяем, что slow-path ввод мыши
-        // (Share Control + Share Data) не разрывает сессию.
+        // Обратное направление: проверяем, что fast-path ввод мыши
+        // не разрывает сессию.
         conn.send_mouse(10, 10, 0, MouseEvent::Move);
         conn.send_mouse(10, 10, MOUSE_LEFT, MouseEvent::ButtonDown);
         conn.send_mouse(10, 10, MOUSE_LEFT, MouseEvent::ButtonUp);
@@ -2277,6 +2317,151 @@ mod tests {
         let mut q = vec![0u8; 10];
         assert!(queue_input(&mut q, vec![0u8; MAX_PENDING_INPUT - 10]));
         assert_eq!(q.len(), MAX_PENDING_INPUT);
+    }
+
+    /// Разбирает fast-path кадр до списка событий ввода.
+    fn decode_fast_path_events(
+        frame: &[u8],
+    ) -> Vec<ironrdp_pdu::input::fast_path::FastPathInputEvent> {
+        use ironrdp_pdu::input::fast_path::FastPathInput;
+
+        let input = ironrdp_pdu::decode::<FastPathInput>(frame).expect("не FastPathInput");
+        input.input_events().to_vec()
+    }
+
+    /// Соединение, готовое к отправке ввода: есть stage и кадровый буфер
+    /// (иначе `send_pointer_events` молча не делает ничего), но сокета нет —
+    /// `flush_outgoing` не трогает очередь, и кадры остаются в `outgoing`.
+    fn input_ready_connection() -> RdpConnection {
+        use ironrdp_graphics::image_processing::PixelFormat;
+        use ironrdp_session::image::DecodedImage;
+        use ironrdp_session::ActiveStageBuilder;
+        use ironrdp_svc::StaticChannelSet;
+
+        let mut conn = RdpConnection::new(test_profile());
+        conn.image = Some(DecodedImage::new(PixelFormat::BgrA32, 1024, 768));
+        conn.stage = Some(
+            ActiveStageBuilder {
+                static_channels: StaticChannelSet::new(),
+                user_channel_id: 1001,
+                io_channel_id: 1002,
+                message_channel_id: None,
+                share_id: 0,
+                compression_type: None,
+                enable_server_pointer: true,
+                pointer_software_rendering: true,
+                security: None,
+            }
+            .build(),
+        );
+        conn
+    }
+
+    /// Кадр мыши — fast-path: событие Mouse с полными 16-битными
+    /// pointerFlags, без обёртки Share Control/Share Data.
+    #[test]
+    fn mouse_frame_is_fast_path_with_full_pointer_flags() {
+        use ironrdp_pdu::input::fast_path::FastPathInputEvent;
+        use ironrdp_pdu::input::mouse::PointerFlags;
+
+        let mut conn = input_ready_connection();
+        conn.send_mouse(0x1234, 0x0abc, MOUSE_LEFT, MouseEvent::ButtonDown);
+        // Заголовок FastPathInput: action=00, numEvents=1 → 0x04; за ним
+        // длина данных, затем eventHeader события Mouse (код 1 в битах 5..8).
+        assert_eq!(conn.outgoing[0], 0x04, "заголовок FastPathInput");
+        assert_eq!(conn.outgoing[2], 0x20, "eventHeader: Mouse, flags=0");
+
+        let events = decode_fast_path_events(&conn.outgoing);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FastPathInputEvent::MouseEvent(m) => {
+                assert_eq!((m.x_position, m.y_position), (0x1234, 0x0abc));
+                assert_eq!(m.flags, PointerFlags::LEFT_BUTTON | PointerFlags::DOWN);
+                assert_eq!(m.number_of_wheel_rotation_units, 0);
+            }
+            other => panic!("ожидалось событие мыши, получено {other:?}"),
+        }
+    }
+
+    #[test]
+    fn mouse_frame_encodes_wheel_rotation() {
+        use ironrdp_pdu::input::fast_path::FastPathInputEvent;
+        use ironrdp_pdu::input::mouse::PointerFlags;
+
+        for delta in [120i16, -120i16] {
+            let pdu = ironrdp_pdu::input::MousePdu {
+                flags: PointerFlags::VERTICAL_WHEEL,
+                number_of_wheel_rotation_units: delta,
+                x_position: 1,
+                y_position: 2,
+            };
+            let input = ironrdp_pdu::input::fast_path::FastPathInput::single(
+                FastPathInputEvent::MouseEvent(pdu),
+            );
+            let frame = ironrdp_pdu::encode_vec(&input).expect("fast-path кадр");
+            let events = decode_fast_path_events(&frame);
+            match &events[0] {
+                FastPathInputEvent::MouseEvent(m) => {
+                    assert!(
+                        m.flags.contains(PointerFlags::VERTICAL_WHEEL),
+                        "потерян флаг колеса для {delta}"
+                    );
+                    assert_eq!(
+                        m.number_of_wheel_rotation_units, delta,
+                        "вращение {delta} не пережило кодирование"
+                    );
+                    assert_eq!(
+                        m.flags.contains(PointerFlags::WHEEL_NEGATIVE),
+                        delta < 0,
+                        "знак колеса для {delta}"
+                    );
+                }
+                other => panic!("ожидалось событие мыши, получено {other:?}"),
+            }
+        }
+    }
+
+    /// В fast-path вводе нет MCS/Share Control Header: первый байт — заголовок
+    /// FastPathInput (action=00, numEvents=1), третий — eventHeader события
+    /// Mouse (код 1 в битах 5..8, eventFlags в младших 5 битах = 0).
+    #[test]
+    fn mouse_frame_has_no_share_control_header() {
+        let mut conn = input_ready_connection();
+        conn.send_mouse(640, 480, 0, MouseEvent::Move);
+        assert_eq!(
+            conn.outgoing[0], 0x04,
+            "FastPathInput: action=00, 1 событие"
+        );
+        assert_eq!(conn.outgoing[2], 0x20, "eventHeader: Mouse, flags=0");
+        assert_ne!(conn.outgoing[0], 0x03, "не TPKT/MCS");
+    }
+
+    #[test]
+    fn send_wheel_round_trips_negative_rotation() {
+        use ironrdp_pdu::input::fast_path::FastPathInputEvent;
+        use ironrdp_pdu::input::mouse::PointerFlags;
+
+        for notches in [1, -1] {
+            let mut conn = input_ready_connection();
+            conn.send_wheel(10, 20, notches);
+            let events = decode_fast_path_events(&conn.outgoing);
+            match &events[0] {
+                FastPathInputEvent::MouseEvent(m) => {
+                    assert_eq!(
+                        m.number_of_wheel_rotation_units,
+                        i16::try_from(notches * 120).expect("щелчки влезают в i16"),
+                        "вращение для {notches} щелчка(ов)"
+                    );
+                    assert_eq!(
+                        m.flags.contains(PointerFlags::WHEEL_NEGATIVE),
+                        notches < 0,
+                        "знак колеса для {notches}"
+                    );
+                    assert_eq!((m.x_position, m.y_position), (10, 20));
+                }
+                other => panic!("ожидалось событие мыши, получено {other:?}"),
+            }
+        }
     }
 
     #[test]

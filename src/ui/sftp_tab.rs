@@ -317,6 +317,9 @@ impl SftpTab {
             let entries_ref = remote_entries.clone();
 
             glib::timeout_add_local(Duration::from_millis(150), move || {
+                // До подтверждённого подключения любая ошибка — это ошибка
+                // начального соединения, а не сбой отдельной операции.
+                let mut connected = false;
                 loop {
                     match rx_ui.try_recv() {
                         Ok(ToUi::Remote(files, path)) => {
@@ -333,11 +336,12 @@ impl SftpTab {
                         }
                         Ok(ToUi::Status(s)) => {
                             status_out.set_text(&s);
+                            connected = true;
                             on_state(SessionState::Connected);
                         }
                         Ok(ToUi::Error(e)) => {
                             status_out.set_text(&crate::logging::sanitize(&e));
-                            if crate::protocols::ssh::is_host_key_mismatch(&e) {
+                            if !connected || crate::protocols::ssh::is_host_key_mismatch(&e) {
                                 on_state(SessionState::Failed(e.clone()));
                             }
                         }
